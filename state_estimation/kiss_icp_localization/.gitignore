@@ -1,0 +1,23 @@
+# colcon / ament build artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Maps / point clouds (large, not source)
+*.pcd
+*.bag
+*.db3
+*.ply
+maps/
+map/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

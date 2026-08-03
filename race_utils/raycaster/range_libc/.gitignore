@@ -1,0 +1,15 @@
+paper/
+build/
+tmp/
+dist/
+
+pywrapper/*.so
+pywrapper/test.png
+.DS_Store
+paper/data/basement
+paper/data/synthetic
+._.*
+paper/bak
+pywrapper/watch.sh
+pywrapper/dist/
+pywrapper/*egg-info/

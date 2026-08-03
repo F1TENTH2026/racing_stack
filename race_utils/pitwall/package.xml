@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>pitwall</name>
+  <version>0.0.1</version>
+  <description>
+    Ergonomic one-line telemetry logging for the UNICORN racing stack.
+    pitwall::log("speed", 2.0) publishes on /pitwall/* only when a recorder is
+    present (no-op otherwise); the recorder node captures /pitwall/* plus sensor
+    topics into a single MCAP for Foxglove.
+  </description>
+  <maintainer email="kwonc@unist.ac.kr">js</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+
+  <!-- RViz Sim Control + telemetry panel -->
+  <depend>rviz_common</depend>
+  <depend>pluginlib</depend>
+  <depend>qtbase5-dev</depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ros2bag</exec_depend>
+  <exec_depend>rosbag2_transport</exec_depend>
+  <exec_depend>rosbag2_storage_mcap</exec_depend>
+  <!-- Live viewing (record.launch.py live:=true / live.launch.py). Optional at
+       runtime; install with: apt install ros-<distro>-foxglove-bridge -->
+  <exec_depend>foxglove_bridge</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

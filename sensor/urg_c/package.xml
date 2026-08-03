@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>urg_c</name>
+  <version>1.0.4001</version><!-- Format is urg three digit dot, followed by ROS 2 three digit update.  Example 1.0.4 becomes 1.0.4000 -->
+  <description>The urg_c package</description>
+
+  <maintainer email="mfergs7@gmail.com">Michael Ferguson</maintainer>
+  <maintainer email="chadrockey@gmail.com">Chad Rockey</maintainer>
+  <maintainer email="tony.baltovski@gmail.com">Tony Baltovski</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">http://sourceforge.net/projects/urgwidget/</url>
+  <url type="bugtracker">https://github.com/ros-drivers/urg_c/issues</url>
+  <url type="repository">https://github.com/ros-drivers/urg_c</url>
+
+  <author email="satofumi@users.sourceforge.net">Satofumi Kamimura</author>
+  <author>Katsumi Kimoto</author>
+  <author>Adrian Boeing</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

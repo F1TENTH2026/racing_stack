@@ -1,0 +1,10 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+
+# colcon / ROS 2 build trees (if someone builds inside the submodule)
+build/
+install/
+log/

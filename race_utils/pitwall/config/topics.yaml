@@ -1,0 +1,11 @@
+# Sensor topics to capture into the SAME MCAP alongside /pitwall/*.
+# The recorder uses a single regex; add sensors to it via the launch arg:
+#
+#   ros2 launch pitwall record.launch.py \
+#     topic_regex:='/pitwall/.*|/scan|/imu|/camera/.*'
+#
+# This file is just a reference list of the topics you typically record.
+sensor_topics:
+  - /scan
+  - /imu
+  # - /camera/image_raw

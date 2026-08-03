@@ -1,0 +1,45 @@
+/**:
+  ros__parameters:
+    wheelbase: 0.33
+    scan_topic: 'scan'
+    odometry_topic: 'vesc/odom'
+
+urg_node:
+  ros__parameters:
+    angle_max: 3.14
+    angle_min: -3.14
+    ip_address: "192.168.0.10"
+    ip_port: 10940
+    laser_frame_id: "laser"
+    calibrate_time: false
+    default_user_latency: 0.0
+    diagnostics_tolerance: 0.05
+    diagnostics_window_time: 5.0
+    error_limit: 4
+    get_detailed_status: false
+    publish_intensity: true
+    publish_multiecho: false
+    cluster: 1
+    skip: 0
+
+vesc/**:
+  ros__parameters:
+    port: "/dev/ttyACM0"
+    publish_tf: false
+    brake_max: 200000.0
+    brake_min: -20000.0
+    current_max: 100.0
+    current_min: 0.0
+    duty_cycle_max: 0.0
+    duty_cycle_min: 0.0
+    position_max: 0.0
+    position_min: 0.0
+    servo_max: 1.0
+    servo_min: 0.0
+    speed_max: 23250.0
+    speed_min: -23250.0
+    speed_to_erpm_gain: 4614.0
+    speed_to_erpm_offset: 0.0
+    steering_angle_to_servo_gain: -1.2135
+    steering_angle_to_servo_offset: 0.5304
+    use_servo_cmd_to_calc_angular_velocity: true

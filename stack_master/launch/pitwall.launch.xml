@@ -1,0 +1,16 @@
+<!-- -*- mode: XML -*- -->
+<!--
+  pitwall.launch.xml — open RViz with the stack_master pitwall config (Sim Control
+  + telemetry panel). Mirrors pitwall/launch/pitwall.launch.py but uses the rviz
+  config shipped in stack_master. More tools may be added here later.
+-->
+<launch>
+  <arg name="rviz_config"
+       default="$(find-pkg-share stack_master)/config/pitwall.rviz"
+       description="RViz config to load"/>
+  <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"
+        args="-d $(var rviz_config)"/>
+
+  <node pkg="rqt_reconfigure" exec="rqt_reconfigure" name="rqt_reconfigure" output="screen"/>
+</launch>
+

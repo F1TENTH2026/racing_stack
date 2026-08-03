@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>kiss_icp_localization</name>
+  <version>0.1.0</version>
+  <description>
+    KISS-ICP style map-based LiDAR localization for Livox MID360.
+    Registers incoming scans against a prior map (PCD) with robust
+    point-to-point ICP; IMU gyro fills in between LiDAR frames
+    (deskew, motion prediction, high-rate odometry).
+  </description>
+  <maintainer email="freshleesh@gmail.com">freshleesh</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>pcl_conversions</depend>
+  <depend>visualization_msgs</depend>
+  <build_depend>eigen</build_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

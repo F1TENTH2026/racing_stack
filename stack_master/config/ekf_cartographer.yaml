@@ -1,0 +1,29 @@
+ekf_localization:
+  ros__parameters:
+
+    frequency     : 100.0
+    sensor_timeout: 0.1
+    two_d_mode    : true
+    publish_tf    : true  # Cartographer already publishes map→odom TF
+
+    odom_frame     : base_link
+    base_link_frame: base_link
+    world_frame    : map        # absolute pose in map frame
+
+    # VESC wheel odometry: use twist only (vx, vyaw)
+    odom0: /vesc/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+
+    # Cartographer tracked pose (converted PoseStamped → Odometry): use position + yaw
+    odom1: /tracked_pose/odom
+    odom1_config: [true,  true,  false,
+                   false, false, true,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: false

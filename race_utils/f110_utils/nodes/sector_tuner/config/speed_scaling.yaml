@@ -1,0 +1,18 @@
+speed_sector_tuner:
+  ros__parameters:
+    global_limit: 1.0
+    n_sectors: 2
+    save_params: false
+    save_yaml_path: ''
+    Sector0:
+      start: 0
+      end: 50
+      scaling: 1.0
+      only_FTG: false
+      no_FTG: false
+    Sector1:
+      start: 51
+      end: 108
+      scaling: 1.0
+      only_FTG: false
+      no_FTG: false

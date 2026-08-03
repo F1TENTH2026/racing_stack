@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>virtual_perception</name>
+  <version>0.0.0</version>
+  <description>
+    Manages virtual objects (opponents + static obstacles) and injects them into
+    the perception stack of a real OR simulated f1tenth car, for practice. Two
+    independent man-in-the-middle seams: (1) a LiDAR overlay (base /scan_raw ->
+    /scan, each vehicle sees every virtual object EXCEPT itself) and (2) a
+    tracking merge (real /tracking/obstacles_raw + virtual -> /tracking/obstacles,
+    ego excluded). Both are toggled from the Sim Control panel / launch. The base
+    map scan is produced by the simulator (gym) or the real LiDAR; this package
+    only overlays/merges, it does not raycast (that stays in `raycaster`).
+  </description>
+  <maintainer email="kwonc@unist.ac.kr">js</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>ackermann_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>f110_msgs</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>python-transforms3d-pip</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

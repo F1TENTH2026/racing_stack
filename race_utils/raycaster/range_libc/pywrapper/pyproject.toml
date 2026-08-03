@@ -1,0 +1,7 @@
+[build-system]
+# pybind11 is the ONLY build dependency now (header-only). Unlike the old Cython
+# build it does NOT pull numpy at build time, so pip build-isolation no longer
+# installs a fresh PyPI numpy — which is what broke on some macOS (Accelerate
+# ILP64). This builds with isolation OR with --no-build-isolation on any OS.
+requires = ["setuptools>=64", "wheel", "pybind11>=2.10"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,48 @@
+# unicorn-racing-stack — PyPI-only Python deps (INSTALL.md A5)
+#
+# These are NOT on the conda/robostack channels, so they go through pip.
+# Versions captured from the verified-working environment (Linux, 2026-06).
+#
+# Install AFTER `conda activate unicorn`:
+#     pip install -r requirements.txt
+#
+# Then install the gym core editable (it carries a COLCON_IGNORE, so colcon
+# does not build it). It now lives in the `unicorn_gym` submodule:
+#     pip install -e race_utils/unicorn_gym/f1tenth_gym      # provides f110_gym
+# (environment.yml's pip section already does this for Path A.)
+
+# numba >=0.65 supports numpy 2.x (RoboStack ships numpy 2.4). The old 0.60 pin
+# hard-rejects numpy>=2.1 at import, which forced the gym onto the pure-Python
+# numba_free fallback (slow). 0.65 lets the @njit dynamics actually JIT-compile.
+numba>=0.65
+gymnasium==0.29.1
+casadi==3.7.2
+trajectory_planning_helpers==0.79
+tqdm
+filterpy==1.4.5
+
+# elrs_joy declares this as the rosdep/apt package `python3-serial` in its
+# package.xml, which is never resolved in this conda+pip build (no rosdep
+# step) -> ModuleNotFoundError: No module named 'serial' at node startup.
+pyserial
+
+# pynput (keyboard teleop -> /joy_keyboard for keyboard_joy_node) is installed
+# via environment.yml, NOT here. On Linux, `pip install pynput` drags in evdev,
+# whose source-only PyPI wheel compiles against the kernel's
+# linux/input-event-codes.h and hard-fails on hosts whose headers lack recent key
+# codes (older distros like Ubuntu 20.04, and the conda toolchain's isolated
+# sysroot). conda-forge ships a prebuilt evdev, so pynput is pinned in the conda
+# layer instead. Do NOT add `pynput` back here — it re-breaks the build on those
+# hosts. See the pynput note in environment.yml.
+
+# scipy is pinned here because the verified env had a pip scipy shadowing the
+# conda one. If you prefer the conda build, move this to environment.yml instead.
+scipy==1.17.1
+
+# --- Listed in INSTALL.md A5 but ABSENT from the verified-working env ---
+# The build succeeded without them, so they are commented out. Uncomment if a
+# module that imports them ends up on your build/run path.
+scikit-learn
+scikit-image
+matplotlib    # gp_traj_predictor predictor_opponent_trajectory imports matplotlib.pyplot
+# shapely

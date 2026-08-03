@@ -1,0 +1,98 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Plane Cell Count: 40
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PriorMap
+      Enabled: true
+      Topic:
+        Value: /kiss_loc/map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Style: Points
+      Size (Pixels): 1
+      Color Transformer: AxisColor
+      Axis: Z
+    - Class: rviz_default_plugins/PointCloud2
+      Name: AlignedScan
+      Enabled: true
+      Topic:
+        Value: /kiss_loc/scan_aligned
+        Reliability Policy: Best Effort
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: FlatColor
+      Color: 255; 60; 60
+    # ---- 2D localization view: track raster backdrop + flattened scan ----
+    - Class: rviz_default_plugins/Map
+      Name: TrackMap2D
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: map
+      Alpha: 0.7
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Scan2D
+      Enabled: true
+      Topic:
+        Value: /kiss_loc/scan_2d
+        Reliability Policy: Best Effort
+      Style: Points
+      Size (Pixels): 4
+      Color Transformer: FlatColor
+      Color: 60; 255; 120
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Enabled: true
+      Topic:
+        Value: /kiss_loc/odometry
+        Reliability Policy: Reliable
+      Keep: 200
+      Position Tolerance: 0.05
+      Angle Tolerance: 0.05
+      Shape:
+        Value: Arrow
+        Shaft Length: 0.3
+        Head Length: 0.15
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+  Views:
+    Current:
+      # top-down orthographic so the flattened scan_2d overlays the /map raster 1:1
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 25
+      X: 8
+      Y: 8
+      Angle: 0
+    Saved:
+      - Class: rviz_default_plugins/Orbit
+        Name: Orbit3D
+        Distance: 40
+        Pitch: 1.2
+        Yaw: 0
+        Focal Point:
+          X: 8
+          Y: 8
+          Z: 0
+Window Geometry:
+  Height: 900
+  Width: 1400

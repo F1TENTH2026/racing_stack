@@ -1,0 +1,32 @@
+state_machine:
+  ros__parameters:
+    # structural
+    rate: 80
+    n_loc_wpnts: 80
+    timetrials_only: false
+    sim: true
+    measure: false
+    racecar_version: "CAR"
+    ot_planner: "lane_change"
+    track_length: 1.0
+    # geometry / horizons
+    gb_ego_width_m: 0.4
+    gb_horizon_m: 15.0
+    interest_horizon_m: 20.0
+    overtaking_horizon_m: 6.9
+    emergency_break_horizon: 0.5
+    # safety
+    volt_threshold: 11.0
+    # dynamic (replaces dyn_statemachine_tuner.cfg)
+    lateral_width_gb_m: 0.3
+    lateral_width_ot_m: 0.3
+    splini_hyst_timer_sec: 0.7
+    splini_ttl: 2.0
+    pred_splini_ttl: 2.0
+    overtaking_ttl_sec: 3.0
+    overtake_min_closing_mps: 2.5
+    ftg_speed_mps: 0.1
+    ftg_timer_sec: 3.0
+    ftg_active: false
+    force_GBTRACK: false
+    use_force_trailing: false

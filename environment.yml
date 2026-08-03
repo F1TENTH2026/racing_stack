@@ -1,0 +1,143 @@
+# unicorn-racing-stack — RoboStack ROS 2 Jazzy (conda) environment
+#
+# Reproducible spec captured from a verified-working environment (Linux, 2026-06).
+# Versions are pinned (no build strings) so this also resolves on macOS.
+#
+# This file installs the CONDA layer only (ROS 2 Jazzy + toolchain + pinned libs).
+# The pip layer (requirements.txt + editable gym core + range_libc) is a SEPARATE
+# step done AFTER you enter the env with `source thirdimpact.sh` — see INSTALL.md
+# (A1-A5). Running pip under thirdimpact.sh (which sets PYTHONNOUSERSITE=1) is what
+# keeps a stale ~/.local/lib/python* from shadowing the env during install (else
+# pip treats the ~/.local copies as "already satisfied" and skips the env).
+#
+#     conda env create -f environment.yml   # conda layer -> env `thirdimpact`
+#     source thirdimpact.sh                  # enter env (sets PYTHONNOUSERSITE=1)
+#     pip install -r requirements.txt        # ...then the pip layer (INSTALL.md A3)
+
+name: thirdimpact
+
+channels:
+  - robostack-jazzy
+  - conda-forge
+
+dependencies:
+  # --- interpreter ---
+  - python=3.12.13
+
+  # --- ROS 2 Jazzy (RoboStack desktop) ---
+  - ros-jazzy-desktop=0.11.0
+
+  # --- build tooling (INSTALL.md A3) ---
+  - compilers=1.11.0
+  - cmake=4.3.4
+  - make=4.4.1
+  - ninja=1.13.2
+  - pkg-config=0.29.2
+  - colcon-common-extensions=0.3.0
+  - rosdep=0.26.0
+
+  # --- extra ROS package deps the desktop meta does not pull (INSTALL.md A4) ---
+  # NOTE: asio_cmake_module / io_context / serial_driver are NOT listed here.
+  # robostack-jazzy does not ship them on every arch (e.g. linux-aarch64), so the
+  # vesc transport stack is VENDORED from source under sensor/transport_drivers/
+  # and built by colcon. Only the base `asio` library (pinned below) comes from conda.
+  - ros-jazzy-ackermann-msgs=2.0.2
+  # cartographer / cartographer_ros are BUILT FROM SOURCE (vendored under
+  # state_estimation/cartographer{,_ros}/), NOT installed from conda. The robostack
+  # binary `ros-jazzy-cartographer-ros=2.0.9003` ships an internally-inconsistent
+  # build: the node executable defines the gflags symbol FLAGS_collect_metrics while
+  # libcartographer_ros.so requires FLAGS_collect_metricz (one char off) -> the node
+  # dies at launch with "undefined symbol _ZN3fLB21FLAGS_collect_metriczE". Building
+  # from source links cartographer statically into libcartographer_ros.so, so the
+  # symbol mismatch cannot happen. (See abseil_compat.h in the cartographer sources:
+  # newer abseil dropped the legacy unprefixed thread-annotation macros, so a shim
+  # remaps GUARDED_BY/LOCKS_EXCLUDED -> ABSL_* for the build.)
+  #
+  # The packages below are cartographer's BUILD dependencies that the conda
+  # cartographer-ros package used to pull in transitively. They must be listed
+  # explicitly now, or `colcon build` of the vendored sources fails on a fresh env.
+  # CPU build (build string `h*`, not `gpu*`). The GPU variant's CeresConfig.cmake
+  # forces find_dependency(CUDAToolkit), which fails on any env without the full
+  # CUDA toolkit (nvcc) — and breaks the macOS/Orin targets too. cartographer does
+  # not need GPU ceres.
+  - ceres-solver=2.2.0=h*
+  - gflags=2.2.2
+  - glog=0.7.1
+  - lua=5.4.8
+  - cairo=1.18.4
+  - libboost-devel=1.88.0
+  - libprotobuf=6.31.1
+  - pcl=1.15.1
+  - ros-jazzy-pcl-conversions=2.6.2
+  - ros-jazzy-diagnostic-updater=4.2.6
+  - ros-jazzy-foxglove-bridge=3.2.4
+  - ros-jazzy-joint-state-publisher=2.4.1
+  - ros-jazzy-nav2-lifecycle-manager=1.3.11
+  - ros-jazzy-nav2-map-server=1.3.11
+  - ros-jazzy-nav2-msgs=1.3.11
+  - ros-jazzy-robot-localization=3.8.3
+  - ros-jazzy-rosbag2-storage-mcap=0.26.9
+  # rqt itself + common plugins come with ros-jazzy-desktop, but rqt_tf_tree is a
+  # separate package the desktop meta does NOT pull. After a fresh install rqt's
+  # plugin cache may not see it — run once with:
+  #   ros2 run rqt_tf_tree rqt_tf_tree --force-discover
+  - ros-jazzy-rqt-tf-tree=1.0.5
+  - ros-jazzy-teleop-twist-keyboard=2.4.1
+  - ros-jazzy-tf-transformations=1.1.0
+  - ros-jazzy-xacro=2.1.1
+
+  # --- conda-provided python libs (INSTALL.md A4 tail) ---
+  - opencv=4.12.0
+  - transforms3d=0.4.2
+  - matplotlib-base=3.11.0
+  # quadprog is a dependency of trajectory_planning_helpers (requirements.txt).
+  # Left to pip it pulls a PyPI build that links against the wrong numpy ABI and
+  # imports broken ("ghost install"), needing a manual
+  #   conda install --force-reinstall -c conda-forge quadprog=0.1.13
+  # Pinning the conda-forge build HERE installs it correctly in the conda layer
+  # first, so pip sees quadprog already satisfied and never builds the bad wheel.
+  - quadprog=0.1.13
+  # pynput (keyboard teleop -> /joy_keyboard for keyboard_joy_node). On Linux it
+  # depends on `evdev`, whose PyPI sdist is source-only and compiles ecodes.c
+  # against the kernel's linux/input-event-codes.h. evdev references recent key
+  # codes (KEY_ALL_APPLICATIONS, KEY_DICTATE, ...) that are MISSING from older
+  # distro headers (e.g. Ubuntu 20.04's linux-libc-dev) AND from the conda
+  # toolchain's isolated sysroot, so `pip install pynput` hard-fails the build on
+  # those hosts (works on 24.04/macOS by luck of newer/absent headers). conda-forge
+  # ships a PREBUILT evdev, so pinning pynput HERE installs it in the conda layer
+  # first and pip then sees it satisfied and never compiles evdev — robust on every
+  # OS/kernel. Same "put it in conda so pip can't build the bad wheel" pattern as
+  # quadprog above. NOTE: pynput is therefore intentionally NOT in requirements.txt.
+  - pynput=1.8.2
+  # pybind11 is the only build dep of range_libc (header-only binding, no Cython,
+  # no numpy at build). Having it here lets range_libc build with
+  # --no-build-isolation entirely from conda (no PyPI fetch) — see note below.
+  - pybind11
+
+  # --- RoboStack compatibility pins (INSTALL.md A6) — DO NOT loosen ---
+  # setuptools 80+ dropped `develop --editable`, which colcon --symlink-install needs.
+  - setuptools=79.0.1
+  # The vendored transport_drivers (sensor/transport_drivers: io_context/serial_driver)
+  # still use asio::io_service, removed in asio 1.30+ — so pin asio <1.30. This is the
+  # base C++ library (available on conda-forge for all arches incl. aarch64), unlike the
+  # ros-jazzy-io-context binary which robostack does not ship everywhere.
+  - asio=1.29.0
+
+  # --- NO pip: section on purpose ---
+  # The pip layer (requirements.txt + editable gym core + range_libc) is installed
+  # as a SEPARATE step in INSTALL.md (A3), AFTER `source thirdimpact.sh`. That way pip
+  # runs with PYTHONNOUSERSITE=1 set (by thirdimpact.sh) and a stale ~/.local can't
+  # shadow the env. If it lived here, `conda env create` would run pip without that
+  # guard and silently skip packages it found under ~/.local.
+
+  # --- range_libc is installed as a separate step (one line) ---
+  # The binding is now header-only pybind11 (no Cython, no numpy at build), so the
+  # old macOS build-isolation breakage is gone. We still keep it out of the pip
+  # section above and use --no-build-isolation so it builds entirely from the
+  # conda toolchain (pybind11 above) with ZERO PyPI fetch — robust on every OS:
+  #
+  #     conda activate thirdimpact
+  #     pip install --no-build-isolation -e ./race_utils/raycaster/range_libc/pywrapper
+  #
+  # It is OPTIONAL: only particle_filter localization + raycaster rm/cddt/glt
+  # backends need it. The default raycaster backend ('lut') runs without it.

@@ -1,0 +1,7 @@
+# ROS map_server format — sample 10 m x 8 m arena for the quickstart example.
+image: sample_map.png
+resolution: 0.05
+origin: [0.0, 0.0, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

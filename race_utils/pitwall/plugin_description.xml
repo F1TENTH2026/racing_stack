@@ -1,0 +1,13 @@
+<library path="pitwall_panel">
+  <class
+    name="pitwall/PitwallPanel"
+    type="pitwall::PitwallPanel"
+    base_class_type="rviz_common::Panel">
+    <description>
+      pitwall panel: state banner (colour = state machine state), a live telemetry
+      feed of important events published by any node via pitwall::event(...), and
+      a Virtual obstacles control section (remove opponent, clear static obstacles,
+      drive mode / lidar toggles, VP inject seam, opponent speed).
+    </description>
+  </class>
+</library>

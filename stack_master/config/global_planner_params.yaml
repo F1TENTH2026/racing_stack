@@ -1,0 +1,11 @@
+# Parameters for the global planner (gb_optimizer/global_planner_node).
+# ROS 2 port of the ros1 stack_master/config/<CAR>/global_planner_params.yaml.
+# Node name must match the one used in mapping.launch.xml (`global_planner`).
+global_planner:
+  ros__parameters:
+    rate: 10.0                     # [hz]
+    test_on_car: True              # also set True if running from a bag
+    required_laps: 1               # laps to drive before calculating global waypoints
+    safety_width: 1.0              # [m] incl. car width
+    safety_width_sp: 1.0           # [m] incl. car width, for shortest-path optimization
+    occupancy_grid_threshold: 10

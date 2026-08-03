@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!--
+  localization.launch.xml — localize on an already-built map (real car).
+
+  Brings up the real-car sensors + mux (low_level), the map_server, and the chosen
+  localization stack (cartographer | pf | kiss). Sim is intentionally NOT handled here
+  (use base_system sim:=true for the simulator, which localizes via gym ground truth).
+
+    ros2 launch stack_master localization.launch.xml map:=YOURMAP                    # cartographer
+    ros2 launch stack_master localization.launch.xml map:=YOURMAP localization:=pf
+    ros2 launch stack_master localization.launch.xml map:=YOURMAP localization:=kiss  # KISS-ICP 2D scan-to-SDF
+-->
+<launch>
+  <arg name="map"                                  description="Map name (folder in stack_master/maps/)"/>
+  <arg name="localization"  default="cartographer" description="Localization algorithm: cartographer | pf | kiss"/>
+  <arg name="vehicle_config" default="$(find-pkg-share stack_master)/config/CAR/vehicle_config.yaml"/>
+  <arg name="use_estop"     default="false"        description="Use emergency stop (true) or not (false)"/>
+  <arg name="virtual"       default="false"        description="Inject virtual opponent/obstacles (scan overlay etc.) onto the real LiDAR"/>
+
+  <let name="maps_dir"                value="$(find-pkg-share stack_master)/maps"/>
+  <let name="map_path"                value="$(var maps_dir)/$(var map)/$(var map)"/>
+  <let name="cartographer_config_dir" value="$(find-pkg-share stack_master)/config"/>
+
+  <!-- ===== Sensors + mux (real hardware) ===== -->
+  <include file="$(find-pkg-share stack_master)/launch/low_level.launch.xml">
+    <arg name="sim"            value="false"/>
+    <arg name="map"            value="$(var map)"/>
+    <arg name="vehicle_config" value="$(var vehicle_config)"/>
+    <arg name="use_estop"      value="$(var use_estop)"/>
+    <arg name="virtual"        value="$(var virtual)"/>
+  </include>
+
+  <!-- Map relay: periodically republishes /map so remote subscribers (RViz) receive it.
+       nav2 map_server publishes only once with TRANSIENT_LOCAL, which CycloneDDS may not
+       deliver reliably across machine boundaries. This relay re-publishes every 3 s. -->
+  <node pkg="stack_master" exec="map_relay_node.py" name="map_relay_node" output="screen"/>
+
+  <!-- Map server: always launched in localization mode (all algorithms need the map).
+       cartographer occupancy grid is remapped to /map_carto to avoid conflict with this. -->
+  <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager"
+        name="lifecycle_manager_localization" output="screen">
+    <param name="use_sim_time" value="false"/>
+    <param name="autostart"    value="true"/>
+    <param name="node_names"   value="['map_server']"/>
+  </node>
+  <node pkg="nav2_map_server" exec="map_server" name="map_server" output="screen">
+    <param name="yaml_filename" value="$(var map_path).yaml"/>
+    <param name="topic"         value="map"/>
+    <param name="frame_id"      value="map"/>
+    <param name="use_sim_time"  value="false"/>
+  </node>
+
+  <!-- ===== Cartographer localization ===== -->
+  <group if="$(eval '\'$(var localization)\' == \'cartographer\'')">
+    <let name="pbstream_file" value="$(var maps_dir)/$(var map)/$(var map).pbstream"/>
+    <let name="lua_file" value="localization_2d.lua"/>
+
+    <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
+          args="-configuration_directory $(var cartographer_config_dir) -configuration_basename $(var lua_file) -load_state_filename $(var pbstream_file) -collect_metrics">
+      <param name="use_sim_time" value="false"/>
+      <remap from="/imu" to="/vesc/sensors/imu"/>
+      <remap from="/odom" to="/vesc/odom"/>
+    </node>
+
+    <node pkg="cartographer_ros" exec="cartographer_occupancy_grid_node"
+          name="cartographer_occupancy_grid_node" output="screen"
+          args="-resolution 0.05 -publish_period_sec 1.0">
+      <param name="use_sim_time" value="false"/>
+      <remap from="/map" to="/map_carto"/>
+    </node>
+
+    <node pkg="stack_master" exec="set_initial_pose_node.py" name="set_initial_pose_node" output="screen">
+      <param name="config_dir" value="$(var cartographer_config_dir)"/>
+      <param name="config_base" value="$(var lua_file)"/>
+    </node>
+
+    <node pkg="stack_master" exec="pose_to_odom_node.py" name="pose_to_odom_node" output="screen">
+      <remap from="pose_in"  to="/tracked_pose"/>
+      <remap from="odom_out" to="/tracked_pose/odom"/>
+    </node>
+    <node pkg="robot_localization" exec="ekf_node" name="ekf_localization" output="screen">
+      <param from="$(find-pkg-share stack_master)/config/ekf_cartographer.yaml"/>
+      <remap from="odometry/filtered" to="/car_state/odom"/>
+    </node>
+  </group>
+
+  <!-- ===== Particle filter localization ===== -->
+  <group if="$(eval '\'$(var localization)\' == \'pf\'')">
+    <node pkg="particle_filter" exec="particle_filter" name="particle_filter" output="screen">
+      <param from="$(find-pkg-share stack_master)/config/pf.yaml"/>
+      <param from="$(var vehicle_config)"/>
+      <!-- The PF re-runs a full GLOBAL INITIALIZATION on any PointStamped it gets
+           on /clicked_point (a generic RViz topic). Isolate that trigger to a
+           dedicated topic so stray /clicked_point publishers can't scatter the
+           particles; publish to /pf_global_initialize to re-init on purpose. -->
+      <remap from="/clicked_point" to="/pf_global_initialize"/>
+    </node>
+    <node pkg="robot_localization" exec="ekf_node" name="ekf_localization" output="screen">
+      <param from="$(find-pkg-share stack_master)/config/ekf_pf.yaml"/>
+      <remap from="odometry/filtered" to="/car_state/odom"/>
+    </node>
+  </group>
+
+  <!-- ===== KISS-ICP 2D scan-to-SDF localization ===== -->
+  <!-- No EKF: the node fuses wheel-odom (translation) + gyro (rotation) itself and
+       publishes the fused pose DIRECTLY on /car_state/odom + TF map->base_link.
+       Topic names are matched in kiss.yaml (no remap). Two separate maps are
+       injected from the active map folder: loc_2d_map_yaml = <map>.yaml (the
+       cartographer occupancy grid, used for scan-to-SDF localization) and
+       track_map_yaml = <map>_track.yaml (the drivable-region mask for BEV
+       detection; generated separately, only read when detect_en:true). -->
+  <group if="$(eval '\'$(var localization)\' == \'kiss\'')">
+    <node pkg="kiss_icp_localization" exec="localization_node" name="kiss_icp_localization" output="screen">
+      <param from="$(find-pkg-share stack_master)/config/kiss.yaml"/>
+      <param name="loc_2d_map_yaml" value="$(var map_path).yaml"/>
+      <param name="track_map_yaml"  value="$(var map_path)_track.yaml"/>
+    </node>
+  </group>
+</launch>

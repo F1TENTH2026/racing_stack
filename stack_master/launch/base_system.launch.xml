@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<!--
+  base_system.launch.xml  (ROS2 port of the ROS1 stack_master/base_system.launch)
+  ================================================================================
+  The always-on foundation that both time-trial and head-to-head build on:
+
+    sensors / simulator + localization      (sim: low_level / real: localization)
+    + global raceline publisher             (planner/waypoint_publisher)
+    + Frenet odometry republisher           (/car_state/odom_frenet)
+
+  SIM : ros2 launch stack_master base_system.launch.xml map:=f sim:=true
+        gym_bridge provides /scan, /car_state/odom, /map and map->base_link TF;
+        the virtual opponent (opponent pkg) is included by low_level.
+  REAL: ros2 launch stack_master base_system.launch.xml map:=f localization:=pf
+-->
+<launch>
+  <arg name="map"          description="Map name (folder in stack_master/maps/)"/>
+  <arg name="sim"          default="false" description="Use simulator (true) or real hardware (false)"/>
+  <arg name="localization" default="cartographer"    description="gt (sim) | cartographer | pf (real)"/>
+  <arg name="virtual"      default="$(var sim)" description="Inject virtual opponent/obstacles (scan overlay etc.); on by default in sim, off on the real car"/>
+
+  <!-- sim -> SIM config folder, real hardware -> CAR config folder -->
+  <let name="config_dir" value="$(find-pkg-share stack_master)/config/SIM" if="$(var sim)"/>
+  <let name="config_dir" value="$(find-pkg-share stack_master)/config/CAR" unless="$(var sim)"/>
+  <arg name="vehicle_config" default="$(var config_dir)/vehicle_config.yaml"/>
+
+  <!-- ===== Sensors / Simulator (+ opponent) + Localization ===== -->
+  <!-- SIM: low_level brings up gym_bridge (gt localization) + virtual opponent + mux. -->
+  <group if="$(var sim)">
+    <include file="$(find-pkg-share stack_master)/launch/low_level.launch.xml">
+      <arg name="sim"            value="true"/>
+      <arg name="map"            value="$(var map)"/>
+      <arg name="vehicle_config" value="$(var vehicle_config)"/>
+      <arg name="virtual"        value="$(var virtual)"/>
+    </include>
+  </group>
+  <!-- REAL: localization brings up VESC/LiDAR + the chosen localization stack. -->
+  <group unless="$(var sim)">
+    <include file="$(find-pkg-share stack_master)/launch/localization.launch.xml">
+      <arg name="map"            value="$(var map)"/>
+      <arg name="localization"   value="$(var localization)"/>
+      <arg name="vehicle_config" value="$(var vehicle_config)"/>
+      <arg name="virtual"        value="$(var virtual)"/>
+    </include>
+  </group>
+
+  <!-- ===== Global raceline (gb_optimizer JSON pipeline) =====
+       ROS2 port of the ros1 base_system global-waypoint chain. Replaces the CSV
+       waypoint_publisher: the republisher reads stack_master/maps/<map>/
+       global_waypoints.json (produced by raceline_generator.launch.xml) and publishes
+       /global_waypoints, /global_waypoints/shortest_path, /centerline_waypoints,
+       /trackbounds/markers, etc.
+
+       The ros1 dynamic_reconfigure sector servers (sector_server / ot_sector_server)
+       are NOT ported; vel_scaler and ot_interpolator load their sector config
+       straight from the map's yaml instead (autodeclare_from_overrides=True), so
+       they run standalone and produce /global_waypoints_scaled and
+       /global_waypoints/overtaking for the state machine & local planners. -->
+  <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
+
+  <node pkg="gb_optimizer" exec="global_trajectory_publisher" name="global_republisher" output="screen">
+    <param name="map" value="$(var map)"/>
+  </node>
+
+  <!-- speed_scaling.yaml -> /global_waypoints_scaled + /sector_markers.
+       sector_tuner (not velocity_scaler) also draws the RViz markers.
+       Node name must match the yaml's top-level key. -->
+  <node pkg="sector_tuner" exec="sector_tuner" name="speed_sector_tuner" output="screen">
+    <param from="$(var maps_dir)/$(var map)/speed_scaling.yaml"/>
+    <!-- save_params writes back to the SAME yaml it loaded; the install copy is a
+         colcon symlink-install symlink to the source tree, so tuned values persist. -->
+    <param name="save_yaml_path" value="$(var maps_dir)/$(var map)/speed_scaling.yaml"/>
+  </node>
+
+  <!-- Overtaking lines: ot_sectors.yaml -> /global_waypoints/overtaking -->
+  <node pkg="overtaking_sector_tuner" exec="ot_interpolator" name="ot_sector_tuner" output="screen">
+    <param from="$(var maps_dir)/$(var map)/ot_sectors.yaml"/>
+    <param name="save_yaml_path" value="$(var maps_dir)/$(var map)/ot_sectors.yaml"/>
+  </node>
+
+  <!-- ===== Frenet conversion service (ROS1: middle_level) =====
+       convert_glob2frenetarr_service / convert_frenet2globarr_service over
+       /global_waypoints; opp_prediction (headtohead) calls these. -->
+  <node pkg="frenet_conversion_server" exec="frenet_conversion_server_node"
+        name="frenet_conversion_server_node" output="screen">
+    <param name="PerceptionOnly" value="false"/>
+  </node>
+
+  <!-- ===== Frenet odometry =====
+       /car_state/odom -> /car_state/odom_frenet (s, d) for the planners + SM.
+       The node publishes /car_state/frenet/odom; remap to the stack convention. -->
+  <node pkg="frenet_odom_republisher" exec="frenet_odom_republisher_node"
+        name="frenet_odom_republisher" output="screen">
+    <remap from="/car_state/frenet/odom" to="/car_state/odom_frenet"/>
+  </node>
+
+  <!-- ===== Lap analyser =====
+       Lap times + lateral error + distance-to-boundary stats and RViz markers.
+       Needs /global_waypoints, /car_state/odom_frenet, /car_state/odom and
+       /state_marker (state machine) - all available once the stack is up. -->
+  <node pkg="lap_analyser" exec="lap_analyser" name="lap_analyser" output="screen">
+    <param name="loc_algo" value="$(var localization)"/>
+  </node>
+</launch>

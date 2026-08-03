@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Optionally launch in GDB, for debugging -->
+  <arg name="debug" default="false" />
+  <let name="launch_prefix" value="xterm -e gdb --args" if="$(var debug)" />
+
+  <arg name="vesc_config" default="" />
+
+  <!-- Ackermann to VESC node -->
+  <node pkg="vesc_ackermann" exec="ackermann_to_vesc_node" name="ackermann_to_vesc_node" output="screen">
+    <param from="$(var vesc_config)" />
+  </node>
+</launch>

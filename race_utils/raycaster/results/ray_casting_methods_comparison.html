@@ -1,0 +1,241 @@
+<h2 class="sr-only">Interactive visualization comparing five ray-distance methods on an occupancy grid (Bresenham/DDA, ray marching, CDDT, Giant LUT, segment intersection)</h2>
+<style>
+  .seg { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 12px; }
+  .seg button { padding:7px 12px; font-size:13px; border-radius:var(--border-radius-md);
+    border:0.5px solid var(--color-border-secondary); background:transparent;
+    color:var(--color-text-secondary); cursor:pointer; transition:all .15s; }
+  .seg button:hover { background:var(--color-background-secondary); }
+  .seg button.on { border-width:2px; font-weight:500; color:var(--color-text-primary); }
+  #rc-canvas { width:100%; height:auto; display:block; border-radius:var(--border-radius-md);
+    border:0.5px solid var(--color-border-tertiary); touch-action:none; cursor:crosshair; }
+  .chips { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-top:12px; }
+  .chip { background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:9px 11px; }
+  .chip .k { font-size:11px; color:var(--color-text-tertiary); margin-bottom:2px; }
+  .chip .v { font-size:14px; font-weight:500; color:var(--color-text-primary); }
+</style>
+
+<div class="seg" id="rc-seg"></div>
+
+<canvas id="rc-canvas"></canvas>
+
+<div style="display:flex; align-items:center; gap:12px; margin-top:12px; font-size:13px; color:var(--color-text-secondary)">
+  <span style="white-space:nowrap"><i class="ti ti-rotate-clockwise" aria-hidden="true"></i> angle</span>
+  <input type="range" id="rc-ang" min="0" max="359" value="18" step="1" style="flex:1">
+  <span id="rc-angv" style="min-width:42px; text-align:right">18°</span>
+</div>
+<p style="font-size:12px; color:var(--color-text-tertiary); margin:6px 0 0">Click / drag on the canvas to move the robot.</p>
+
+<div class="chips" id="rc-chips"></div>
+
+<script>
+(function(){
+  const cv = document.getElementById('rc-canvas');
+  const ctx = cv.getContext('2d');
+  const cols=30, rows=22, cs=21;
+  const W=cols*cs, H=rows*cs;
+  let dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  function pal(){ return dark ? {
+    grid:'rgba(255,255,255,0.05)', free:'rgba(255,255,255,0.015)', obst:'#5F5E5A',
+    txt:'#c2c0b6', robot:'#FAC775', hit:'#F09595',
+    blue:'#85B7EB', teal:'#5DCAA5', amber:'#FAC775', purple:'#AFA9EC', coral:'#F0997B'
+  } : {
+    grid:'rgba(0,0,0,0.06)', free:'rgba(0,0,0,0.012)', obst:'#888780',
+    txt:'#3d3d3a', robot:'#BA7517', hit:'#E24B4A',
+    blue:'#378ADD', teal:'#1D9E75', amber:'#EF9F27', purple:'#7F77DD', coral:'#D85A30'
+  }; }
+  let C = pal();
+
+  const rects = [
+    [0,0,30,1],[0,21,30,22],[0,0,1,22],[29,0,30,22],
+    [6,4,10,9],[16,3,19,13],[22,13,27,17],[5,15,13,16]
+  ];
+  const grid = new Uint8Array(cols*rows);
+  function inRect(cx,cy,r){ return cx>=r[0]&&cx<r[2]&&cy>=r[1]&&cy<r[3]; }
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+    let o=0; for(const r of rects) if(inRect(x,y,r)){o=1;break;}
+    grid[y*cols+x]=o;
+  }
+  const occ=(x,y)=> x<0||y<0||x>=cols||y>=rows ? 1 : grid[y*cols+x];
+
+  const dt = new Float32Array(cols*rows);
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+    if(grid[y*cols+x]){ dt[y*cols+x]=0; continue; }
+    let best=1e9;
+    for(let oy=0;oy<rows;oy++) for(let ox=0;ox<cols;ox++){
+      if(!grid[oy*cols+ox]) continue;
+      const d=Math.hypot(ox-x,oy-y); if(d<best) best=d;
+    }
+    dt[y*cols+x]=best;
+  }
+  const dtAt=(px,py)=>{ const cx=Math.floor(px),cy=Math.floor(py);
+    if(cx<0||cy<0||cx>=cols||cy>=rows) return 0;
+    return Math.max(0.3, dt[cy*cols+cx]-0.5); };
+
+  const segs=[];
+  for(const r of rects){ const[a,b,c,d]=r;
+    segs.push([a,b,c,b],[c,b,c,d],[c,d,a,d],[a,d,a,b]); }
+
+  function dda(ox,oy,ang){
+    const dx=Math.cos(ang),dy=Math.sin(ang);
+    let cx=Math.floor(ox),cy=Math.floor(oy);
+    const sx=dx>0?1:-1, sy=dy>0?1:-1;
+    const tdx=dx!==0?Math.abs(1/dx):1e9, tdy=dy!==0?Math.abs(1/dy):1e9;
+    let tmx = dx>0?(cx+1-ox)/dx : dx<0?(cx-ox)/dx : 1e9;
+    let tmy = dy>0?(cy+1-oy)/dy : dy<0?(cy-oy)/dy : 1e9;
+    const vis=[]; let t=0,g=0;
+    while(g++<2000){
+      if(cx<0||cy<0||cx>=cols||cy>=rows) break;
+      vis.push({x:cx,y:cy});
+      if(occ(cx,cy)) return {vis,t,hx:ox+dx*t,hy:oy+dy*t};
+      if(tmx<tmy){t=tmx;tmx+=tdx;cx+=sx;} else {t=tmy;tmy+=tdy;cy+=sy;}
+    }
+    return {vis,t,hx:ox+dx*t,hy:oy+dy*t};
+  }
+  function raymarch(ox,oy,ang){
+    const dx=Math.cos(ang),dy=Math.sin(ang);
+    let px=ox,py=oy; const circ=[]; let g=0;
+    while(g++<120){
+      const d=dtAt(px,py); circ.push({x:px,y:py,r:d});
+      if(d<=0.32) break; px+=dx*d; py+=dy*d;
+    }
+    return {circ,hx:px,hy:py};
+  }
+  function analytic(ox,oy,ang){
+    const dx=Math.cos(ang),dy=Math.sin(ang); let best=1e9;
+    for(const s of segs){ const[ax,ay,bx,by]=s; const ex=bx-ax,ey=by-ay;
+      const den=dx*ey-dy*ex; if(Math.abs(den)<1e-9) continue;
+      const t=((ax-ox)*ey-(ay-oy)*ex)/den;
+      const u=((ax-ox)*dy-(ay-oy)*dx)/den;
+      if(t>=0&&u>=-1e-9&&u<=1+1e-9&&t<best) best=t;
+    }
+    return {t:best,hx:ox+dx*best,hy:oy+dy*best};
+  }
+
+  let robot={x:3.5,y:11}, ang=18*Math.PI/180, method='dda';
+
+  function px(c){return c*cs;}
+  function line(x1,y1,x2,y2,col,w){ctx.beginPath();ctx.moveTo(px(x1),px(y1));ctx.lineTo(px(x2),px(y2));ctx.strokeStyle=col;ctx.lineWidth=w;ctx.stroke();}
+  function dot(x,y,r,col){ctx.beginPath();ctx.arc(px(x),px(y),r,0,7);ctx.fillStyle=col;ctx.fill();}
+
+  function draw(){
+    C=pal();
+    ctx.clearRect(0,0,W,H);
+    if(method==='rm'){
+      let mx=0; for(let i=0;i<dt.length;i++) if(dt[i]>mx) mx=dt[i];
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+        if(grid[y*cols+x]) continue;
+        const a=Math.min(1,dt[y*cols+x]/mx);
+        ctx.fillStyle = dark? `rgba(93,202,165,${0.04+a*0.22})` : `rgba(29,158,117,${0.03+a*0.16})`;
+        ctx.fillRect(px(x),px(y),cs,cs);
+      }
+    }
+    ctx.strokeStyle=C.grid; ctx.lineWidth=0.5;
+    for(let x=0;x<=cols;x++){ctx.beginPath();ctx.moveTo(px(x),0);ctx.lineTo(px(x),H);ctx.stroke();}
+    for(let y=0;y<=rows;y++){ctx.beginPath();ctx.moveTo(0,px(y));ctx.lineTo(W,px(y));ctx.stroke();}
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(grid[y*cols+x]){
+      ctx.fillStyle=C.obst; ctx.fillRect(px(x)+0.5,px(y)+0.5,cs-1,cs-1);
+    }
+
+    const dx=Math.cos(ang),dy=Math.sin(ang);
+    let info={};
+
+    if(method==='dda'){
+      const r=dda(robot.x,robot.y,ang);
+      ctx.fillStyle = dark?'rgba(133,183,235,0.32)':'rgba(55,138,221,0.28)';
+      for(const c of r.vis) ctx.fillRect(px(c.x)+0.5,px(c.y)+0.5,cs-1,cs-1);
+      line(robot.x,robot.y,r.hx,r.hy,C.blue,2);
+      dot(r.hx,r.hy,5,C.hit);
+      info={a:['visited cells',r.vis.length],b:['precompute','none'],c:['memory','map only'],d:['precision','cell grid']};
+    }
+    else if(method==='rm'){
+      const r=raymarch(robot.x,robot.y,ang);
+      for(const c of r.circ){ ctx.beginPath();ctx.arc(px(c.x),px(c.y),c.r*cs,0,7);
+        ctx.strokeStyle=C.teal; ctx.lineWidth=1; ctx.globalAlpha=0.5; ctx.stroke(); ctx.globalAlpha=1;
+        dot(c.x,c.y,2.5,C.teal); }
+      line(robot.x,robot.y,r.hx,r.hy,C.teal,1.5);
+      dot(r.hx,r.hy,5,C.hit);
+      info={a:['jumps',r.circ.length],b:['precompute','1× distance transform'],c:['memory','1 float / cell'],d:['trait','big jumps in free space']};
+    }
+    else if(method==='cddt'){
+      const N=24, stub=1.6;
+      for(let k=0;k<N;k++){ const aa=k*2*Math.PI/N;
+        line(robot.x,robot.y,robot.x+Math.cos(aa)*stub,robot.y+Math.sin(aa)*stub,
+          dark?'rgba(250,199,117,0.25)':'rgba(239,159,39,0.3)',1); }
+      const step=2*Math.PI/N;
+      let q=((ang%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      const lo=Math.floor(q/step)*step, hi=lo+step;
+      const r1=dda(robot.x,robot.y,lo), r2=dda(robot.x,robot.y,hi);
+      line(robot.x,robot.y,r1.hx,r1.hy,C.amber,1.5);
+      line(robot.x,robot.y,r2.hx,r2.hy,C.amber,1.5);
+      dot(r1.hx,r1.hy,3.5,C.amber); dot(r2.hx,r2.hy,3.5,C.amber);
+      const f=(q-lo)/step, t=r1.t*(1-f)+r2.t*f;
+      const hx=robot.x+dx*t, hy=robot.y+dy*t;
+      line(robot.x,robot.y,hx,hy,C.hit,2);
+      dot(hx,hy,5,C.hit);
+      info={a:['lookups','2 + interpolation'],b:['precompute','per-angle LUT'],c:['memory','compressed'],d:['PCDDT','↓ via pruning']};
+    }
+    else if(method==='glt'){
+      ctx.fillStyle = dark?'rgba(175,169,236,0.18)':'rgba(127,119,221,0.16)';
+      ctx.fillRect(px(Math.floor(robot.x)),px(Math.floor(robot.y)),cs,cs);
+      const r=dda(robot.x,robot.y,ang);
+      line(robot.x,robot.y,r.hx,r.hy,C.purple,2);
+      dot(r.hx,r.hy,5,C.hit);
+      ctx.fillStyle=C.purple; ctx.font='11px sans-serif'; ctx.textAlign='left';
+      ctx.fillText('table[x][y][θ]', px(robot.x)+8, px(robot.y)-8);
+      const entries=cols*rows*180;
+      info={a:['lookup','1 · O(1)'],b:['precompute','full (x,y,θ)'],c:['memory',entries.toLocaleString()+' entries'],d:['trait','fastest query']};
+    }
+    else {
+      for(const s of segs){ ctx.beginPath();ctx.moveTo(px(s[0]),px(s[1]));ctx.lineTo(px(s[2]),px(s[3]));
+        ctx.strokeStyle=C.coral; ctx.lineWidth=1.5; ctx.globalAlpha=0.65; ctx.stroke(); ctx.globalAlpha=1; }
+      const r=analytic(robot.x,robot.y,ang);
+      line(robot.x,robot.y,r.hx,r.hy,C.coral,2);
+      ctx.beginPath();ctx.arc(px(r.hx),px(r.hy),5,0,7);ctx.fillStyle=C.hit;ctx.fill();
+      ctx.beginPath();ctx.arc(px(r.hx),px(r.hy),5,0,7);ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();
+      info={a:['segment tests',segs.length],b:['precompute','none'],c:['memory','segment list'],d:['precision','exact · grid-free']};
+    }
+
+    dot(robot.x,robot.y,5,C.robot);
+    ctx.strokeStyle=dark?'#000':'#fff'; ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(px(robot.x),px(robot.y),5,0,7);ctx.stroke();
+    return info;
+  }
+
+  function renderChips(info){
+    const el=document.getElementById('rc-chips');
+    el.innerHTML=['a','b','c','d'].map(k=>`<div class="chip"><div class="k">${info[k][0]}</div><div class="v">${info[k][1]}</div></div>`).join('');
+  }
+
+  const methods=[['dda','Bresenham / DDA'],['rm','Ray marching (sphere tracing)'],['cddt','CDDT / PCDDT'],['glt','Giant LUT'],['seg','Segment intersection']];
+  const segEl=document.getElementById('rc-seg');
+  segEl.innerHTML=methods.map(m=>`<button data-m="${m[0]}">${m[1]}</button>`).join('');
+  function syncBtns(){ segEl.querySelectorAll('button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.m===method);
+    b.style.borderColor = b.dataset.m===method ? ({dda:C.blue,rm:C.teal,cddt:C.amber,glt:C.purple,seg:C.coral}[method]) : '';
+  }); }
+  segEl.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+    method=b.dataset.m; syncBtns(); renderChips(draw()); });
+
+  const angEl=document.getElementById('rc-ang'), angV=document.getElementById('rc-angv');
+  angEl.addEventListener('input',()=>{ ang=(+angEl.value)*Math.PI/180; angV.textContent=angEl.value+'°'; renderChips(draw()); });
+
+  let drag=false;
+  function place(e){ const r=cv.getBoundingClientRect();
+    const cx=(e.clientX-r.left)/r.width*W/cs, cy=(e.clientY-r.top)/r.height*H/cs;
+    if(cx<0.3||cy<0.3||cx>cols-0.3||cy>rows-0.3) return;
+    if(occ(Math.floor(cx),Math.floor(cy))) return;
+    robot={x:cx,y:cy}; renderChips(draw()); }
+  cv.addEventListener('pointerdown',e=>{drag=true;cv.setPointerCapture(e.pointerId);place(e);});
+  cv.addEventListener('pointermove',e=>{if(drag)place(e);});
+  cv.addEventListener('pointerup',()=>drag=false);
+
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',ev=>{dark=ev.matches;C=pal();syncBtns();renderChips(draw());});
+
+  function size(){ const dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.aspectRatio=W+'/'+H;
+    ctx.setTransform(dpr,0,0,dpr,0,0); }
+  size();
+  syncBtns();
+  renderChips(draw());
+})();
+</script>

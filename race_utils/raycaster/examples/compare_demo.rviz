@@ -1,0 +1,76 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Global Options:
+    Fixed Frame: map
+    Background Color: 20; 20; 25
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 60; 60; 60
+      Plane Cell Count: 40
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: map
+      Alpha: 0.4
+    - Class: rviz_default_plugins/LaserScan
+      Name: rm (green=ref)
+      Enabled: true
+      Topic: { Value: /scan_rm, Reliability Policy: Best Effort }
+      Style: Points
+      Size (Pixels): 2
+      Color: 0; 255; 0
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/LaserScan
+      Name: glt112 (red)
+      Enabled: true
+      Topic: { Value: /scan_glt112, Reliability Policy: Best Effort }
+      Style: Points
+      Size (Pixels): 4
+      Color: 255; 40; 40
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/LaserScan
+      Name: glt720 (yellow)
+      Enabled: true
+      Topic: { Value: /scan_glt720, Reliability Policy: Best Effort }
+      Style: Points
+      Size (Pixels): 4
+      Color: 255; 255; 0
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/LaserScan
+      Name: cddt112 (blue)
+      Enabled: true
+      Topic: { Value: /scan_cddt112, Reliability Policy: Best Effort }
+      Style: Points
+      Size (Pixels): 4
+      Color: 60; 120; 255
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/LaserScan
+      Name: bl (white)
+      Enabled: true
+      Topic: { Value: /scan_bl, Reliability Policy: Best Effort }
+      Style: Points
+      Size (Pixels): 2
+      Color: 255; 255; 255
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 9
+      Pitch: 1.5707
+      Focal Point:
+        X: 1.68
+        Y: -4.62
+        Z: 0

@@ -1,0 +1,86 @@
+# kiss_icp_localization — 2D scan-to-SDF localization on the real car.
+# Drop-in replacement for the particle_filter: consumes the 2D LiDAR /scan and
+# publishes the localized pose DIRECTLY on /car_state/odom (no EKF) + TF map->base_link.
+#
+# Topic names are matched here (no remapping). The 2D-input front-end skips the
+# 3D PointCloud band-crop and feeds /scan straight into scan-to-SDF matching.
+#
+# TWO separate maps, managed/generated independently (both injected by
+# localization.launch.xml from the active map folder, NOT hard-set here):
+#   - loc_2d_map_yaml : the 2D map for localization (scan-to-SDF) = <map>.yaml
+#                       (the existing cartographer occupancy grid).
+#   - track_map_yaml  : the track mask for BEV detection = <map>_track.yaml
+#                       (flood-filled drivable region; generated separately,
+#                       later). Only read when detect_en:true.
+kiss_icp_localization:
+  ros__parameters:
+    # ---- input front-end (2D LaserScan) ----
+    input_mode: "2d"                 # forces scan-to-SDF matching, skips band-crop
+    scan_topic: "/scan"              # urg_node LaserScan (frame_id: laser)
+    # ---- prediction: translation from wheel odom, rotation from gyro ----
+    odom_twist_topic: "/vesc/odom"   # twist.vx drives translation prediction
+    imu_topic: "/vesc/sensors/imu"
+    imu_en: true
+    deskew_en: true                  # gyro deskew (uses LaserScan time_increment)
+    imu_rate_odom: true              # high-rate pose between scans (gyro rot + odom vx)
+    imu_init_samples: 100            # static gyro-bias init samples
+    stamp_at_scan_end: false         # urg header stamp = scan START
+    # vesc_imu mount is a pure yaw rotation (z preserved) -> identity is fine for
+    # the 2D yaw-rate; only gyro.z is used in 2D.
+    extrinsic_R_il: [1.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0,
+                     0.0, 0.0, 1.0]
+
+    # ---- output (direct to the stack's fused-odom topic, EKF bypassed) ----
+    odom_topic: "/car_state/odom"
+    map_frame: "map"
+    base_frame: "base_link"          # static base_link->laser completes map->laser
+    publish_tf: true                 # map->base_link (perception looks up map->laser)
+
+    # ---- scan preprocessing / range gate ----
+    scan_voxel_size: 0.1             # 2D laser is sparse; small voxel keeps geometry
+    min_range: 0.1
+    max_range: 15.0
+
+    # ---- 2D scan-to-SDF registration + safety ----
+    loc_2d_corr_gain: 0.3            # complementary low-pass (cuts per-scan yaw jitter)
+    max_iterations: 50
+    convergence_eps: 2.0e-3
+    initial_threshold: 1.0
+    min_threshold: 0.1
+    min_motion: 0.05
+    adaptive_range: 15.0             # indoor track scale (km-scale margin not needed)
+    vel_smoothing: 0.3
+    reject_trans: 2.0
+    reject_rot_deg: 30.0
+    reject_recover_count: 3
+    max_velocity: 15.0
+    max_accel: 10.0
+
+    # ---- initial pose ----
+    initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    use_initial_pose_topic: true     # /initialpose (RViz 2D Pose Estimate)
+
+    # ---- BEV detection (opponents / unmapped obstacles) ----
+    # Two-map setup: detection uses its OWN track mask (track_map_yaml, injected
+    # by launch as <map>_track.yaml), kept separate from the localization 2D map
+    # (loc_2d_map_yaml = <map>.yaml). detect_en stays false until that track map
+    # is generated AND the 2D-scan detection code path lands (z-band bypass);
+    # flip to true then. Params below are pre-set so enabling is a one-line change.
+    detect_en: false
+    detect_track_filter: true        # reject returns off the track mask (=walls/exterior)
+    detect_track_margin: -0.2        # erode 0.2 m inside the boundary (drop wall returns)
+    detect_res: 0.05                 # BEV cell size [m]
+    detect_eps: 0.3                  # DBSCAN neighborhood radius [m]
+    detect_min_samples: 2            # 2D scan is sparse -> low core threshold
+    detect_min_cluster_cells: 2
+    detect_track_gate: 1.0           # max cluster-center step to associate [m]
+    detect_moving_speed: 0.5         # |v| above this => moving (opponent) [m/s]
+    detect_max_misses: 5
+    detect_pose_topic: "/kiss_loc/obstacle_poses"   # cluster centers (PoseArray, map)
+
+    # ---- map_server owns /map; node publishes neither grid nor band scan ----
+    publish_2d_map: false
+    publish_2d_scan: false
+    publish_aligned_scan: true       # /kiss_loc/scan_aligned for RViz debug
+    print_stats: false

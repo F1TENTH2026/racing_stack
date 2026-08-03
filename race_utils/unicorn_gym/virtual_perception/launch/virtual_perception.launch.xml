@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!--
+  virtual_perception — inject virtual objects (opponent + static obstacles) into a
+  real OR simulated perception stack, for PRACTICE. Two man-in-the-middle seams:
+    - scan_overlay   : base scan (/scan_raw) -> /scan, virtual objects overlaid
+    - tracking_merger: real tracking (/tracking/obstacles_raw) + virtual -> /tracking/obstacles
+
+  Same launch for simulation and the real car. It is meant to be INCLUDED only
+  when you want the feature (e.g. low_level.launch.xml passes practice:=true), so
+  the producers (gym/lidar, tracking) must be told to publish to the *_raw topics.
+
+  SIM : included automatically by low_level.launch.xml when sim:=true.
+        base scan = gym_bridge ego scan on /scan_raw -> scan_overlay -> /scan.
+  REAL: run it yourself, e.g.
+        ros2 launch virtual_perception virtual_perception.launch.xml \
+             map_path:=/.../maps/<map>/<map>.yaml \
+             ego_odom_topic:=/car_state/odom
+        (remap your lidar driver to publish /scan_raw; scan_overlay owns /scan)
+-->
+<launch>
+  <arg name="map_path"       default=""                 description="map yaml path; centerline.csv sits next to it"/>
+  <arg name="ego_odom_topic" default="/car_state/odom"  description="ego pose (for the opponent's own lidar)"/>
+  <arg name="scan_in"        default="/scan_raw"         description="base scan in (gym ego or real lidar)"/>
+  <arg name="scan_out"       default="/scan"            description="overlaid scan out (what detection reads)"/>
+  <arg name="start_with_opp" default="false"/>
+  <arg name="mode"           default="manual"            description="manual | path | ftg"/>
+
+  <!-- the virtual opponent vehicle (kinematic model + its own lidar) -->
+  <node pkg="virtual_perception" exec="opponent_vehicle" name="opponent_vehicle" output="screen">
+    <param name="map_path"       value="$(var map_path)"/>
+    <param name="ego_odom_topic" value="$(var ego_odom_topic)"/>
+    <param name="start_with_opp" value="$(var start_with_opp)"/>
+  </node>
+
+  <!-- autonomous driver for the opponent (FTG / pure-pursuit / teleop) -->
+  <node pkg="virtual_perception" exec="opponent_controller" name="opponent_controller" output="screen">
+    <param name="map_path" value="$(var map_path)"/>
+    <param name="mode"     value="$(var mode)"/>
+  </node>
+
+  <!-- click-to-place static obstacles (RViz Publish Point) as f110_msgs -->
+  <node pkg="virtual_perception" exec="static_obstacle_manager" name="static_obstacle_manager" output="screen"/>
+
+  <!-- seam #1 (sensor): overlay virtual objects onto the base scan -->
+  <node pkg="virtual_perception" exec="scan_overlay" name="scan_overlay" output="screen">
+    <param name="in_topic"       value="$(var scan_in)"/>
+    <param name="out_topic"      value="$(var scan_out)"/>
+    <param name="ego_odom_topic" value="$(var ego_odom_topic)"/>
+  </node>
+
+  <!-- seam #2 (object): concat virtual obstacles into the tracking output.
+       Idle until a real /tracking/obstacles_raw exists; emits virtual-only in sim. -->
+  <node pkg="virtual_perception" exec="tracking_merger" name="tracking_merger" output="screen"/>
+</launch>

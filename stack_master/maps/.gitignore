@@ -1,0 +1,7 @@
+# Ignore all map files
+# *.pbstream
+# *.png
+# *.yaml
+
+# But keep this directory
+!.gitignore

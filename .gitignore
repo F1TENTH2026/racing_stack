@@ -1,0 +1,39 @@
+# This meta-repo carries only orchestration (unicorn.repos, CI, build scripts).
+# Component repos are imported by vcstool into the PARENT workspace's src/ as
+# siblings (see build scripts) — they are never nested inside this repo.
+
+# colcon build artifacts (should not appear here, but ignore defensively)
+build/
+install/
+log/
+
+# Python
+*.pyc
+__pycache__/
+*.egg
+*.egg-info/
+dist/
+
+# IDE / local
+.idea/
+.claude/
+
+# colcon profile markers — generated per build profile by
+# setup_conda_on{Laptop,Car}.sh (laptop touches them, car removes them).
+# Purely local artifacts; never tracked.
+COLCON_IGNORE
+
+# container platform-test transient logs (keep .docker/results.txt + scripts)
+.docker/build_*.log
+.docker/smoke_*.log
+.docker/driver_*.out
+.docker/colcon_build.log
+# old docker/ dir superseded by .docker/ (kept on disk only while a build runs)
+/docker/
+
+# rosbag recordings (local debugging only; keep the folder, ignore contents)
+/bags/*
+!/bags/.gitkeep
+
+# lap_analyser lap-time logs (generated output; local only)
+race_utils/f110_utils/nodes/lap_analyser/data/

@@ -1,0 +1,68 @@
+// Compatibility shim for newer Abseil (LTS >= 2024) which removed the legacy
+// unprefixed thread-safety annotation macros (GUARDED_BY, LOCKS_EXCLUDED, ...).
+// Cartographer's source still uses the unprefixed names, so we map them onto the
+// ABSL_-prefixed equivalents. Force-included from CMakeLists.txt.
+#ifndef CARTOGRAPHER_ABSEIL_COMPAT_H_
+#define CARTOGRAPHER_ABSEIL_COMPAT_H_
+
+#include "absl/base/thread_annotations.h"
+
+#ifndef GUARDED_BY
+#define GUARDED_BY(x) ABSL_GUARDED_BY(x)
+#endif
+#ifndef PT_GUARDED_BY
+#define PT_GUARDED_BY(x) ABSL_PT_GUARDED_BY(x)
+#endif
+#ifndef ACQUIRED_AFTER
+#define ACQUIRED_AFTER(...) ABSL_ACQUIRED_AFTER(__VA_ARGS__)
+#endif
+#ifndef ACQUIRED_BEFORE
+#define ACQUIRED_BEFORE(...) ABSL_ACQUIRED_BEFORE(__VA_ARGS__)
+#endif
+#ifndef EXCLUSIVE_LOCKS_REQUIRED
+#define EXCLUSIVE_LOCKS_REQUIRED(...) ABSL_EXCLUSIVE_LOCKS_REQUIRED(__VA_ARGS__)
+#endif
+#ifndef SHARED_LOCKS_REQUIRED
+#define SHARED_LOCKS_REQUIRED(...) ABSL_SHARED_LOCKS_REQUIRED(__VA_ARGS__)
+#endif
+#ifndef LOCKS_EXCLUDED
+#define LOCKS_EXCLUDED(...) ABSL_LOCKS_EXCLUDED(__VA_ARGS__)
+#endif
+#ifndef LOCK_RETURNED
+#define LOCK_RETURNED(x) ABSL_LOCK_RETURNED(x)
+#endif
+#ifndef LOCKABLE
+#define LOCKABLE ABSL_LOCKABLE
+#endif
+#ifndef SCOPED_LOCKABLE
+#define SCOPED_LOCKABLE ABSL_SCOPED_LOCKABLE
+#endif
+#ifndef EXCLUSIVE_LOCK_FUNCTION
+#define EXCLUSIVE_LOCK_FUNCTION(...) ABSL_EXCLUSIVE_LOCK_FUNCTION(__VA_ARGS__)
+#endif
+#ifndef SHARED_LOCK_FUNCTION
+#define SHARED_LOCK_FUNCTION(...) ABSL_SHARED_LOCK_FUNCTION(__VA_ARGS__)
+#endif
+#ifndef UNLOCK_FUNCTION
+#define UNLOCK_FUNCTION(...) ABSL_UNLOCK_FUNCTION(__VA_ARGS__)
+#endif
+#ifndef EXCLUSIVE_TRYLOCK_FUNCTION
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) ABSL_EXCLUSIVE_TRYLOCK_FUNCTION(__VA_ARGS__)
+#endif
+#ifndef SHARED_TRYLOCK_FUNCTION
+#define SHARED_TRYLOCK_FUNCTION(...) ABSL_SHARED_TRYLOCK_FUNCTION(__VA_ARGS__)
+#endif
+#ifndef ASSERT_EXCLUSIVE_LOCK
+#define ASSERT_EXCLUSIVE_LOCK(...) ABSL_ASSERT_EXCLUSIVE_LOCK(__VA_ARGS__)
+#endif
+#ifndef ASSERT_SHARED_LOCK
+#define ASSERT_SHARED_LOCK(...) ABSL_ASSERT_SHARED_LOCK(__VA_ARGS__)
+#endif
+#ifndef NO_THREAD_SAFETY_ANALYSIS
+#define NO_THREAD_SAFETY_ANALYSIS ABSL_NO_THREAD_SAFETY_ANALYSIS
+#endif
+#ifndef TS_UNCHECKED_READ
+#define TS_UNCHECKED_READ(x) ABSL_TS_UNCHECKED_READ(x)
+#endif
+
+#endif  // CARTOGRAPHER_ABSEIL_COMPAT_H_

@@ -1,0 +1,134 @@
+/**:
+  ros__parameters:
+    # ---- map (절대경로 직접 지정; launch 인자 안 씀) ----
+    # 3D(localization_2d=false): map_pcd_3d(full) 를 복셀맵으로 ICP — 필수.
+    # 2D(localization_2d=true) : 정합은 track_map_yaml SDF 에 scan-to-SDF — PCD는 매칭에
+    #   안 씀. map_pcd_2d 는 선택값(/kiss_loc/map viz + 형제 yaml 디렉토리 앵커)이라 비워도 됨.
+    map_pcd_3d: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/map.pcd"
+    # map_pcd_3d: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/map_track_left.pcd"
+
+    map_pcd_2d: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/map_2p5d.pcd"
+    map_voxel_size: 0.5         # 맵 복셀 해시 셀 크기 (m) — 대응점 탐색 반경도 이에 비례
+    map_max_points_per_voxel: 30
+    use_normals: true           # point-to-plane 정합. PCD normal이 0이면 (fast_livo save_map이 그럼)
+                                # 로드 시 복셀 PCA로 추정 (~0.1s). 비평면 복셀은 p2p 폴백
+
+    # ---- scan preprocessing ----
+    scan_voxel_size: 0.35       # 정합용 스캔 다운샘플 (m). 0.3+map 50pts/voxel이면 잔차 ~6% 개선되나 ICP 시간 1.6배 (bag 튜닝 결과)
+    min_range: 0.3              # 차체 반사 등 근접 노이즈 제거 (m)
+    max_range: 60.0
+    point_filter_num: 1         # N점 중 1점 사용 (1=전부)
+
+    # ---- 2D / 3D localization ----
+    # false(3D) = 전체 스캔으로 복셀맵 point-to-plane ICP
+    # true(2D)  = 스캔을 아래 지면밴드로 crop → 2D로 평탄화 → loc_2d_map_yaml SDF에
+    #   scan-to-SDF 정합(3-DoF x,y,yaw; z/roll/pitch는 마운트 틸트로 고정). map_2p5d.pcd
+    #   불필요. 모드 결정은 오직 이 config 한 곳
+    #   — 옛 crop_ground_mode는 ground_lidar.yaml에도 있어 양쪽 수정해야 했음.
+    localization_2d: true
+    # 2D 정합 전용 SDF 맵 (map_server 스타일 yaml+pgm; >127=주행영역, 경계=벽).
+    # detection용 track_map_yaml과 분리 — 비우면 track_map_yaml로 폴백.
+    loc_2d_map_yaml: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/map_2d.yaml"
+    # 2D scan-to-SDF complementary 필터 게인: 매 스캔 SDF 보정의 적용 비율(1=원본 fix 그대로,
+    # 낮을수록 부드러움 — gyro가 고주파 운동 담당, SDF는 저주파 드리프트만 천천히 보정).
+    # 소수 점+이산 SDF의 프레임간 yaw/xy 진동 억제. 0.3 권장(bag서 진동 ~절반↓), 0.15↓는 lag로 역효과.
+    # 트레이드오프: 낮출수록 드리프트 보정이 느려짐(약간 lag) — 공격적 제어면 0.4~0.5로.
+    loc_2d_corr_gain: 0.3
+
+    # ---- ground-band 기하 (지면 밴드) ----
+    # GLIM ground_lidar.yaml 절대경로. 노드가 이걸 읽어 지면평면(crop_ground_normal/
+    # offset)과 z밴드(crop_z_min/max)의 단일 소스로 씀. localization_2d 또는 detection이
+    # 켜지면 필수 — 없으면 fatal(밴드 기하가 틀리므로). 튜닝(밴드 두께 등)도 여기서.
+    # 용도: (1) localization_2d=true 스캔 crop (2) detection z밴드 (3) /kiss_loc/scan_2d 밴드.
+    ground_yaml: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/ground_lidar.yaml"
+
+    # ---- input ----
+    lidar_topic: "/livox/lidar"   # sensor_msgs/PointCloud2
+    imu_topic: "/livox/imu"
+    stamp_at_scan_end: true     # livox 드라이버 use_system_timestamp=true면 header가 100ms 누적 '끝' 시각 (publish 시 now())
+                                # 드라이버를 디바이스 타임으로 쓰면(header=첫 점) false로
+
+    # ---- IMU ----
+    imu_en: true
+    deskew_en: true             # gyro 적분으로 스캔 내 회전 왜곡 보정
+    imu_rate_odom: true         # 라이다 프레임 사이 IMU로 고-hz pose 전파 (ICP가 스캔마다 보정)
+    imu_init_samples: 100       # 정지 상태 자이로 바이어스 초기화 샘플 수 (200Hz → 0.5s)
+    # LiDAR→IMU 회전 외참 (row-major). MID360 내장 IMU는 identity
+    extrinsic_R_il: [1.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0,
+                     0.0, 0.0, 1.0]
+
+    # ---- ICP / adaptive threshold (KISS-ICP) ----
+    max_iterations: 50
+    convergence_eps: 2.0e-3     # 조기종료 스텝 크기. 1e-5는 NN 재할당 진동 때문에 항상 50회를 다 돌았음
+                                # (2e-3 → 수렴률 5.6%→72%, ICP 33→19ms, 잔차 동일)
+    initial_threshold: 1.0      # 첫 프레임/리셋 직후 대응점 탐색 반경 (m)
+    min_threshold: 0.1          # 적응 임계 하한 (m)
+    min_motion: 0.05            # 이보다 작은 모델 오차는 통계에 미반영 (m)
+    adaptive_range: 60.0        # 적응 임계 회전항의 특성 거리. 15로 줄이면 임계가 조여져
+                                # 공격 주행 구간 lock 100%→83% 붕괴 — 느슨함이 견고성 마진 (bag 실측)
+    vel_smoothing: 0.3          # 속도 추정 EMA (0=차분 그대로). 예측 오차 dev_t p50 0.085→0.071
+    # ---- divergence gate (localization 전용) ----
+    reject_trans: 2.0           # 예측 대비 정합 결과 점프 한도 (m) — 초과 시 프레임 기각, 예측으로 coast
+    reject_rot_deg: 30.0        # 〃 회전 한도 (deg)
+    reject_recover_count: 3     # 연속 기각 N회면 예측이 틀린 것 — 정합 결과로 재앵커
+    max_velocity: 15.0          # 속도 추정 상한 (m/s) — 폭주 피드백 차단
+    max_accel: 10.0             # 속도 추정 변화율 상한 (m/s²) — 복도 퇴화 구간 종방향 속도 폭주 방지
+
+    # ---- initial pose & output ----
+    initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]   # [x y z roll pitch yaw] (m, rad)
+    use_initial_pose_topic: true                    # /initialpose (RViz 2D Pose Estimate)
+    map_frame: "map"
+    base_frame: "base_link"
+    odom_topic: "/kiss_loc/odometry"   # localization 출력 odom 토픽 (nav_msgs/Odometry)
+    # ---- 2D occupancy grid (노드가 직접 발행, nav2_map_server 불필요) ----
+    publish_2d_map: true        # 2D 래스터(pgm/yaml) 읽어 /map(OccupancyGrid) 직접 발행
+    map_2d_topic: "/map"        # 발행 토픽 (transient_local)
+    # viz backdrop 소스는 기본적으로 track_map_yaml(detection mask). 다른 yaml로 강제하려면
+    # map_2d_yaml 파라미터를 추가(절대경로) — 비우면 track_map → <active map 폴더>/map_2d.yaml 순.
+    publish_tf: false           # TF는 발행 안 함 — pose는 odom_topic으로 발행
+    publish_aligned_scan: true
+    # 2d화한 정합 스캔 = aligned 스캔의 지면밴드 슬랩을 map 프레임으로 옮기고 z=0으로
+    # 평탄화해 발행 — 2D scan-to-SDF가 매칭하는 평면(x,y)·/map 트랙래스터(z=0)와 정확히
+    # 겹침. localization_2d와 무관하게 항상 밴드 계산(2D 모드면 이미 밴드라 통과).
+    # 구독자 있을 때만 발행. 2D costmap/scan·2D 정합 viz 소비자용.
+    publish_2d_scan: true
+    scan_2d_topic: "/kiss_loc/scan_2d"
+
+    # ---- BEV object detection (선택) ----
+    # localization 산출물(deskew+정합된 map-frame 스캔)에 얹는 per-frame 2D 검출.
+    # 지면평면으로 바닥 제거 → 차 높이 밴드 크롭 → 클러스터링으로 벽+장애물+상대차를
+    # 객체로 추출, centroid 트래킹으로 moving(opponent) 여부 표시. lock 상태에서만 동작.
+    # 상태 누적 없음(per-frame) → warmup/leading-edge 오탐 없음.
+    detect_en: true              # 기본 off. v14 launch는 true로 켬
+    detect_res: 0.05               # BEV 셀 크기 (m)
+    # 지면 제거 + 높이 크롭은 위 crop_ground_* / crop_z_min/max (ground_lidar.yaml)를
+    # 그대로 사용 — localization 입력 crop과 단일 소스. 센서프레임 평면을 매 프레임
+    # 현재 pose로 map 프레임에 회전시켜 적용. 별도 detect_ground_*/detect_z_* 없음.
+    # 검출 정의 = (지면밴드 위) ∧ (트랙 free영역 안). 장애물은 항상 맵과 무관하게
+    # 트랙 위 무작위로 생기므로, 트랙 필터가 곧 이 정의이자 유일한 공간 필터.
+    # (prior map 근접 점 제거 = 옛 stage-1은 이 시나리오에서 중복이라 코드에서 제거됨.)
+    # GLIM map_track(점유격자 free영역) 안=장애물(유지), 밖=벽/외곽(제거).
+    # 법선방향 = 위 z밴드 crop, 법선수직(in-plane) = 이 트랙 거리 필터.
+    detect_track_filter: true     # track 마스크 기반 점 제거
+    # signed margin: SignedOutside(<0=트랙안, >0=트랙밖) > margin 이면 제거.
+    #   margin>0 = 경계 팽창(관대, 벽 누수↑) | margin<0 = 침식(벽 쪽 버퍼, 벽 빡세게 제거).
+    # 벽 점이 localization 흔들림·벽 두께로 트랙 안 몇 cm 튀어들어와도 침식이 흡수.
+    # -0.1 = 트랙 경계 안쪽 10cm까지 제거. 벽에 바싹 붙은 장애물 놓치면 -0.05로 완화.
+    detect_track_margin: -0.2
+    # detection mask 2D png/yaml (map_server 스타일 yaml+pgm) 절대경로. stage-2 필터 +
+    # /map viz backdrop 겸용. 비우면 <active map dir>/map_track.yaml 자동 사용.
+    track_map_yaml: "/Users/mini/ros2_ws/src/IFAC2026/src/system/stack_master/maps/ifac_1/map_track.yaml"
+    # DBSCAN (밀도 기반). res 그리드를 공간 인덱스로 사용.
+    detect_eps: 0.3               # 이웃 반경 (m). res와 독립. 비용 ∝ (eps/res)²
+    detect_min_samples: 2         # eps 안에 (자기 포함) 이만큼 셀이 있어야 core. 클수록 노이즈 제거↑
+    detect_min_cluster_cells: 2   # 최종: 이보다 작은 클러스터는 버림 (res 셀 단위)
+    detect_track_gate: 1.0        # bbox 중심 연관 최대 이동 (m)
+    detect_moving_speed: 0.5      # |v| 초과 시 moving(opponent)으로 분류 (m/s)
+    detect_max_misses: 5          # 미매칭 N프레임 후 트랙 제거
+    detect_arrow_scale: 0.5       # 속도 화살표 길이 배율 (m per m/s). 시각화 전용
+    # ---- detection 출력 토픽 (yaml에서 지정) ----
+    detect_obstacle_topic: "/kiss_loc/obstacles"     # 지면제거 foreground 클라우드 (PointCloud2)
+    detect_marker_topic:   "/kiss_loc/detections"    # 클러스터 bbox/속도 마커 (MarkerArray)
+    detect_pose_topic:     "/kiss_loc/obstacle_poses" # DBSCAN 클러스터 중심 (PoseArray, map frame)
+                                                      #   MPCC에 물리려면 "/external_obstacles"로

@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!--
+  race.launch.xml  (ROS2 port of the ROS1 stack_master/headtohead.launch)
+  ==============================================================================
+  Full head-to-head racing autonomy on top of base_system:
+
+    perception   : detect (C++) + tracking (Python)  (/scan -> /detect/raw_obstacles -> /tracking/obstacles_raw)
+    state machine: state_machine                     (/tracking/obstacles + raceline -> /local_waypoints, /behavior_strategy, /state_machine)
+    planning     : spliner_node                      (avoidance spline -> /planner/avoidance/otwpnts)
+    control      : controller_manager               (L1/Pure-Pursuit; /behavior_strategy -> high_level/ackermann_cmd)
+
+  The virtual opponent and its obstacle injection (/tracking/obstacles with
+  Frenet fields) come from base_system -> low_level -> virtual_perception pkg
+  (scan_overlay overlays the box on /scan; tracking_merger publishes
+  /tracking/obstacles). Spawn / drive the opponent from the RViz Sim Control
+  panel (2D Goal Pose, then Path/FTG).
+
+  SIM : ros2 launch stack_master race.launch.xml map:=f sim:=true
+  REAL: ros2 launch stack_master race.launch.xml map:=f sim:=false
+-->
+<launch>
+  <arg name="map"        description="Map name (folder in stack_master/maps/)"/>
+  <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
+  <arg name="virtual"    default="$(var sim)" description="Inject a virtual opponent + static obstacles (on by default in sim, off on the real car; e.g. virtual:=true to overlay a virtual opponent onto the real LiDAR)"/>
+  <arg name="ot_planner" default="lane_change"
+       description="Overtake planner to run and listen to: lane_change (lane_change_planner) or sqp (sqp_planner)"/>
+  <arg name="control_topic" default="/local_waypoints"
+       description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
+  <arg name="vis_lane_change" default="false"
+       description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
+  <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
+  <let name="racecar_version" value="SIM" if="$(var sim)"/>
+  <let name="racecar_version" value="CAR" unless="$(var sim)"/>
+  <!-- virtual_perception injection seam is chosen at RUNTIME from the Sim Control
+       panel (/vp/inject_mode: overlay | merge; default 'overlay'). In BOTH modes
+       tracking publishes /tracking/obstacles_raw and tracking_merger owns
+       /tracking/obstacles (passes the real tracking through, and adds the virtual
+       objects ONLY in 'merge' mode). So the REAL detect->track pipeline reaches the
+       state machine in 'overlay' (detection-in-the-loop), and ground-truth object
+       injection works in 'merge' — switchable live, no relaunch. -->
+
+  <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
+  <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
+    <arg name="map"     value="$(var map)"/>
+    <arg name="sim"     value="$(var sim)"/>
+    <arg name="virtual" value="$(var virtual)"/>
+  </include>
+
+  <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
+       detect publishes /detect/raw_obstacles (Frenet filled at the source);
+       tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
+       (sim virtual_perception) owns /tracking/obstacles. -->
+  <node pkg="perception" exec="detect" name="detect" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
+    <param name="map" value="$(var map)"/>
+  </node>
+  <!-- with virtual:=true tracking_merger owns /tracking/obstacles, so tracking feeds it
+       on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
+  <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
+  <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
+  <node pkg="perception" exec="tracking_node" name="tracking" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
+    <remap from="/tracking/obstacles" to="$(var tracking_out)"/>
+  </node>
+
+  <!-- ===== State machine: the racing brain ===== -->
+  <node pkg="state_machine" exec="state_machine" name="state_machine" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
+    <param name="sim"             value="$(var sim)"/>
+    <param name="racecar_version" value="$(var racecar_version)"/>
+    <param name="timetrials_only" value="false"/>
+    <param name="ot_planner"      value="$(var ot_planner)"/>
+    <param name="map"             value="$(var map)"/>
+  </node>
+
+  <!-- Recovery planner -> /planner/recovery/wpnts -->
+  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="screen"/>
+
+  <!-- Start planner -> /planner/start_wpnts -->
+  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="screen"/>
+
+  <!-- Static avoidance -> /planner/avoidance/static_otwpnts -->
+  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="screen">
+    <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
+  </node>
+
+  <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
+  <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
+    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="screen">
+      <param name="vis" value="$(var vis_lane_change)"/>
+    </node>
+    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+  </group>
+  <group if="$(eval '\'$(var ot_planner)\' == \'sqp\'')">
+    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="screen"/>
+    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+  </group>
+
+  <!-- ===== GP opponent-trajectory predictor =====
+       Pipeline (README): opponent_trajectory (collect /proj_opponent_trajectory) ->
+       gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
+       (-> /opponent_prediction/* consumed by planner_change above).
+       opp_prediction calls the frenet_conversion_server services, launched by base. -->
+  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
+  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
+  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+
+  <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
+       Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
+       (-> simple_mux -> vehicle). Common controller.yaml; save_params writes back
+       to the same file. -->
+  <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <param name="sim" value="$(var sim)"/>
+  </node>
+</launch>
