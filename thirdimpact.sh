@@ -51,6 +51,23 @@ unset AMENT_PREFIX_PATH AMENT_CURRENT_PREFIX CMAKE_PREFIX_PATH COLCON_PREFIX_PAT
 
 conda activate thirdimpact
 
+# --- self-heal stale editable Python installs after workspace migration ---
+# The `f110_gym` package is installed via pip editable. If the env was created
+# under a different checkout (e.g. /home/fcsl/unicorn_ws/... -> now this repo at
+# /home/fcsl/roboracer_ws/...), `python` will keep importing the stale path and
+# `gym_bridge` will die with `ModuleNotFoundError: No module named 'f110_gym'`.
+# Reinstall the current repo's editable copy into the active env on entry.
+_urs_f110_pkg="$_URS_REPO/race_utils/unicorn_gym/f1tenth_gym"
+_urs_f110_editable="$(python -m pip show f110_gym 2>/dev/null | sed -n 's/^Editable project location: //p' || true)"
+if [ -n "${_urs_f110_editable:-}" ] && [ "$_urs_f110_editable" != "$_urs_f110_pkg" ]; then
+    echo "[thirdimpact] correcting stale editable f110_gym install from $_urs_f110_editable -> $_urs_f110_pkg"
+    python -m pip uninstall -y f110_gym >/dev/null 2>&1 || true
+    python -m pip install -e "$_urs_f110_pkg" >/dev/null
+elif ! python -c "import f110_gym" >/dev/null 2>&1; then
+    echo "[thirdimpact] installing editable f110_gym from $_urs_f110_pkg"
+    python -m pip install -e "$_urs_f110_pkg" >/dev/null
+fi
+
 # Never let ~/.local user-site packages shadow the conda env (stale numba, etc.).
 export PYTHONNOUSERSITE=1
 
