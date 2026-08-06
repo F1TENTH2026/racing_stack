@@ -47,6 +47,9 @@ class Controller:
                 trailing_i_gain,
                 trailing_d_gain,
                 blind_trailing_speed,
+                static_gap_deadband_m,
+                static_resume_hysteresis_m,
+                static_crawl_speed_mps,
 
                 loop_rate,
                 wheelbase,
@@ -104,6 +107,9 @@ class Controller:
         self.trailing_i_gain = trailing_i_gain
         self.trailing_d_gain = trailing_d_gain
         self.blind_trailing_speed = blind_trailing_speed
+        self.static_gap_deadband_m = static_gap_deadband_m
+        self.static_resume_hysteresis_m = static_resume_hysteresis_m
+        self.static_crawl_speed_mps = static_crawl_speed_mps
 
         self.loop_rate = loop_rate
         self.AEB_thres = AEB_thres
@@ -120,6 +126,8 @@ class Controller:
         self.v_diff = None
         self.i_gap = 0
         self.trailing_command = 2
+        self.static_stop_latched = False
+        self.static_reacquiring = False
         self.speed_command = None
         self.last_valid_speed = 0
         self.curvature_waypoints = 0
@@ -425,11 +433,20 @@ class Controller:
         else:
             self.boost_mode = False
 
-        if ((self.state == "TRAILING") and (self.opponent is not None)):  # Trailing controller
-            speed_command = self.trailing_controller(global_speed)
+        if self.state == "TRAILING":
+            if self.opponent is not None:
+                speed_command = self.trailing_controller(global_speed)
+            else:
+                # TRAILING is a safety state. If its target disappears beyond
+                # the manager's short hold window, stop instead of falling
+                # through to the global-path speed for a frame.
+                self.i_gap = 0
+                speed_command = 0.0
         else:
             self.trailing_speed = global_speed
             self.i_gap = 0
+            self.static_stop_latched = False
+            self.static_reacquiring = False
             speed_command = global_speed
 
         speed_command = self.speed_adjust_lat_err(speed_command, lat_e_norm)
@@ -460,7 +477,39 @@ class Controller:
         i_value = self.i_gap * self.trailing_i_gain
 
         self.trailing_command = np.clip(self.opponent[2] - p_value - i_value - d_value, 0, global_speed)
-        if not self.opponent[4] and self.gap_actual > self.gap_should:
+
+        if self.opponent[3]:
+            # Static targets use a latched stop with hysteresis. This prevents
+            # centimetre-level Frenet/obstacle noise from toggling the motor
+            # between zero and a tiny positive command.
+            if not self.opponent[4]:
+                self.static_stop_latched = True
+                self.static_reacquiring = False
+                return 0.0
+
+            stop_gap = self.gap_should + self.static_gap_deadband_m
+            resume_gap = self.gap_should + self.static_resume_hysteresis_m
+
+            if self.static_stop_latched:
+                if self.gap_actual <= resume_gap:
+                    return 0.0
+                self.static_stop_latched = False
+                self.static_reacquiring = True
+
+            if self.gap_actual <= stop_gap:
+                self.static_stop_latched = True
+                self.static_reacquiring = False
+                return 0.0
+
+            if self.static_reacquiring:
+                self.trailing_command = min(
+                    self.trailing_command, self.static_crawl_speed_mps
+                )
+        else:
+            self.static_stop_latched = False
+            self.static_reacquiring = False
+
+        if not self.opponent[3] and not self.opponent[4] and self.gap_actual > self.gap_should:
             self.trailing_command = max(self.blind_trailing_speed, self.trailing_command)
 
         return self.trailing_command

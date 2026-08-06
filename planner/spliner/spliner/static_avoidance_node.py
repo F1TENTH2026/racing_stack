@@ -31,7 +31,6 @@ import trajectory_planning_helpers as tph
 SMOOTH_OTWPNTS = True
 SMOOTH_OTWPNTS_WINDOW = 51       # Savitzky-Golay window (must be odd)
 SMOOTH_OTWPNTS_POLYORDER = 2
-GB_BLEND_LEN = 40                # waypoints over which to quad-ease back onto the GB line
 
 
 class ObstacleSpliner(Node):
@@ -78,6 +77,8 @@ class ObstacleSpliner(Node):
         self.lookahead = 10  # in meters [m]
         self.last_switch_time = self.get_clock().now().to_msg()
         self.last_ot_side = ""
+        self.last_ot_obstacle_id = None
+        self.timer = None
 
         # Static parameters
         self.declare_parameters(
@@ -100,6 +101,9 @@ class ObstacleSpliner(Node):
         self.evasion_dist = 0.65
         self.obs_traj_tresh = 0.3
         self.spline_bound_mindist = 0.2
+        self.apex_hold_ratio = 0.30
+        self.apex_hold_min_dist = 0.60
+        self.rate_static_avoidance = 40.0
         self.kd_obs_pred = 1.0
         self.fixed_pred_time = 0.15
         self.n_loc_wpnts = 80
@@ -113,7 +117,8 @@ class ObstacleSpliner(Node):
         self.dyn_param_cb(self.get_parameters([
             'save_params', 'kernel_size', 'post_sampling_dist', 'post_min_dist',
             'post_max_dist', 'spline_scale', 'evasion_dist', 'obs_traj_tresh',
-            'spline_bound_mindist', 'kd_obs_pred', 'fixed_pred_time',
+            'spline_bound_mindist', 'apex_hold_ratio', 'apex_hold_min_dist',
+            'rate_static_avoidance', 'kd_obs_pred', 'fixed_pred_time',
         ]))
         self.add_on_set_parameters_callback(self.dyn_param_cb)
 
@@ -139,7 +144,7 @@ class ObstacleSpliner(Node):
         self.converter = self.initialize_converter()
 
         # Set the rate at which the loop runs
-        self.create_timer(1.0 / 20.0, self.loop)
+        self.timer = self.create_timer(1.0 / self.rate_static_avoidance, self.loop)
 
     #####################
     # DYNAMIC PARAMETERS #
@@ -178,6 +183,9 @@ class ObstacleSpliner(Node):
         self.declare_parameter('evasion_dist', 0.2, dbl(0.2, 1.25)) # 초기값 0.6 dbl(0.25, 1.25)
         self.declare_parameter('obs_traj_tresh', 1.0, dbl(0.1, 1.5))
         self.declare_parameter('spline_bound_mindist', 0.2, dbl(0.05, 1.0)) # 초기값 0.3
+        self.declare_parameter('apex_hold_ratio', 0.30, dbl(0.0, 0.8))
+        self.declare_parameter('apex_hold_min_dist', 0.60, dbl(0.2, 2.0))
+        self.declare_parameter('rate_static_avoidance', 40.0, dbl(10.0, 80.0))
         self.declare_parameter('pre_apex_dist0', 4.0, dbl(0.5, 8.0))
         self.declare_parameter('pre_apex_dist1', 3.0, dbl(0.5, 8.0))
         self.declare_parameter('pre_apex_dist2', 2.0, dbl(0.5, 8.0))
@@ -199,6 +207,19 @@ class ObstacleSpliner(Node):
                 self.obs_traj_tresh = round(param.value * 20) / 20
             elif param.name == 'spline_bound_mindist':
                 self.spline_bound_mindist = round(param.value * 20) / 20
+            elif param.name == 'apex_hold_ratio':
+                self.apex_hold_ratio = param.value
+            elif param.name == 'apex_hold_min_dist':
+                self.apex_hold_min_dist = param.value
+            elif param.name == 'rate_static_avoidance':
+                new_rate = float(param.value)
+                rate_changed = abs(new_rate - self.rate_static_avoidance) > 1e-6
+                self.rate_static_avoidance = new_rate
+                if rate_changed and self.timer is not None:
+                    self.timer.cancel()
+                    self.timer = self.create_timer(
+                        1.0 / self.rate_static_avoidance, self.loop
+                    )
             elif param.name == 'kd_obs_pred':
                 self.kd_obs_pred = round(param.value * 20) / 20
             elif param.name == 'fixed_pred_time':
@@ -221,6 +242,9 @@ class ObstacleSpliner(Node):
         self.get_logger().info(
             f"[{self.name}] evasion apex distance: {self.evasion_dist} [m],\n"
             f" obstacle trajectory treshold: {self.obs_traj_tresh} [m]\n"
+            f" apex hold ratio/min distance: {self.apex_hold_ratio:.2f} / "
+            f"{self.apex_hold_min_dist:.2f} [m]\n"
+            f" planner rate: {self.rate_static_avoidance:.1f} [Hz]\n"
             f" obstacle prediciton k_d: {self.kd_obs_pred},    obstacle prediciton constant time: {self.fixed_pred_time} [s] "
         )
         return SetParametersResult(successful=True)
@@ -310,7 +334,15 @@ class ObstacleSpliner(Node):
         self.get_logger().info(f"[{self.name}] initialized FrenetConverter object")
         return converter
 
-    def _more_space(self, obstacle: Obstacle, gb_wpnts: List[Any], obs_s_idx: int) -> Tuple[str, float]:
+    def _more_space(
+        self,
+        obstacle: Obstacle,
+        gb_wpnts: List[Any],
+        obs_s_idx: int,
+        post_dist: float,
+        wpnt_dist: float,
+        forced_side: str = None,
+    ) -> Tuple[str, float]:
         # Evade toward the side with more empty space. f1tenth frenet: +d is LEFT, -d is RIGHT.
         # gb_wp.d_left / gb_wp.d_right are POSITIVE wall distances (widths), so the left wall
         # sits at signed +d_left and the right wall at signed -d_right. Obstacle edges =
@@ -319,18 +351,47 @@ class ObstacleSpliner(Node):
         gb_wp = gb_wpnts[obs_s_idx]
         obs_radius = obstacle.size / 2
 
-        pos_gap = gb_wp.d_left - (obstacle.d_center + obs_radius)   # free room toward +d (left) wall
-        neg_gap = (obstacle.d_center - obs_radius) + gb_wp.d_right  # free room toward -d (right) wall
+        # Direction must remain feasible until the path has returned to the global
+        # line. Looking only at the obstacle waypoint can choose a side that becomes
+        # narrow immediately after the obstacle, causing every generated spline to
+        # fail the track-bounds check.
+        horizon_steps = max(1, int(np.ceil(post_dist / wpnt_dist)))
+        corridor_wpnts = [
+            gb_wpnts[(obs_s_idx + i) % len(gb_wpnts)]
+            for i in range(horizon_steps + 1)
+        ]
+        min_left_width = min(wp.d_left for wp in corridor_wpnts)
+        min_right_width = min(wp.d_right for wp in corridor_wpnts)
+
+        pos_gap = min_left_width - (obstacle.d_center + obs_radius)
+        neg_gap = (obstacle.d_center - obs_radius) + min_right_width
         min_space = self.evasion_dist + self.spline_bound_mindist
 
         pos_ok = pos_gap >= min_space
         neg_ok = neg_gap >= min_space
-        if pos_ok and not neg_ok:
-            side = "left"           # +d
-        elif neg_ok and not pos_ok:
-            side = "right"          # -d
+
+        if forced_side in ("left", "right"):
+            side = forced_side
+        elif (
+            self.last_ot_obstacle_id == obstacle.id
+            and self.last_ot_side in ("left", "right")
+        ):
+            # Keep one side for the lifetime of the tracked obstacle. On a nearly
+            # symmetric straight, centimetre-level d noise otherwise flips the
+            # path left/right every planner tick. Override the latch only when the
+            # latched side is no longer feasible and the other side is.
+            side = self.last_ot_side
+            if side == "left" and not pos_ok and neg_ok:
+                side = "right"
+            elif side == "right" and not neg_ok and pos_ok:
+                side = "left"
         else:
-            side = "left" if pos_gap >= neg_gap else "right"
+            if pos_ok and not neg_ok:
+                side = "left"           # +d
+            elif neg_ok and not pos_ok:
+                side = "right"          # -d
+            else:
+                side = "left" if pos_gap >= neg_gap else "right"
 
         if side == "left":
             d_apex = (obstacle.d_center + obs_radius) + self.evasion_dist
@@ -345,7 +406,13 @@ class ObstacleSpliner(Node):
 
         return side, d_apex
 
-    def do_spline(self, obs: Obstacle, gb_wpnts: WpntArray) -> Tuple[WpntArray, MarkerArray]:
+    def do_spline(
+        self,
+        obs: Obstacle,
+        gb_wpnts: WpntArray,
+        forced_side: str = None,
+        allow_side_retry: bool = True,
+    ) -> Tuple[WpntArray, MarkerArray]:
         """
         Creates an evasion trajectory for a static obstacle by splining between current pose and post-apex points.
 
@@ -372,11 +439,20 @@ class ObstacleSpliner(Node):
 
             obs_s_idx = int(obs.s_center / wpnt_dist) % self.gb_max_idx
 
-            more_space, d_apex = self._more_space(obs, gb_wpnts, obs_s_idx)
+            post_dist = min(
+                min(max(pre_dist, self.post_min_dist), self.post_max_dist),
+                self.gb_max_s / 2,
+            )
+            more_space, d_apex = self._more_space(
+                obs,
+                gb_wpnts,
+                obs_s_idx,
+                post_dist,
+                wpnt_dist,
+                forced_side=forced_side,
+            )
             s_list = [obs.s_center]
             d_list = [d_apex]
-
-            post_dist = min(min(max(pre_dist, self.post_min_dist), self.post_max_dist), self.gb_max_s / 2)
 
             num_post_ref = int((post_dist // self.sampling_dist)) + 1
 
@@ -461,19 +537,37 @@ class ObstacleSpliner(Node):
                 for i in range(n_additional)
             ])
 
-            # Quad-ease the spline tail onto the GB line so the handoff to xy_additional is smooth.
+            # Preserve the obstacle-clearing apex and part of the post-apex path.
+            # Only blend the remaining post-apex samples back to the GB line. A
+            # fixed tail length can reach back across the apex on a short straight
+            # approach and erase the lateral clearance that the state machine checks.
             if SMOOTH_OTWPNTS and len(samples) > 0:
-                blend_to_gb_len = min(GB_BLEND_LEN, len(samples) - 1)
+                apex_xy = resp[:, 0]
+                apex_sample_idx = int(np.argmin(np.linalg.norm(samples - apex_xy, axis=1)))
+                post_apex_count = max(len(samples) - apex_sample_idx - 1, 0)
+                ratio_hold_count = int(np.ceil(post_apex_count * self.apex_hold_ratio))
+                min_hold_count = int(np.ceil(self.apex_hold_min_dist / wpnt_dist))
+                hold_count = min(post_apex_count, max(ratio_hold_count, min_hold_count))
+                blend_start_idx = apex_sample_idx + hold_count
+                blend_to_gb_len = max(len(samples) - blend_start_idx - 1, 0)
+
+                sample_s_before_blend, _ = self.converter.get_frenet(
+                    samples[:, 0], samples[:, 1]
+                )
                 for bi in range(blend_to_gb_len):
-                    idx = len(samples) - blend_to_gb_len + bi
+                    idx = blend_start_idx + bi
                     t = (bi + 1) / (blend_to_gb_len + 1)
                     w = t * t  # quadratic easing
-                    gb_idx_for_blend = (s_idx[-1] - blend_to_gb_len + bi + 1) % self.gb_max_idx
+                    gb_idx_for_blend = (
+                        int(round(sample_s_before_blend[idx] / wpnt_dist))
+                        % self.gb_max_idx
+                    )
                     target_pt = np.array([
                         gb_wpnts[gb_idx_for_blend].x_m,
                         gb_wpnts[gb_idx_for_blend].y_m])
                     samples[idx] = samples[idx] * (1 - w) + target_pt * w
 
+            generated_sample_count = len(samples)
             samples = np.vstack([samples, xy_additional])
 
             s_, d_ = self.converter.get_frenet(samples[:, 0], samples[:, 1])
@@ -485,11 +579,13 @@ class ObstacleSpliner(Node):
                     is_closed=False
                 )
 
+            # Validate only the trajectory generated by this planner. The appended
+            # GB tail is already the accepted global path; rejecting the complete
+            # avoidance path because of one noisy/eroded map pixel 10 m downstream
+            # made static avoidance appear at random after long TRAILING waits.
             danger_flag = False
-            bounds_check_results = []  # debug: True if sample passed is_point_inside
-            for i in range(samples.shape[0]):
-                gb_wpnt_i = int((s_[i] / wpnt_dist) % self.gb_max_idx)
-
+            bounds_check_results = []  # debug: True if generated sample passed
+            for i in range(generated_sample_count):
                 inside = self.map_filter.is_point_inside(samples[i, 0], samples[i, 1])
                 bounds_check_results.append(inside)
                 if not inside:
@@ -499,22 +595,46 @@ class ObstacleSpliner(Node):
                     )
                     danger_flag = True
                     break
-                outside = True
-                # Get V from gb wpnts and go slower if we are going through the inside
-                vi = gb_wpnts[gb_wpnt_i].vx_mps if outside else gb_wpnts[gb_wpnt_i].vx_mps * 0.9  # TODO make speed scaling ros param
-
-                wpnts.wpnts.append(
-                    self.xyv_to_wpnts(x=samples[i, 0], y=samples[i, 1], s=s_[i], d=d_[i], v=2, psi=psi_[i] + np.pi / 2, kappa=kappa_[i], wpnts=wpnts)
-                )
-                mrks.markers.append(self.xyv_to_markers(x=samples[i, 0], y=samples[i, 1], v=vi, mrks=mrks))
 
             # Debug: visualize every spline sample colored by bounds check
             self._publish_spline_samples_markers(samples, bounds_check_results)
 
-            # Fill the rest of OTWpnts
             if danger_flag:
+                if allow_side_retry:
+                    retry_side = "right" if more_space == "left" else "left"
+                    self.get_logger().warning(
+                        f"[{self.name}]: {more_space} evasion path rejected by "
+                        f"track bounds; retrying {retry_side} in the same cycle",
+                        throttle_duration_sec=2,
+                    )
+                    return self.do_spline(
+                        obs,
+                        gb_wpnts,
+                        forced_side=retry_side,
+                        allow_side_retry=False,
+                    )
                 wpnts.wpnts = []
                 mrks.markers = []
+            else:
+                # Latch only a direction that produced a valid path. A failed
+                # direction must not trap the same obstacle in repeated retries.
+                self.last_ot_obstacle_id = obs.id
+                self.last_ot_side = more_space
+                for i in range(samples.shape[0]):
+                    gb_wpnt_i = int((s_[i] / wpnt_dist) % self.gb_max_idx)
+                    vi = gb_wpnts[gb_wpnt_i].vx_mps
+                    wpnts.wpnts.append(
+                        self.xyv_to_wpnts(
+                            x=samples[i, 0], y=samples[i, 1], s=s_[i], d=d_[i],
+                            v=2, psi=psi_[i] + np.pi / 2, kappa=kappa_[i],
+                            wpnts=wpnts
+                        )
+                    )
+                    mrks.markers.append(
+                        self.xyv_to_markers(
+                            x=samples[i, 0], y=samples[i, 1], v=vi, mrks=mrks
+                        )
+                    )
         return wpnts, mrks
 
     def _publish_spline_samples_markers(self, samples: np.ndarray, bounds_check_results: List[bool]):

@@ -28,13 +28,19 @@
     <arg name="virtual"        value="false"/>
   </include>
 
-  <!-- ===== Cartographer SLAM (no IMU, no odometry: mapping_2d.lua) =====
+  <!-- Remove the measured zero-rate gyro offset before Cartographer integrates IMU data. -->
+  <node pkg="stack_master" exec="imu_bias_corrector_node.py"
+        name="imu_bias_corrector" output="screen">
+    <param from="$(var vehicle_config)"/>
+  </node>
+
+  <!-- ===== Cartographer SLAM (corrected IMU, no odometry: mapping_2d.lua) =====
        gym_bridge does NOT publish TF, but this is real-hardware only, so
        cartographer owns the map->base_link TF via publish_to_tf. -->
   <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
         args="-configuration_directory $(var cartographer_config_dir) -configuration_basename mapping_2d.lua -collect_metrics --ros-args --log-level warn">
     <param name="use_sim_time"  value="false"/>
-    <remap from="/imu" to="/vesc/sensors/imu"/>
+    <remap from="/imu" to="/vesc/sensors/imu_corrected"/>
     <remap from="/odom" to="/vesc/odom"/>
   </node>
 

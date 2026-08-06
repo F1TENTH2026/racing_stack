@@ -58,7 +58,6 @@ options = {
 
 MAP_BUILDER.use_trajectory_builder_2d = true
 MAP_BUILDER.num_background_threads = 4
-
 TRAJECTORY_BUILDER_2D.min_range = 0.12
 TRAJECTORY_BUILDER_2D.max_range = 50.
 TRAJECTORY_BUILDER_2D.missing_data_ray_length = 5.

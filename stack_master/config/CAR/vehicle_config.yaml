@@ -39,8 +39,12 @@ vesc/**:
     servo_min: 0.0
     speed_max: 23250.0
     speed_min: -23250.0
-    speed_to_erpm_gain: 4614.0
+    speed_to_erpm_gain: 4614.0 # 초기값 4614.0
     speed_to_erpm_offset: 0.0
     steering_angle_to_servo_gain: -1.2135 # 좌우 반전(-)
-    steering_angle_to_servo_offset: 0.5304
+    steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true
+
+imu_bias_corrector:
+  ros__parameters:
+    gyro_bias: [-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary

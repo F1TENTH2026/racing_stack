@@ -21,7 +21,7 @@
     base_link_to_vesc_imu_rot:
       parent: base_link
       child: vesc_imu_rot
-      xyz: [0.0, 0.0, 0.0]
+      xyz: [0.07, 0.0, 0.04] #수정전 [0.0, 0.0, 0.0]
       rpy: [0.0, 0.0, 0.0]
     vesc_imu_rot_to_vesc_imu:
       parent: vesc_imu_rot

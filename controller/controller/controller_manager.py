@@ -31,7 +31,9 @@ L1_PARAMS = [
     'acc_scaler_for_steer', 'dec_scaler_for_steer', 'start_scale_speed',
     'end_scale_speed', 'downscale_factor', 'speed_lookahead_for_steer',
     'trailing_gap', 'trailing_vel_gain', 'trailing_p_gain', 'trailing_i_gain',
-    'trailing_d_gain', 'blind_trailing_speed', 'curvature_factor',
+    'trailing_d_gain', 'blind_trailing_speed', 'static_target_hold_sec',
+    'static_gap_deadband_m', 'static_resume_hysteresis_m',
+    'static_crawl_speed_mps', 'curvature_factor',
     'speed_factor_for_lat_err', 'speed_factor_for_curvature', 'KP', 'KI', 'KD',
     'heading_error_thres', 'steer_gain_for_speed', 'future_constant', 'AEB_thres',
     'speed_diff_thres', 'start_speed', 'start_curvature_factor',
@@ -79,6 +81,8 @@ class ControllerManager(Node):
         self.yaw_rate = 0
         self.waypoint_safety_counter = 0
         self.opponent = [0, 0, 0, False, True]  # s, d, vs, is_static, is_visible
+        self.last_static_opponent = None
+        self.last_static_opponent_time_sec = None
         self.state = ""
         self.trailing_command = 2
         self.i_gap = 0
@@ -190,6 +194,8 @@ class ControllerManager(Node):
             self.downscale_factor, self.speed_lookahead_for_steer,
             self.trailing_gap, self.trailing_vel_gain, self.trailing_p_gain,
             self.trailing_i_gain, self.trailing_d_gain, self.blind_trailing_speed,
+            self.static_gap_deadband_m, self.static_resume_hysteresis_m,
+            self.static_crawl_speed_mps,
             self.loop_rate, self.wheelbase,
             self.speed_factor_for_lat_err, self.speed_factor_for_curvature,
             self.speed_diff_thres, self.start_speed, self.start_curvature_factor,
@@ -305,6 +311,7 @@ class ControllerManager(Node):
         self.position_in_map_frenet = np.array([s, d, vs, vd])
 
     def behavior_cb(self, data: BehaviorStrategy):
+        now_sec = self.get_clock().now().nanoseconds * 1e-9
         if len(data.trailing_targets) != 0:
             opponent = data.trailing_targets[0]
             opponent_s = opponent.s_center
@@ -313,8 +320,31 @@ class ControllerManager(Node):
             opponent_visible = opponent.is_visible
             opponent_static = opponent.is_static
             self.opponent = [opponent_s, opponent_d, opponent_vs, opponent_static, opponent_visible]
+            if opponent_static:
+                self.last_static_opponent = self.opponent.copy()
+                self.last_static_opponent_time_sec = now_sec
+            else:
+                self.last_static_opponent = None
+                self.last_static_opponent_time_sec = None
         else:
-            self.opponent = None
+            static_target_age = (
+                None if self.last_static_opponent_time_sec is None
+                else now_sec - self.last_static_opponent_time_sec
+            )
+            if (
+                data.state == "TRAILING"
+                and self.last_static_opponent is not None
+                and static_target_age is not None
+                and static_target_age <= self.static_target_hold_sec
+            ):
+                # A short tracker/state-machine dropout must not turn TRAILING
+                # into a global-speed command for one frame.
+                self.opponent = self.last_static_opponent.copy()
+            else:
+                self.opponent = None
+                if data.state != "TRAILING":
+                    self.last_static_opponent = None
+                    self.last_static_opponent_time_sec = None
 
         self.waypoint_list_in_map = []
 

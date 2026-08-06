@@ -34,13 +34,13 @@ tracking:
     dist_infront: 8.0
     max_std: 0.2
     min_std: 0.16
-    min_nb_meas: 5
+    min_nb_meas: 3
     noMemoryMode: true
     debug_mode: false
     publish_static: true
     ratio_to_glob_path: 0.6
     ttl_dynamic: 40
-    ttl_static: 3
+    ttl_static: 12
     vs_reset: 0.1
     measure: false
     from_bag: false

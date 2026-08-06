@@ -42,6 +42,8 @@ install(PROGRAMS
   scripts/static_tf_publisher.py
   scripts/vesc_calibration_node.py
   scripts/imu_mount_calibration.py
+  scripts/imu_gyro_bias_check.py
+  scripts/imu_bias_corrector_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
