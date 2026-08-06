@@ -175,9 +175,9 @@ class ObstacleSpliner(Node):
         self.declare_parameter('post_min_dist', 1.5, dbl(0.5, 3.0))
         self.declare_parameter('post_max_dist', 5.0, dbl(3.0, 20.0))
         self.declare_parameter('spline_scale', 0.8, dbl(0.5, 2.0))
-        self.declare_parameter('evasion_dist', 0.6, dbl(0.25, 1.25))
+        self.declare_parameter('evasion_dist', 0.20, dbl(0.20, 1.25)) # 초기값 0.6 dbl(0.25, 1.25) 장애물 min값
         self.declare_parameter('obs_traj_tresh', 1.0, dbl(0.1, 1.5))
-        self.declare_parameter('spline_bound_mindist', 0.30, dbl(0.05, 1.0))
+        self.declare_parameter('spline_bound_mindist', 0.20, dbl(0.20, 1.0)) # 초기값 0.30 dbl(0.05, 1.0) 장애물 min값
         self.declare_parameter('pre_apex_dist0', 4.0, dbl(0.5, 8.0))
         self.declare_parameter('pre_apex_dist1', 3.0, dbl(0.5, 8.0))
         self.declare_parameter('pre_apex_dist2', 2.0, dbl(0.5, 8.0))

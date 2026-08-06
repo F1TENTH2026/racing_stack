@@ -1313,6 +1313,10 @@ class StateMachine(Node):
 
         rec = self.cur_recovery_wpnts
         avoid = self.cur_avoidance_wpnts
+        # 주은 추가 코드
+        static = self.cur_static_avoidance_wpnts
+        static_topic = self.static_avoidance_wpnts
+
         snap = {
             "t": round(self.now_sec(), 3),
             "src": self.local_wpnts_src.name,
@@ -1352,6 +1356,18 @@ class StateMachine(Node):
                 "reinit_count": avoid.init_count,
                 "is_init": avoid.is_init,
             },
+            #주은 추가 코드
+            "static_overtaking_mode": bool(self.static_overtaking_mode),
+            "static_free": static.free_dbg,
+            "static": {
+                "topic_n": len(self.static_avoidance_wpnts.wpnts) if self.static_avoidance_wpnts is not None else None,
+                "topic_age": (None if self.static_avoidance_wpnts is None
+                              else round(self.now_sec() - time_to_float(self.static_avoidance_wpnts.header.stamp), 3)),
+                "latest_threshold": static.latest_threshold,
+                "is_init": static.is_init,
+                "cache_s0": s0(static.list),
+            },
+
             # Internal slice detail from get_splini_wpts / get_recovery_wpts for
             # THIS loop (None if that source was not used). Shows the exact
             # min_idx, the s it picked, cache extent, and how many points came
