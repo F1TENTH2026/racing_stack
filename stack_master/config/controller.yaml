@@ -29,7 +29,7 @@ controller_manager:
     future_constant: 0.05
     AEB_thres: 0.5
     speed_diff_thres: 0.1
-    start_speed: 10.0
+    start_speed: 0.5 # 초기값 10.0
     start_curvature_factor: 1.5
     # FTG (FTGONLY state) - disparity-extender; all tunables in metres/degrees,
     # live-tunable via rqt. Beam/FOV independent (no beam-count params).
