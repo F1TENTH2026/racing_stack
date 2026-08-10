@@ -455,7 +455,7 @@ class ControllerManager(Node):
         ack_msg.header.frame_id = 'base_link'
         ack_msg.drive.steering_angle = float(steering_angle)
        
-        ack_msg.drive.speed = float(min(speed,2.0))  # 초기값 ack_msg.drive.speed = float(speed)
+        ack_msg.drive.speed = float(min(speed,3.5))  # 초기값 ack_msg.drive.speed = float(speed)
         ack_msg.drive.jerk = float(jerk)
         ack_msg.drive.acceleration = float(acceleration)
         return ack_msg
