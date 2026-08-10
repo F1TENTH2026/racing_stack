@@ -98,7 +98,7 @@ class ObstacleSpliner(Node):
         self.post_min_dist = 1.5
         self.post_max_dist = 5.0
         self.spline_scale = 0.8
-        self.evasion_dist = 0.65
+        self.evasion_dist = 0.3 # 초기 값 0.65
         self.obs_traj_tresh = 0.3
         self.spline_bound_mindist = 0.2
         self.apex_hold_ratio = 0.30
@@ -180,7 +180,7 @@ class ObstacleSpliner(Node):
         self.declare_parameter('post_min_dist', 1.5, dbl(0.5, 3.0))
         self.declare_parameter('post_max_dist', 5.0, dbl(3.0, 20.0))
         self.declare_parameter('spline_scale', 0.8, dbl(0.5, 2.0))
-        self.declare_parameter('evasion_dist', 0.2, dbl(0.2, 1.25)) # 초기값 0.6 dbl(0.25, 1.25)
+        self.declare_parameter('evasion_dist', 0.3, dbl(0.25, 1.25)) # 초기값 0.6 dbl(0.25, 1.25)
         self.declare_parameter('obs_traj_tresh', 1.0, dbl(0.1, 1.5))
         self.declare_parameter('spline_bound_mindist', 0.2, dbl(0.05, 1.0)) # 초기값 0.3
         self.declare_parameter('apex_hold_ratio', 0.30, dbl(0.0, 0.8))
@@ -432,7 +432,9 @@ class ObstacleSpliner(Node):
         if obs.is_static == True:
             pre_dist = (obs.s_center - self.cur_s) % self.gb_max_s
 
-            if pre_dist < 0.5 or pre_dist > self.gb_max_s / 2:
+            if pre_dist < max(0.5, 0.3 * self.cur_vs) or pre_dist > self.gb_max_s / 2:
+                # 주은 수정 - 원래값:pre_dist < 0.5
+                # 해당 코드는 이 거리로는 스플라인 못만든다고 판단하면, 급격한 회피경로 대신 여유있는 경로가 생성됨
                 wpnts.wpnts = []
                 mrks.markers = []
                 return wpnts, mrks

@@ -1007,6 +1007,7 @@ class StateMachine(Node):
         # The planner-output cache a given local_wpnts_src slices from (None if the
         # source is not backed by an OT/recovery cache, e.g. GB_TRACK).
         if src == StateType.OVERTAKE:
+            # 초기 코드 : self.cur_S_wpnts 
             return self.cur_static_avoidance_wpnts if self.static_overtaking_mode else self.cur_avoidance_wpnts
         if src == StateType.RECOVERY:
             return self.cur_recovery_wpnts
@@ -1063,7 +1064,7 @@ class StateMachine(Node):
 
     def _check_static_overtaking_mode(self) -> bool:
         if (
-            self.cur_vs < 3.0
+            self.cur_vs < 8.0 # 주은 수정: 원래 3.0
             and self._check_getting_closer(threshold_m=7.0)
             and self._check_latest_wpnts(self.static_avoidance_wpnts, self.cur_static_avoidance_wpnts)
             and self._check_free_frenet(self.cur_static_avoidance_wpnts)
@@ -1313,6 +1314,9 @@ class StateMachine(Node):
 
         rec = self.cur_recovery_wpnts
         avoid = self.cur_avoidance_wpnts
+
+        static_avoid = self.cur_static_avoidance_wpnts # 주은 추가
+
         snap = {
             "t": round(self.now_sec(), 3),
             "src": self.local_wpnts_src.name,
@@ -1352,6 +1356,20 @@ class StateMachine(Node):
                 "reinit_count": avoid.init_count,
                 "is_init": avoid.is_init,
             },
+            #--------------- 주은 추가
+            "static_avoidance": {
+                "topic_s": s0(self.static_avoidance_wpnts.wpnts) if self.static_avoidance_wpnts is not None else None,
+                "cache_s": s0(static_avoid.list),
+                "cache_last_s": round(static_avoid.list[-1].s_m, 3) if static_avoid.list else None,
+                "cache_age": (None if static_avoid.stamp is None
+                            else round(self.now_sec() - time_to_float(static_avoid.stamp), 3)),
+                "reinit_age": (None if static_avoid.last_init_sec is None
+                            else round(self.now_sec() - static_avoid.last_init_sec, 3)),
+                "reinit_count": static_avoid.init_count,
+                "is_init": static_avoid.is_init,
+            },
+            #---------------
+
             # Internal slice detail from get_splini_wpts / get_recovery_wpts for
             # THIS loop (None if that source was not used). Shows the exact
             # min_idx, the s it picked, cache extent, and how many points came
@@ -1362,6 +1380,12 @@ class StateMachine(Node):
             # Last free-check decisions this loop (why GB/recovery was judged free
             # or blocked). gb_free explains a "drove into an obstacle ahead" event.
             "gb_free": self.cur_gb_wpnts.free_dbg,
+
+            #--------------- 주은 추가
+            "static_free": static_avoid.free_dbg,
+            "getting_closer_static": self._check_getting_closer(threshold_m=7.0),
+            #--------------- 
+
             "recovery_free": self.cur_recovery_wpnts.free_dbg,
         }
         self.debug_pub.publish(String(data=json.dumps(snap)))
