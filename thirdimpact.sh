@@ -144,11 +144,19 @@ alias pitwall='ros2 launch stack_master pitwall.launch.xml'
 alias cartometrics='python3 "$_URS_REPO/stack_master/scripts/carto_metrics.py" --watch 2'
 
 # colcon build (Release) + re-source. No args = whole workspace; args = packages.
+# Use packages-up-to for explicit package targets so the required dependency chain
+# is rebuilt together instead of failing on missing install artefacts.
+# The workspace carries a few legacy CMakeLists that need compatibility hints on
+# a CMake 4.3 host, and the raycaster range_lib CUDA frontend is optional on a
+# laptop/sim-only host. Force the CPU-only setting here so the build can probe all
+# other packages instead of dying at CUDA discovery before the topology reaches them.
 cbuild() {
     local sel=()
-    [ $# -gt 0 ] && sel=(--packages-select "$@")
+    [ $# -gt 0 ] && sel=(--packages-up-to "$@")
     ( cd "$_URS_WS" && colcon build "${sel[@]}" --symlink-install \
-          --cmake-args -DCMAKE_BUILD_TYPE=Release ) \
+          --cmake-args -DCMAKE_BUILD_TYPE=Release \
+                       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+                       -DWITH_CUDA=OFF ) \
         && source "$_URS_WS/install/$_urs_setup" \
         && bash "$_URS_REPO/.install_utils/macos_link_rosidl_typesupports.sh" "$_URS_WS"
 }
