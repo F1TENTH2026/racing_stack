@@ -4,6 +4,8 @@
         <General>
             <Interfaces>
                 <NetworkInterface address="127.0.0.1" multicast="true"/>
+                <!-- Local pitwall laptop WiFi -->
+                <NetworkInterface name="wlo1" multicast="true" presence_required="false"/>
                 <NetworkInterface name="wlp0s20f3" multicast="true" presence_required="false"/>
                 <NetworkInterface name="wlp9s0" multicast="true" presence_required="false"/>
                 <!-- Jetson(차량) 온보드 컴퓨터의 실제 WiFi 인터페이스 이름 -->
