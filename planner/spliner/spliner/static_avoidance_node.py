@@ -74,7 +74,7 @@ class ObstacleSpliner(Node):
         self.cur_yaw = None
         self.gb_scaled_wpnts = None
         self.waypoints = None
-        self.lookahead = 10  # in meters [m]
+        self.lookahead = 10  # 초기 값 10 in meters [m]
         self.last_switch_time = self.get_clock().now().to_msg()
         self.last_ot_side = ""
         self.last_ot_obstacle_id = None

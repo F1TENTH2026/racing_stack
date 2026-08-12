@@ -1,5 +1,4 @@
-# image: 0810test1.png   # 이전 값 (롤백용으로 주석 보존)
-image: 0810test1.pgm     # kiss_icp_localization의 2D 맵 로더는 binary P5 PGM만 읽음 (PNG 파싱 불가 -> 크래시)
+image: 0810test1.png
 resolution: 0.050000
 origin: [-3.498418, -2.174109, 0.0]
 negate: 0

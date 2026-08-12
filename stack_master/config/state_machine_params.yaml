@@ -18,8 +18,8 @@ state_machine:
     # safety
     volt_threshold: 11.0
     # dynamic (replaces dyn_statemachine_tuner.cfg)
-    lateral_width_gb_m: 0.1 # 초기값 0.3
-    lateral_width_ot_m: 0.1 # 초기값 0.3
+    lateral_width_gb_m: 0.2 # 초기값 0.3
+    lateral_width_ot_m: 0.2 # 초기값 0.3
     splini_hyst_timer_sec: 0.7
     splini_ttl: 2.0
     pred_splini_ttl: 2.0

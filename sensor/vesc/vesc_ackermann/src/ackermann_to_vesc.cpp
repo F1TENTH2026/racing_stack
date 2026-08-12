@@ -94,7 +94,7 @@ void AckermannToVesc::ackermannCmdCallback(const AckermannDriveStamped::SharedPt
 {
   // calc vesc electric RPM (speed)
   Float64 erpm_msg;
-  erpm_msg.data = speed_to_erpm_gain_ * cmd->drive.speed + speed_to_erpm_offset_;
+  erpm_msgc.data = speed_to_erpm_gain_ * cmd->drive.speed + speed_to_erpm_offset_;
 
   // calc steering angle (servo)
   Float64 servo_msg;

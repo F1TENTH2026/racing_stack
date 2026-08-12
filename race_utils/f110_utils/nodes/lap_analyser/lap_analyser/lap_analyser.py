@@ -65,6 +65,12 @@ class LapAnalyser(Node):
         self.n_datapoints = 0
         self.lap_count = -1
 
+        self.MIN_LAP_TIME = 2.0
+        '''결승선 통과를 인정하는 최소 랩 시간 [s]. 차가 결승선 위에서 멈춰
+        앞뒤로 흔들리면 s가 0을 앞방향으로 여러 번 넘어 그때마다 랩이 올라간다
+        (실제 로그에 0.004 s 짜리 랩이 연속으로 찍혔음). 이보다 짧은 통과는
+        같은 랩의 재통과로 보고 무시한다.'''
+
         self.NUM_LAPS_ANALYSED = 10
         '''The number of laps to analyse and compute statistics for'''
         self.lap_time_acc = deque(maxlen=self.NUM_LAPS_ANALYSED)
@@ -209,6 +215,14 @@ class LapAnalyser(Node):
     def check_for_finish_line_pass(self, current_s):
         # detect wrapping of the track, should happen exactly once per round
         if (self.last_s - current_s) > 1.0:
+            # 되감김은 s가 '앞으로' 0을 넘을 때만 잡히므로, 결승선 위에서 차가
+            # 앞뒤로 흔들리면 앞으로 넘을 때마다 랩이 중복 집계된다. 직전 랩
+            # 이후 MIN_LAP_TIME 이 지나지 않았으면 같은 랩의 재통과로 본다.r
+            if self.lap_count >= 0:
+                since_lap_start = (self.get_clock().now()
+                                   - self.lap_start_time).nanoseconds * 1e-9
+                if since_lap_start < self.MIN_LAP_TIME:
+                    return False
             return True
         else:
             return False
