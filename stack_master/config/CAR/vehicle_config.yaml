@@ -7,8 +7,8 @@
 
 urg_node:
   ros__parameters:
-    angle_max: 3.14
-    angle_min: -3.14
+    angle_max: 1.8 # 초기값
+    angle_min: -1.8 # 초기값
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"
