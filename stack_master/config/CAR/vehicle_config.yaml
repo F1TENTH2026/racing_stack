@@ -27,8 +27,10 @@ vesc/**:
   ros__parameters:
     port: "/dev/ttyACM0"
     publish_tf: false
-    brake_max: 200000.0
-    brake_min: -20000.0
+    # /vesc/commands/motor/brake is a positive motor-phase current command.
+    # Keep an independent driver-side hard limit even if the bridge is retuned.
+    brake_max: 10.0
+    brake_min: 0.0
     current_max: 100.0
     current_min: 0.0
     duty_cycle_max: 0.0
@@ -41,6 +43,15 @@ vesc/**:
     speed_min: -23250.0
     speed_to_erpm_gain: 4614.0 # 초기값 4614.0
     speed_to_erpm_offset: 0.0
+    brake_control_enabled: true
+    brake_current_max: 10.0
+    brake_current_start: 5.0
+    brake_current_gain: 10.0        # A per (m/s) of speed error
+    brake_current_ramp_rate: 100.0  # A/s; reaches 10 A in about 0.1 s
+    brake_engage_speed_error: 0.15
+    brake_release_speed_error: 0.05
+    brake_release_speed: 0.15
+    brake_odom_timeout: 0.2
     steering_angle_to_servo_gain: -1.2135 # 좌우 반전(-)
     steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true

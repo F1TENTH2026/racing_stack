@@ -92,7 +92,7 @@ class ObstacleSpliner(Node):
 
         # dyn params defaults
         self.save_params = False
-        self.kernel_size = 8
+        self.kernel_size = 5 #혜령 수정, 원래 7
         self.post_sampling_dist = 5.0
         self.sampling_dist = 5.0
         self.post_min_dist = 1.5
@@ -175,7 +175,9 @@ class ObstacleSpliner(Node):
         self.declare_parameter('save_params', False,
                                ParameterDescriptor(type=ParameterType.PARAMETER_BOOL,
                                                    description="Save params"))
-        self.declare_parameter('kernel_size', 8, intd(1, 20))
+        # self.declare_parameter('kernel_size', 7, intd(1, 20))
+        # 혜령 수정코드
+        self.declare_parameter('kernel_size', 5, intd(1, 20))
         self.declare_parameter('post_sampling_dist', 5.0, dbl(0.5, 20.0))
         self.declare_parameter('post_min_dist', 1.5, dbl(0.5, 3.0))
         self.declare_parameter('post_max_dist', 5.0, dbl(3.0, 20.0))

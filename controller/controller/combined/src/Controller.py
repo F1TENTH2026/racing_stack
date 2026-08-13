@@ -40,6 +40,8 @@ class Controller:
                 end_scale_speed,
                 downscale_factor,
                 speed_lookahead_for_steer,
+                steering_filter_alpha,
+                steering_rate_limit,
 
                 trailing_gap,
                 trailing_vel_gain,
@@ -83,6 +85,11 @@ class Controller:
         self.end_scale_speed = end_scale_speed
         self.downscale_factor = downscale_factor
         self.speed_lookahead_for_steer = speed_lookahead_for_steer
+        # Filter the final lateral command before it reaches the servo.  The old
+        # fixed 0.4 rad/cycle limiter allowed 20 rad/s at 50 Hz, so localization
+        # and discrete-waypoint noise could appear directly as left/right weave.
+        self.steering_filter_alpha = steering_filter_alpha
+        self.steering_rate_limit = steering_rate_limit
 
         # marker publisher injected by the manager (ROS2: a Node-created publisher)
         self.predict_pub = predict_pub
@@ -352,11 +359,22 @@ class Controller:
 
         #-------------------------Steering Scaling-----------------------------
 
-        # limit change of steering angle
-        threshold = 0.4
-        if abs(steering_angle - self.curr_steering_angle) > threshold:
-            self.logger_info("steering angle clipped")
-        steering_angle = np.clip(steering_angle, self.curr_steering_angle - threshold, self.curr_steering_angle + threshold)
+        # Suppress high-frequency left/right corrections before commanding the
+        # servo.  Alpha is the weight of the new command (1 = filtering off).
+        # The following slew-rate limit is expressed in rad/s so its behaviour
+        # stays consistent if the controller loop rate changes.
+        steering_angle = np.clip(steering_angle, -0.53, 0.53)
+        alpha = np.clip(self.steering_filter_alpha, 0.0, 1.0)
+        steering_angle = (
+            alpha * steering_angle + (1.0 - alpha) * self.curr_steering_angle
+        )
+
+        max_steering_step = max(0.0, self.steering_rate_limit) / self.loop_rate
+        steering_angle = np.clip(
+            steering_angle,
+            self.curr_steering_angle - max_steering_step,
+            self.curr_steering_angle + max_steering_step,
+        )
         steering_angle = np.clip(steering_angle, -0.53, 0.53)
 
         # np.clip passes NaN through unchanged, so guard curr_steering_angle
