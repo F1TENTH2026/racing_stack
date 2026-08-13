@@ -1,9 +1,0 @@
-# kiss_icp_localization 2D scan-to-SDF용 트랙마스크.
-# 0810test1.yaml에서 make_track_mask.py로 생성 (수정 금지, 재생성할 것).
-# 트랙=255(주행영역), 벽/트랙밖=0. 경계가 SDF의 zero-level(=벽)이 됩니다.
-image: 0810test1_track.pgm
-resolution: 0.050000
-origin: [-3.498418, -2.174109, 0.0]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196

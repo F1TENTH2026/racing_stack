@@ -37,6 +37,3 @@ COLCON_IGNORE
 
 # lap_analyser lap-time logs (generated output; local only)
 race_utils/f110_utils/nodes/lap_analyser/data/
-
-# accidental large installer download
-/Miniforge3-*.sh

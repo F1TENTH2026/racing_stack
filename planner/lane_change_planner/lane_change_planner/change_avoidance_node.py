@@ -47,7 +47,7 @@ class ChangeAvoidanceNode(Node):
 
         # Params
         self.local_wpnts = None
-        self.lookahead = 15 # 초기값 15
+        self.lookahead = 15
 
         # Side hysteresis: only switch preferred_side after the new side persists this many
         # consecutive loops (20 Hz), to reject brief gap-driven side flips that jitter the path.

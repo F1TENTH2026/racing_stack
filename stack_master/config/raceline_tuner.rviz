@@ -6,18 +6,13 @@ Panels:
       Expanded:
         - /Interactive Markers1
       Splitter Ratio: 0.5
-    Tree Height: 162
+    Tree Height: 617
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
-    Expanded: ~
     Name: Tool Properties
-    Splitter Ratio: 0.5
   - Class: rviz_common/Views
-    Expanded:
-      - /Current View1
     Name: Views
-    Splitter Ratio: 0.5
 Visualization Manager:
   Class: ""
   Displays:
@@ -115,7 +110,6 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0.18500001728534698
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -125,94 +119,18 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 109.87934112548828
+      Scale: 40
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: 5.213824272155762
-      Y: 1.7059860229492188
-    Saved:
-      - Angle: 0.18500001728534698
-        Class: rviz_default_plugins/TopDownOrtho
-        Enable Stereo Rendering:
-          Stereo Eye Separation: 0.05999999865889549
-          Stereo Focal Distance: 1
-          Swap Stereo Eyes: false
-          Value: false
-        Invert Z Axis: false
-        Name: TopDownOrtho
-        Near Clip Distance: 0.009999999776482582
-        Scale: 109.87934112548828
-        Target Frame: <Fixed Frame>
-        Value: TopDownOrtho (rviz_default_plugins)
-        X: 5.213824272155762
-        Y: 1.7059860229492188
-      - Angle: 0.18500001728534698
-        Class: rviz_default_plugins/TopDownOrtho
-        Enable Stereo Rendering:
-          Stereo Eye Separation: 0.05999999865889549
-          Stereo Focal Distance: 1
-          Swap Stereo Eyes: false
-          Value: false
-        Invert Z Axis: false
-        Name: TopDownOrtho
-        Near Clip Distance: 0.009999999776482582
-        Scale: 109.87934112548828
-        Target Frame: <Fixed Frame>
-        Value: TopDownOrtho (rviz_default_plugins)
-        X: 5.213824272155762
-        Y: 1.7059860229492188
-      - Angle: 0.18500001728534698
-        Class: rviz_default_plugins/TopDownOrtho
-        Enable Stereo Rendering:
-          Stereo Eye Separation: 0.05999999865889549
-          Stereo Focal Distance: 1
-          Swap Stereo Eyes: false
-          Value: false
-        Invert Z Axis: false
-        Name: TopDownOrtho
-        Near Clip Distance: 0.009999999776482582
-        Scale: 109.87934112548828
-        Target Frame: <Fixed Frame>
-        Value: TopDownOrtho (rviz_default_plugins)
-        X: 5.213824272155762
-        Y: 1.7059860229492188
-      - Angle: 0.18500001728534698
-        Class: rviz_default_plugins/TopDownOrtho
-        Enable Stereo Rendering:
-          Stereo Eye Separation: 0.05999999865889549
-          Stereo Focal Distance: 1
-          Swap Stereo Eyes: false
-          Value: false
-        Invert Z Axis: false
-        Name: TopDownOrtho
-        Near Clip Distance: 0.009999999776482582
-        Scale: 109.87934112548828
-        Target Frame: <Fixed Frame>
-        Value: TopDownOrtho (rviz_default_plugins)
-        X: 5.213824272155762
-        Y: 1.7059860229492188
-      - Angle: 0.18500001728534698
-        Class: rviz_default_plugins/TopDownOrtho
-        Enable Stereo Rendering:
-          Stereo Eye Separation: 0.05999999865889549
-          Stereo Focal Distance: 1
-          Swap Stereo Eyes: false
-          Value: false
-        Invert Z Axis: false
-        Name: TopDownOrtho
-        Near Clip Distance: 0.009999999776482582
-        Scale: 109.87934112548828
-        Target Frame: <Fixed Frame>
-        Value: TopDownOrtho (rviz_default_plugins)
-        X: 5.213824272155762
-        Y: 1.7059860229492188
+      X: 0
+      Y: 0
+    Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
   Height: 900
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000001000000000000019000000328fc0200000004fb000000100044006900730070006c006100790073010000003e0000012e000000ca00fffffffb0000001200530065006c0065006300740069006f006e0100000172000000920000005c00fffffffb0000001e0054006f006f006c002000500072006f0070006500720074006900650073010000020a000000920000005c00fffffffb0000000a0056006900650077007301000002a2000000c4000000a600ffffff000003e20000032800000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
@@ -220,5 +138,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1400
-  X: 66
+  X: 60
   Y: 60

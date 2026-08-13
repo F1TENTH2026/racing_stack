@@ -7,7 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
       Splitter Ratio: 0.5
-    Tree Height: 305
+    Tree Height: 311
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -125,9 +125,9 @@ Visualization Manager:
               Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
-              Max Intensity: 1226
+              Max Intensity: 9.748184204101562
               Min Color: 0; 0; 0
-              Min Intensity: 201
+              Min Intensity: 0.6721304059028625
               Name: Ego Scan
               Position Transformer: XYZ
               Selectable: true
@@ -162,6 +162,44 @@ Visualization Manager:
                 Expand Link Details: false
                 Expand Tree: false
                 Link Tree Style: Links in Alphabetic Order
+                back_left_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                back_right_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                base_link:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                front_left_hinge:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                front_left_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                front_right_hinge:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                front_right_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                laser:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
               Mass Properties:
                 Inertia: false
                 Mass: false
@@ -280,7 +318,7 @@ Visualization Manager:
           Enabled: true
           Name: Tracked obstacles (static/dynamic)
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -411,6 +449,44 @@ Visualization Manager:
                 Expand Link Details: false
                 Expand Tree: false
                 Link Tree Style: Links in Alphabetic Order
+                opp_racecar/back_left_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                opp_racecar/back_right_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                opp_racecar/base_link:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                opp_racecar/front_left_hinge:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                opp_racecar/front_left_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                opp_racecar/front_right_hinge:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                opp_racecar/front_right_wheel:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
+                opp_racecar/laser:
+                  Alpha: 1
+                  Show Axes: false
+                  Show Trail: false
+                  Value: true
               Mass Properties:
                 Inertia: false
                 Mass: false
@@ -710,7 +786,7 @@ Visualization Manager:
           Enabled: true
           Name: Trailing opponent
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -752,7 +828,7 @@ Visualization Manager:
           Enabled: true
           Name: Trailing target
           Namespaces:
-            "": true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -821,7 +897,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 1.56999933719635
+      Angle: 0.9999997615814209
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -831,11 +907,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: -82.72962951660156
+      Scale: -31.463138580322266
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: 3.9496188163757324
-      Y: 2.436149835586548
+      X: 3.7854959964752197
+      Y: 7.977809906005859
     Saved:
       - Angle: 0.034999996423721313
         Class: rviz_default_plugins/TopDownOrtho
@@ -878,7 +954,7 @@ Window Geometry:
   Height: 1016
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001560000039cfc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003e000001f9000000ca00fffffffb0000000a00560069006500770073010000023d0000019d000000a600fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c0000026100000001000001400000039cfc0200000004fb0000000e00700069007400770061006c006c010000003e0000039c0000025800fffffffb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001600530069006d00200043006f006e00740072006f006c010000003d000002930000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000004980000039c00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000040000000000000156000003a2fc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000001fc000000c700fffffffb0000000a00560069006500770073010000023d000001a0000000a000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c000002610000000100000140000003a2fc0200000004fb0000000e00700069007400770061006c006c010000003b000003a20000022f00fffffffb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001600530069006d00200043006f006e00740072006f006c010000003d000002930000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d0065010000000000000450000000000000000000000498000003a200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
@@ -887,6 +963,6 @@ Window Geometry:
     collapsed: false
   Width: 1850
   X: 70
-  Y: 32
+  Y: 27
   pitwall:
     collapsed: false

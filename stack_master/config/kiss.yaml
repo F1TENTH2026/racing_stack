@@ -83,4 +83,4 @@ kiss_icp_localization:
     publish_2d_map: false
     publish_2d_scan: false
     publish_aligned_scan: true       # /kiss_loc/scan_aligned for RViz debug
-    print_stats: false # 초기값 false
+    print_stats: false

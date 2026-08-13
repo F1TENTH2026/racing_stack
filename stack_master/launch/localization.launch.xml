@@ -112,11 +112,7 @@
   <group if="$(eval '\'$(var localization)\' == \'kiss\'')">
     <node pkg="kiss_icp_localization" exec="localization_node" name="kiss_icp_localization" output="screen">
       <param from="$(find-pkg-share stack_master)/config/kiss.yaml"/>
-      <!-- scan-to-SDF 정합 맵은 반드시 전용 트랙마스크(<map>_track)여야 합니다.
-           <map>.yaml(cartographer 점유격자)을 그대로 주면 TrackMask의 >127 판정에
-           미탐사(128) 셀까지 걸려 맵의 90%가 주행영역이 되고 SDF가 트랙 밖으로 샙니다.
-           <map>_track.{pgm,yaml}은 stack_master/scripts/make_track_mask.py로 생성. -->
-      <param name="loc_2d_map_yaml" value="$(var map_path)_track.yaml"/>
+      <param name="loc_2d_map_yaml" value="$(var map_path).yaml"/>
       <param name="track_map_yaml"  value="$(var map_path)_track.yaml"/>
     </node>
   </group>
