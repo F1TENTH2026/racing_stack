@@ -863,7 +863,18 @@ class StateMachine(Node):
                        "branch": None, "free_dist": None, "blocked": False}
 
                 if obs.is_static:
-                    if not wpnts_data.is_closed and gap > max_gap:
+                    # `gap < max_horizon` bounds this to obstacles the planner is
+                    # actually responsible for. Obstacles come from
+                    # cur_obstacles_in_interest (interest_horizon_m, 20 m) while each
+                    # planner declares its own horizon (10 m for static avoidance).
+                    # Without the bound, a static obstacle 15 m away is "beyond the
+                    # path" for every avoidance path that could ever be published --
+                    # no achievable path length clears it -- so static avoidance was
+                    # unreachable whenever a second obstacle sat between the two
+                    # horizons. Inside max_horizon the check is unchanged: a path
+                    # that does not reach an obstacle it is meant to cover still
+                    # counts as blocked.
+                    if not wpnts_data.is_closed and max_gap < gap < max_horizon:
                         rec["branch"] = "static/beyond_path"
                         is_free = False
                         rec["blocked"] = True

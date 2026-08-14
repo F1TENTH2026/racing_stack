@@ -1,0 +1,171 @@
+# Static-obstacle avoidance planner (spliner/static_avoidance_node.py).
+#
+# Loaded by race.launch.xml. Everything here is live-tunable except rate_hz,
+# which is read once because a rclpy timer cannot be retimed:
+#
+#   ros2 param set /static_avoidance_planner evasion_distance 0.32
+#
+# NOTE: this planner and the state machine judge the SAME path with the same
+# arithmetic, so three pairs of numbers must stay consistent with
+# state_machine/config/planners/static_avoidance_planner.yaml and
+# state_machine/config/planners/global_tracking.yaml:
+#
+#   min_free_dist_m      >= static_avoidance_planner.lateral_width_m   (0.10)
+#   raceline_clearance_m >= gb_ego_width_m/2 + global_tracking.lateral_width_m
+#   min_path_end_m       >= static_avoidance_planner.max_horizon       (10.0)
+#
+# Break the first and this planner publishes paths the state machine refuses.
+# Break the second and the state machine asks for an avoidance this planner
+# thinks is unnecessary, and the car trails the obstacle forever. Break the
+# third and any second static obstacle beyond the path's end reads as blocking.
+static_avoidance_planner:
+  ros__parameters:
+
+    # ===== cadence =====================================================
+    # [Hz] Replanning rate. Not the knob that makes avoidance fast -- the
+    # lookahead and the path cache are. The old node ran at 40 Hz and still
+    # reacted late, because it had nothing to plan around until the car was
+    # nearly on top of the obstacle.
+    rate_hz: 20.0
+    # [s] Throttle for the single-line [STATIC_AVOID] status log.
+    log_period_s: 0.5
+    # Publish planning-callback duration on /planner/avoidance/latency.
+    measure: true
+
+    # ===== what to plan around =========================================
+    # [m] How far ahead a static obstacle is considered. THIS is the early
+    # detection knob. The path is planned in Frenet and therefore follows the
+    # raceline's curvature, so a 10 m apex is no harder to fit than a 2 m one
+    # (the old cartesian 3-point spline cut every corner and was rejected at
+    # range, which is why it only ever succeeded up close).
+    # BOTH this and min_path_end_m are capped at a third of the lap AT RUNTIME.
+    # These are lengths in metres and what they mean depends on the track: 10 m is
+    # a modest look ahead on a 60 m circuit and nearly half a lap on 0814test2,
+    # which measures 22.31 m. A path spanning half a lap breaks every
+    # (s - cur_s) % max_s comparison in this node and in the state machine, because
+    # they all wrap at max_s/2 and can no longer tell ahead from behind.
+    #
+    # 10.0 -> 6.0 for the same reason: on 0814test2 the cap makes it 7.44 m
+    # regardless, and 6.0 says what is actually wanted. Raise it on a longer track.
+    lookahead: 6.0
+
+    # [m] Keep planning for an obstacle up to this far BEHIND the car. Dropping
+    # it the instant its s went past ended the manoeuvre before the return leg
+    # had been driven, and snapped the car back onto the raceline alongside the
+    # obstacle.
+    keep_behind_m: 1.0
+
+    # [m] Ignore obstacles further than this from the raceline: they are not on
+    # the line and nothing needs to be planned around them.
+    trajectory_threshold: 0.6
+
+    # [m] If the obstacle's near edge is already at least this far from the
+    # raceline, the line clears it and this planner publishes nothing. MUST be
+    # >= what the state machine calls a blocked raceline, which is
+    # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
+    raceline_clearance_m: 0.35
+
+    # ===== path shape ==================================================
+    # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
+    # Real gap to the car's side is this minus ego_width_m/2 = 0.155 m.
+    # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
+    evasion_distance: 0.30
+
+    # [m] Spacing of the published path. The state machine walks every point of
+    # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
+    spline_resolution: 0.10
+
+    # [m] Length of the lateral transition BEFORE the apex, as
+    # clip(gain * speed, min, max). Long enough that the move is gentle at
+    # speed, short enough that the car does not give up track width for the
+    # whole approach to a distant obstacle.
+    pre_dist_gain: 1.0
+    pre_dist_min: 2.0
+    pre_dist_max: 4.0
+
+    # [m] Length of the return leg AFTER the apex, same form. There is time to
+    # move over before the obstacle and none to spare after it, so the two
+    # sides are deliberately not symmetric.
+    post_dist_gain: 0.8
+    post_dist_min: 1.5
+    post_dist_max: 4.0
+
+    # [m] Global-line tail appended after the return, so the state machine can
+    # measure obstacles past the manoeuvre.
+    tail_m: 4.0
+
+    # [m] Minimum distance from the car to the end of the published path. The
+    # state machine treats a static obstacle beyond the path's end as blocking
+    # (the static/beyond_path branch of _check_free_frenet), so the path has to
+    # reach at least as far as its max_horizon.
+    #
+    # 11.0 -> 8.0, and capped at a third of the lap at runtime (7.44 m on
+    # 0814test2) for the reason given under `lookahead`. The state machine's
+    # static_avoidance_planner.max_horizon was lowered to 7.0 to stay under it.
+    min_path_end_m: 8.0
+
+    # [m] Once the car is alongside the obstacle the apex is pushed this far
+    # ahead rather than the path being dropped -- an empty path here makes the
+    # state machine leave OVERTAKE mid-manoeuvre.
+    min_apex_lead_m: 0.5
+
+    # ===== safety ======================================================
+    # [m] How close the path's CENTRELINE may come to the track edge. Not
+    # reducible below the car's half width (0.145): at 0.19 the car passes
+    # 4.5 cm from the wall, which is about what localisation error is worth.
+    boundary_margin: 0.19
+
+    # [m] The car's width. Must match the state machine's gb_ego_width_m (0.29)
+    # or the two disagree about what clears an obstacle.
+    ego_width_m: 0.29
+
+    # [m] Free gap required between the car's side and the obstacle's edge, on
+    # the finished path. Must stay >= the state machine's
+    # static_avoidance_planner.lateral_width_m (0.10) so a path this planner
+    # accepts is one the state machine accepts.
+    min_free_dist_m: 0.12
+
+    # [m] Path length from the car over which the boundary check is relaxed to
+    # the car's own current offset. Where the car IS is a fact no path can
+    # undo; refusing every candidate because its first few centimetres start
+    # where the car already stands leaves nothing to publish.
+    ego_grace_m: 1.0
+
+    # Secondary check of the generated manoeuvre against the eroded map image.
+    # Skipped (with the path still boundary- and clearance-checked) when no map
+    # has arrived -- GridFilter.is_point_inside returns False for every point
+    # until then, which silently rejected everything.
+    use_map_filter: true
+    # [px] Erosion at 0.05 m/px, so 4 px = 0.20 m. The Frenet boundary check
+    # already owns the wall margin; this only catches map features the raceline
+    # bounds do not describe. 8 px (0.40 m) double-counted and rejected valid
+    # paths on narrow sections.
+    kernel_size: 4
+
+    # [m/s] Speed seed written onto the avoidance waypoints, capped. The state
+    # machine replans the profile from the path's curvature and the ggv
+    # (update_velocity), so this only matters if that replanning is unavailable.
+    max_speed_mps: 2.0
+
+    # ===== stability ===================================================
+    # [s] How long the last valid path survives a planning frame that failed.
+    # On a failure inside this window the held path is republished WITH ITS
+    # ORIGINAL STAMP -- it is not claimed to be fresh, and the state machine's
+    # own latest_threshold (0.25 s) still decides usability. This only stops a
+    # single dropped frame being published as a positive assertion that there
+    # is nothing to avoid, which dropped the car out of OVERTAKE mid-manoeuvre.
+    # Capped at the state machine's latest_threshold: holding longer only
+    # republishes paths it will reject as stale.
+    #
+    # The held path is discarded immediately, before the window expires, if the
+    # obstacle disappears, a different obstacle becomes the target, the car
+    # drives off the path's end, or the path has become a collision.
+    path_hold_s: 0.25
+
+    # [m] How much wider the other side must be before the planner switches
+    # sides. Left and right room are often within a couple of centimetres of
+    # each other and the obstacle's measured edges move by about that much
+    # between frames, so a bare comparison flips sides several times a second --
+    # and every flip is a completely different path, which the state machine
+    # then rejects because the car is not on it.
+    side_hysteresis_m: 0.10

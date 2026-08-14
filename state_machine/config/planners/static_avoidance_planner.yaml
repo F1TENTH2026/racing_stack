@@ -1,5 +1,11 @@
 min_horizon: 0.0
-max_horizon: 10.0
+# [m] How far ahead this planner is held responsible. MUST stay under the length of
+# the path it publishes (stack_master/config/static_avoidance_planner.yaml
+# min_path_end_m, capped at a third of the lap = 7.44 m on 0814test2), or a static
+# obstacle between the path's end and this horizon reads as "beyond the path" and
+# blocks the avoidance for as long as it is in view.
+# 10.0 -> 7.0: 10 m is 45% of this 22.31 m lap, which no publishable path can cover.
+max_horizon: 7.0
 lateral_width_m: 0.1 
 free_scaling_reference_distance_m: 2.0
 latest_threshold: 0.25
