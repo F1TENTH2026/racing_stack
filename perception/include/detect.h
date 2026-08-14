@@ -119,7 +119,6 @@ private:
 
   // Utility functions
   double normalizeS(double x, double track_length);
-  bool laserPointOnTrack(double s, double d);
   // declare a numeric param that accepts int OR double from yaml, return as double
   double declareNumber(const std::string &name, double default_value);
   void saveYaml();  // write the detect: block back to opponent_tracker_params.yaml

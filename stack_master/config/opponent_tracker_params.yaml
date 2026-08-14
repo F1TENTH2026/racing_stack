@@ -2,14 +2,20 @@ detect:
   ros__parameters:
     rate_detect: 40
     min_size_n: 4
-    min_size_m: 0.29999999999999999
-    max_size_m: 0.59999999999999998
+    # Obstacle is a 0.30 x 0.30 m box. min_size_m is now a real rejection floor (half the
+    # box, so a partly occluded face still passes); max_size_m is the ceiling with room for
+    # a corner view plus fit noise.
+    min_size_m: 0.15
+    max_size_m: 0.45
     lambda_deg: 10
     sigma: 0.029999999999999999
     min_2_points_dist: 0.01
     new_cluster_threshold_m: 0.40000000000000002
     max_viewing_distance: 9
-    boundaries_inflation: 0.10000000000000001
+    # How far inside the track edge an obstacle centre must sit to be accepted [m].
+    # A 0.30 m box physically cannot have its centre closer than 0.15 m to a wall, so
+    # 0.25 rejects wall returns while still accepting a real obstacle placed near the edge.
+    boundaries_inflation: 0.25
     filter_kernel_size: 7
     measure: false
     from_bag: false

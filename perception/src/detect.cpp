@@ -526,11 +526,12 @@ std::vector<Obstacle> Detect::fittingLShape(const std::vector<std::vector<std::p
         }
         std::pair<double, double> chosen_corner = corners[closest_index];
 
-        // Determine obstacle size: use the larger of width or height, and clip to min_size_m_
+        // Determine obstacle size: use the larger of width or height. It is NOT clipped up to
+        // min_size_m_ -- doing that promoted every 4-point wall fragment into a full-size
+        // obstacle and made min_size_m_ impossible to use as a rejection filter.
         double width = max_dist1 - min_dist1;
         double height = max_dist2 - min_dist2;
         double rect_size = std::max(width, height);
-        rect_size = std::max(rect_size, min_size_m_);
 
         // Estimate center coordinate based on selected corner (assume square cluster)
         std::pair<double, double> center;
@@ -567,11 +568,35 @@ void Detect::checkObstacles(std::vector<Obstacle> &current_obstacles)
   std::vector<Obstacle> filtered;
   int id = 0;
   for (size_t i = 0; i < current_obstacles.size(); i++) {
-    if (current_obstacles[i].size <= max_size_m_) {
-      current_obstacles[i].id = id;
-      filtered.push_back(current_obstacles[i]);
-      id++;
+    Obstacle &obs = current_obstacles[i];
+
+    // Size gate, both sides. A real obstacle is a box of known size: anything much
+    // smaller is a wall fragment or scan noise, anything larger is a run of wall the
+    // clustering failed to split.
+    if (obs.size < min_size_m_ || obs.size > max_size_m_) {
+      continue;
     }
+
+    // Lateral gate: the obstacle centre must lie inside the drivable corridor, shrunk
+    // by boundaries_inflation_. Map erosion alone leaves only ~0.15 m of margin at
+    // filter_kernel_size 7, so a modest localisation offset lets wall returns survive
+    // as obstacles. Measuring against the track width is far less sensitive to that
+    // offset. d_left_array_/d_right_array_ already carry the inflation; they were built
+    // for the boundary markers but were never actually used to filter anything.
+    if (!d_left_array_.empty()) {
+      double s = 0.0, d = 0.0;
+      int idx = 0;
+      frenet_converter_.GetFrenetPoint(obs.center_x, obs.center_y, &s, &d, &idx, true);
+      if (idx >= 0 && idx < static_cast<int>(d_left_array_.size())) {
+        if (d > d_left_array_[idx] || d < -d_right_array_[idx]) {
+          continue;
+        }
+      }
+    }
+
+    obs.id = id;
+    filtered.push_back(obs);
+    id++;
   }
   tracked_obstacles_ = filtered;
 }

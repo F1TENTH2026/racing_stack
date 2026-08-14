@@ -47,7 +47,7 @@ class Controller:
                 trailing_i_gain,
                 trailing_d_gain,
                 blind_trailing_speed,
-                static_gap_deadband_m,
+                static_min_standoff_m,
                 static_resume_hysteresis_m,
                 static_crawl_speed_mps,
 
@@ -107,7 +107,7 @@ class Controller:
         self.trailing_i_gain = trailing_i_gain
         self.trailing_d_gain = trailing_d_gain
         self.blind_trailing_speed = blind_trailing_speed
-        self.static_gap_deadband_m = static_gap_deadband_m
+        self.static_min_standoff_m = static_min_standoff_m
         self.static_resume_hysteresis_m = static_resume_hysteresis_m
         self.static_crawl_speed_mps = static_crawl_speed_mps
 
@@ -127,7 +127,6 @@ class Controller:
         self.i_gap = 0
         self.trailing_command = 2
         self.static_stop_latched = False
-        self.static_reacquiring = False
         self.speed_command = None
         self.last_valid_speed = 0
         self.curvature_waypoints = 0
@@ -446,7 +445,6 @@ class Controller:
             self.trailing_speed = global_speed
             self.i_gap = 0
             self.static_stop_latched = False
-            self.static_reacquiring = False
             speed_command = global_speed
 
         speed_command = self.speed_adjust_lat_err(speed_command, lat_e_norm)
@@ -479,35 +477,38 @@ class Controller:
         self.trailing_command = np.clip(self.opponent[2] - p_value - i_value - d_value, 0, global_speed)
 
         if self.opponent[3]:
-            # Static targets use a latched stop with hysteresis. This prevents
-            # centimetre-level Frenet/obstacle noise from toggling the motor
-            # between zero and a tiny positive command.
-            if not self.opponent[4]:
-                self.static_stop_latched = True
-                self.static_reacquiring = False
-                return 0.0
-
-            stop_gap = self.gap_should + self.static_gap_deadband_m
-            resume_gap = self.gap_should + self.static_resume_hysteresis_m
-
-            if self.static_stop_latched:
-                if self.gap_actual <= resume_gap:
-                    return 0.0
-                self.static_stop_latched = False
-                self.static_reacquiring = True
+            # Static obstacle. The gap to it does not change while we sit still, so the
+            # previous behaviour -- stop at trailing_gap and release only once the gap grows
+            # again -- could never release: whenever the avoidance planner failed to produce a
+            # path, the car waited in front of the obstacle forever.
+            #
+            # Instead keep crawling towards it. Every centimetre changes the approach pose, so
+            # the planner gets a fresh geometry to solve on each tick and usually finds a path
+            # it could not find from further back. The only thing that stops the car is the
+            # hard standoff distance, which is a collision limit rather than a trailing gap.
+            stop_gap = self.static_min_standoff_m
+            resume_gap = stop_gap + self.static_resume_hysteresis_m
 
             if self.gap_actual <= stop_gap:
                 self.static_stop_latched = True
-                self.static_reacquiring = False
+            elif self.static_stop_latched and self.gap_actual > resume_gap:
+                # Hysteresis band, so centimetre-level Frenet noise cannot toggle the motor
+                # between zero and a tiny positive command right at the standoff.
+                self.static_stop_latched = False
+
+            if self.static_stop_latched:
+                # At the standoff there is nothing left to try that does not involve reversing.
                 return 0.0
 
-            if self.static_reacquiring:
-                self.trailing_command = min(
-                    self.trailing_command, self.static_crawl_speed_mps
-                )
+            if not self.opponent[4]:
+                # Position is held from a stale detection: keep moving, but only at crawl speed.
+                return self.static_crawl_speed_mps
+
+            # Never settle at zero: the trailing PID wants to hold trailing_gap, which for a
+            # static obstacle means standing still.
+            return max(self.trailing_command, self.static_crawl_speed_mps)
         else:
             self.static_stop_latched = False
-            self.static_reacquiring = False
 
         if not self.opponent[3] and not self.opponent[4] and self.gap_actual > self.gap_should:
             self.trailing_command = max(self.blind_trailing_speed, self.trailing_command)

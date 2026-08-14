@@ -5,13 +5,17 @@
 # Topic names are matched here (no remapping). The 2D-input front-end skips the
 # 3D PointCloud band-crop and feeds /scan straight into scan-to-SDF matching.
 #
-# TWO separate maps, managed/generated independently (both injected by
-# localization.launch.xml from the active map folder, NOT hard-set here):
-#   - loc_2d_map_yaml : the 2D map for localization (scan-to-SDF) = <map>.yaml
-#                       (the existing cartographer occupancy grid).
-#   - track_map_yaml  : the track mask for BEV detection = <map>_track.yaml
-#                       (flood-filled drivable region; generated separately,
-#                       later). Only read when detect_en:true.
+# Two map params, both injected by localization.launch.xml from the active map
+# folder (NOT hard-set here) and both pointing at the same <map>.yaml:
+#   - loc_2d_map_yaml : scan-to-SDF localization target.
+#   - track_map_yaml  : BEV detection mask. Only read when detect_en:true.
+# That yaml says `image: <map>.png`, but TrackMask is a PGM-only reader: it
+# fails on the .png and falls back to the sibling <map>.pgm, which is NOT the
+# raw grid but the drivable-region mask from scripts/make_pgm_for_kiss.py. The
+# mask is required — TrackMask thresholds at px>127, so cartographer's unknown
+# cells (205) would read as drivable and put the SDF zero-level (= the wall)
+# outside the track. Re-run make_pgm_for_kiss.py <map dir>/<map>.yaml after
+# every remap; without the .pgm the node aborts at startup.
 kiss_icp_localization:
   ros__parameters:
     # ---- input front-end (2D LaserScan) ----
@@ -62,11 +66,11 @@ kiss_icp_localization:
     use_initial_pose_topic: true     # /initialpose (RViz 2D Pose Estimate)
 
     # ---- BEV detection (opponents / unmapped obstacles) ----
-    # Two-map setup: detection uses its OWN track mask (track_map_yaml, injected
-    # by launch as <map>_track.yaml), kept separate from the localization 2D map
-    # (loc_2d_map_yaml = <map>.yaml). detect_en stays false until that track map
-    # is generated AND the 2D-scan detection code path lands (z-band bypass);
-    # flip to true then. Params below are pre-set so enabling is a one-line change.
+    # The track mask now exists, but detect_en must STAY false: localization_node
+    # gates ground_lidar.yaml on `(localization_2d && !input_scan) || detect_en`,
+    # so flipping this on a 2D-scan run makes the node demand a ground plane that
+    # a planar LiDAR has no use for, and it aborts at startup. Enable only once
+    # the z-band bypass lands. Params below are pre-set for that day.
     detect_en: false
     detect_track_filter: true        # reject returns off the track mask (=walls/exterior)
     detect_track_margin: -0.2        # erode 0.2 m inside the boundary (drop wall returns)

@@ -104,16 +104,20 @@
   <!-- ===== KISS-ICP 2D scan-to-SDF localization ===== -->
   <!-- No EKF: the node fuses wheel-odom (translation) + gyro (rotation) itself and
        publishes the fused pose DIRECTLY on /car_state/odom + TF map->base_link.
-       Topic names are matched in kiss.yaml (no remap). Two separate maps are
-       injected from the active map folder: loc_2d_map_yaml = <map>.yaml (the
-       cartographer occupancy grid, used for scan-to-SDF localization) and
-       track_map_yaml = <map>_track.yaml (the drivable-region mask for BEV
-       detection; generated separately, only read when detect_en:true). -->
+       Topic names are matched in kiss.yaml (no remap). Both map params take the
+       SAME <map>.yaml the map_server above uses — the two consumers split on
+       image format, not on separate yamls: map_server (GraphicsMagick) honours
+       `image: <map>.png` and serves the raw grid for viz, while TrackMask is a
+       PGM-only reader, fails on the .png, and falls back to the sibling
+       <map>.pgm written by scripts/make_pgm_for_kiss.py — the drivable-region
+       mask it actually needs (px>127 = drivable, so the raw grid's unknown
+       cells would otherwise push the SDF zero-level out past the walls).
+       Run make_pgm_for_kiss.py once per new map. -->
   <group if="$(eval '\'$(var localization)\' == \'kiss\'')">
     <node pkg="kiss_icp_localization" exec="localization_node" name="kiss_icp_localization" output="screen">
       <param from="$(find-pkg-share stack_master)/config/kiss.yaml"/>
       <param name="loc_2d_map_yaml" value="$(var map_path).yaml"/>
-      <param name="track_map_yaml"  value="$(var map_path)_track.yaml"/>
+      <param name="track_map_yaml"  value="$(var map_path).yaml"/>
     </node>
   </group>
 </launch>
