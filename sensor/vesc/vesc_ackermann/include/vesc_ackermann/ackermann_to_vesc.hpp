@@ -34,7 +34,6 @@
 #include <vector>
 
 #include <ackermann_msgs/msg/ackermann_drive_stamped.hpp>
-#include <nav_msgs/msg/odometry.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -43,7 +42,6 @@ namespace vesc_ackermann
 {
 
 using ackermann_msgs::msg::AckermannDriveStamped;
-using nav_msgs::msg::Odometry;
 using std_msgs::msg::Float64;
 
 class AckermannToVesc : public rclcpp::Node
@@ -56,34 +54,16 @@ private:
   // conversion gain and offset
   double speed_to_erpm_gain_, speed_to_erpm_offset_;
   double steering_to_servo_gain_, steering_to_servo_offset_;
-  bool brake_control_enabled_;
-  double brake_current_max_, brake_current_start_, brake_current_gain_;
-  double brake_current_ramp_rate_;
-  double brake_engage_speed_error_, brake_release_speed_error_;
-  double brake_release_speed_, brake_odom_timeout_;
-
-  // Feedback/state for mutually exclusive speed and current-brake commands.
-  double current_speed_{0.0};
-  double brake_current_{0.0};
-  bool odom_received_{false};
-  bool braking_{false};
-  bool command_time_initialized_{false};
-  bool odom_time_initialized_{false};
-  rclcpp::Time last_command_time_;
-  rclcpp::Time last_odom_time_;
 
   /** @todo consider also providing an interpolated look-up table conversion */
 
   // ROS services
   rclcpp::Publisher<Float64>::SharedPtr erpm_pub_;
-  rclcpp::Publisher<Float64>::SharedPtr brake_pub_;
   rclcpp::Publisher<Float64>::SharedPtr servo_pub_;
   rclcpp::Subscription<AckermannDriveStamped>::SharedPtr ackermann_sub_;
-  rclcpp::Subscription<Odometry>::SharedPtr odom_sub_;
 
   // ROS callbacks
   void ackermannCmdCallback(const AckermannDriveStamped::SharedPtr cmd);
-  void odomCallback(const Odometry::SharedPtr odom);
 
   // Dynamic reconfigure: apply gain/offset changes live (ros2 param set /
   // vesc_calibration), so retuning the VESC mapping doesn't need a node restart.

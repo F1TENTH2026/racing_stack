@@ -1,6 +1,6 @@
 min_horizon: 0.0
 max_horizon: 10.0
-lateral_width_m: 0.1  # 정적 회피 스플라인 자체가 "안전하다"고 판정하는 최소 여유폭 
+lateral_width_m: 0.1 
 free_scaling_reference_distance_m: 2.0
 latest_threshold: 0.25
 hyst_timer_sec: 4.0

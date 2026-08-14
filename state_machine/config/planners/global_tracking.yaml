@@ -1,6 +1,6 @@
 free_scaling_reference_distance_m: 1
 is_closed: true
-lateral_width_m: 0.15 # 이 경로가 "장애물에 막혔다"고 판정하는 최소 여유폭(안전마진) — 값 낮을수록 장애물에 더 붙어도 "안전"하다고 판단
+lateral_width_m: 0.15
 latest_threshold: 0.1
 max_horizon: 20.0
 min_horizon: 0.0
