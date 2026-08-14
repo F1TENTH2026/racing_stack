@@ -10,7 +10,7 @@
       parent: base_link
       child: laser
       # xyz: [0.27, 0.0, 0.11]      # 이전 값 (롤백용으로 주석 보존)
-      xyz: [0.259, 0.0, 0.0768]     # metres
+      xyz: [0.0, 0.0, 0.0768]     # metres
       rpy: [0.0, 0.0, 0.0]          # roll, pitch, yaw [rad]
 
     # VESC IMU mounting, split so each quantity is specified ONCE (no redundant
