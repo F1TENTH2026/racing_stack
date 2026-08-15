@@ -42,7 +42,10 @@ Publishes:
     - `/planner/avoidance/markers` : trajectory visualization
     - `/planner/avoidance/latency` : planning callback duration [s] (when measure:=true)
 """
+import os
 import time
+import datetime
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -120,6 +123,8 @@ class StaticObstacleSpliner(Node):
         self.last_good_generated = 0
         self.last_good_origin_s = 0.0    # cur_s when the held path was built
         self.last_good_reach = 0.0       # how far ahead of that s the path reached
+
+        self._setup_debug_log_file()
 
         self.declare_all_parameters()
         self._load_parameters()
@@ -822,6 +827,40 @@ class StaticObstacleSpliner(Node):
     ###########
     # LOGGING #
     ###########
+    def _setup_debug_log_file(self):
+        """Per-run plain-text mirror of _log()'s [STATIC_AVOID] diagnostics (candidate
+        clearance, which rung was accepted, cache/hold state, planning latency) --
+        independent of rclpy's own per-process log, which rcutils names by PID under
+        ~/.ros/log and is painful to locate after a run. Same convention as
+        state_machine's _setup_debug_log_file: one file per run + a "latest" symlink,
+        directory overridable via RACE_DEBUG_LOG_DIR. Never crashes the node on failure.
+        """
+        self._dbg_fh = None
+        self._dbg_last_log_sec = 0.0
+        try:
+            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", "~/roboracer_debug_logs")).expanduser()
+            log_dir.mkdir(parents=True, exist_ok=True)
+            run_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_path = log_dir / f"static_avoidance_{run_stamp}.log"
+            self._dbg_fh = open(log_path, "a", buffering=1)
+            latest = log_dir / "latest_static_avoidance.log"
+            if latest.is_symlink() or latest.exists():
+                latest.unlink()
+            latest.symlink_to(log_path.name)
+            self._dbg_fh.write(f"# static_avoidance_node debug log started {run_stamp}\n")
+            self.get_logger().info(f"[{self.name}] debug log: {log_path} (latest: {latest})")
+        except OSError as e:
+            self.get_logger().warn(f"[{self.name}] could not open debug log file: {e}")
+
+    def _dbg_log(self, msg: str) -> None:
+        if self._dbg_fh is None:
+            return
+        try:
+            now = self.get_clock().now().nanoseconds * 1e-9
+            self._dbg_fh.write(f"{now:.3f} {msg}\n")
+        except OSError:
+            pass
+
     def _log(self, dbg):
         def fmt(key, spec=".2f", default="-"):
             value = dbg.get(key)
@@ -841,8 +880,12 @@ class StaticObstacleSpliner(Node):
             lines.append(f"  reason={dbg['reason']}")
         if dbg.get("cache_reason"):
             lines.append(f"  cache_reason={dbg['cache_reason']}")
-        self.get_logger().info("\n".join(lines),
-                               throttle_duration_sec=max(0.05, float(self.log_period_s)))
+        period = max(0.05, float(self.log_period_s))
+        self.get_logger().info("\n".join(lines), throttle_duration_sec=period)
+        now = self.get_clock().now().nanoseconds * 1e-9
+        if now - self._dbg_last_log_sec > period:
+            self._dbg_last_log_sec = now
+            self._dbg_log(" | ".join(line.strip() for line in lines))
 
     ###############
     # MARKERS/VIZ #

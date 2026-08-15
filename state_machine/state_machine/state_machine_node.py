@@ -15,7 +15,9 @@ ament/rclpy structural idioms.
 import os
 import time
 import json
+import datetime
 import configparser
+from pathlib import Path
 
 import numpy as np
 import rclpy
@@ -163,6 +165,8 @@ class StateMachine(Node):
         self.only_ftg_zones = []
         self.ftg_counter = 0
 
+        self._setup_debug_log_file()
+
         self.cur_s = 0.0
         self.cur_d = 0.0
         self.cur_vs = 0.0
@@ -184,6 +188,11 @@ class StateMachine(Node):
         # reset at the top of loop() so a snapshot only shows the source actually used.
         self._splini_dbg = None
         self._recovery_dbg = None
+        # Diagnostics for the static OVERTAKE entry gate (_static_path_available /
+        # _check_static_overtaking_mode): last availability detail, and the wall-clock
+        # of when the path first became valid+safe (for [STATIC_OT_TRANSITION] latency).
+        self._static_path_dbg = None
+        self._static_first_valid_sec = None
         # Previous loop's source cache, for rule 2 (drop the cache on a real src change).
         self._prev_src_cache = None
 
@@ -398,6 +407,42 @@ class StateMachine(Node):
     # ---------------------------------------------------------------------- #
     # SETUP HELPERS                                                           #
     # ---------------------------------------------------------------------- #
+    def _setup_debug_log_file(self):
+        """Per-run plain-text debug log: obstacle recognition, static OVERTAKE entry
+        decisions (why TRAILING/blocked, with actual clearance in metres), and every
+        state change -- independent of rclpy's own per-process log (which rcutils
+        names by PID under ~/.ros/log, making it hard to find after the fact on the
+        car or in sim). One file per run, plus a "latest" symlink so `tail -f` works
+        without knowing the timestamp. Directory overridable via RACE_DEBUG_LOG_DIR.
+        Never allowed to crash the node: a read-only home just disables file logging.
+        """
+        self._dbg_fh = None
+        self._dbg_last_state_value = None
+        self._dbg_last_obs_log_sec = 0.0
+        self._dbg_last_static_log_sec = 0.0
+        try:
+            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", "~/roboracer_debug_logs")).expanduser()
+            log_dir.mkdir(parents=True, exist_ok=True)
+            run_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_path = log_dir / f"state_machine_{run_stamp}.log"
+            self._dbg_fh = open(log_path, "a", buffering=1)
+            latest = log_dir / "latest_state_machine.log"
+            if latest.is_symlink() or latest.exists():
+                latest.unlink()
+            latest.symlink_to(log_path.name)
+            self._dbg_fh.write(f"# state_machine debug log started {run_stamp}  map={self.map_name!r}\n")
+            self.get_logger().info(f"[{self.name}] debug log: {log_path} (latest: {latest})")
+        except OSError as e:
+            self.get_logger().warn(f"[{self.name}] could not open debug log file: {e}")
+
+    def _dbg_log(self, msg: str) -> None:
+        if self._dbg_fh is None:
+            return
+        try:
+            self._dbg_fh.write(f"{self.now_sec():.3f} {msg}\n")
+        except OSError:
+            pass
+
     def _wait_for_attr(self, attr, topic):
         """rclpy equivalent of rospy.wait_for_message."""
         while rclpy.ok() and getattr(self, attr, None) is None:
@@ -1073,13 +1118,85 @@ class StateMachine(Node):
         else:
             return False
 
+    def _static_path_available(self) -> bool:
+        """Static-only replacement for _check_latest_wpnts(), used as the OVERTAKE
+        *entry* gate for static obstacles. Same freshness/init semantics (fresh,
+        non-empty topic -> initialize_traj), but deliberately does NOT require
+        _check_on_spline(): the static planner plans a path starting ahead of the
+        ego (see 0e8b995, "plan early in Frenet"), so requiring the ego to already
+        be within on_spline_min_dist_thres_m of the path's start before allowing
+        entry stalled TRAILING for seconds despite a valid, safe path being ready.
+        on_spline is still used to gate OVERTAKE *sustain* (_check_availability,
+        called from _check_overtaking_mode_sustainability) and dynamic entry
+        (_check_overtaking_mode() -> _check_latest_wpnts()), both unchanged.
+        """
+        wpnts_data = self.cur_static_avoidance_wpnts
+        if wpnts_data.frozen:
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": True}
+            return bool(wpnts_data.is_init)
+
+        src = self.static_avoidance_wpnts
+        if src is None or len(src.wpnts) == 0:
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False}
+            return False
+        if (self.now_sec() - time_to_float(src.header.stamp)) > wpnts_data.latest_threshold:
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False}
+            return False
+
+        wpnts_data.initialize_traj(src)
+        self._static_path_dbg = {"exists": True, "ttl_ok": True}
+        return True
+
     def _check_static_overtaking_mode(self) -> bool:
-        if (
-            self.cur_vs < 8.0 # 주은 수정: 원래 3.0
-            and self._check_getting_closer(threshold_m=7.0)
-            and self._check_latest_wpnts(self.static_avoidance_wpnts, self.cur_static_avoidance_wpnts)
-            and self._check_free_frenet(self.cur_static_avoidance_wpnts)
-        ):
+        path_available = self._static_path_available()
+        path_safe = self._check_free_frenet(self.cur_static_avoidance_wpnts) if path_available else False
+        on_spline = self._check_on_spline(self.cur_static_avoidance_wpnts)
+        decision = path_available and path_safe
+        reason = None if decision else ("PATH_BLOCKED" if path_available else "NO_STATIC_PATH")
+
+        if decision:
+            if self._static_first_valid_sec is None:
+                self._static_first_valid_sec = self.now_sec()
+            if not self.static_overtaking_mode:
+                latency_ms = (self.now_sec() - self._static_first_valid_sec) * 1000.0
+                transition_line = f"[STATIC_OT_TRANSITION] first_valid_path_to_overtake_ms={latency_ms:.1f}"
+                self.get_logger().info(transition_line)
+                self._dbg_log(transition_line)
+        else:
+            self._static_first_valid_sec = None
+
+        # When a path exists but is judged unsafe, surface the actual clearance
+        # (metres to spare, negative = overlapping) of the tightest blocking obstacle
+        # -- answers "is it TRAILING because the gap is really too narrow?" directly,
+        # instead of just a blocked/free bool.
+        blocked_detail = ""
+        if path_available and not path_safe:
+            free_dbg = self.cur_static_avoidance_wpnts.free_dbg or {}
+            blocked_obs = [o for o in free_dbg.get("obs", []) if o.get("blocked")]
+            if blocked_obs:
+                worst = min(blocked_obs, key=lambda o: o.get("free_dist") if o.get("free_dist") is not None else 0.0)
+                blocked_detail = (
+                    f" blocked_obs_id={worst['id']} gap={worst['gap']}m "
+                    f"free_dist={worst.get('free_dist')}m branch={worst.get('branch')}"
+                )
+
+        dbg = self._static_path_dbg or {}
+        static_ot_line = (
+            f"[STATIC_OT] state={self.cur_state.value} "
+            f"path_exists={int(dbg.get('exists', False))} "
+            f"path_locked={int(self._src_cache(self.local_wpnts_src) is self.cur_static_avoidance_wpnts)} "
+            f"path_ttl_ok={int(dbg.get('ttl_ok', False))} path_safe={int(path_safe)} "
+            f"on_spline={int(on_spline)} speed={self.cur_vs:.2f} "
+            f"decision={'OVERTAKE' if decision else 'TRAILING'}"
+            + (f" reason={reason}" if reason else "")
+            + blocked_detail
+        )
+        self.get_logger().info(static_ot_line, throttle_duration_sec=0.2)
+        if self.now_sec() - self._dbg_last_static_log_sec > 0.2:
+            self._dbg_last_static_log_sec = self.now_sec()
+            self._dbg_log(static_ot_line)
+
+        if decision:
             self.static_overtaking_mode = True
             return True
         else:
@@ -1630,6 +1747,26 @@ class StateMachine(Node):
         self._expire_stale_cache(self.cur_static_avoidance_wpnts, 2.0)
         self._expire_stale_cache(self.cur_recovery_wpnts, 2.0)
 
+        # Obstacle-recognition snapshot for the debug log: is perception/tracking
+        # actually reporting the obstacle(s) the car is reacting to, with real gap/d?
+        # Throttled independently of the [STATIC_OT] line (fires even with 0 obstacles,
+        # so "nothing was ever detected" is distinguishable from "detected but blocked").
+        if self.now_sec() - self._dbg_last_obs_log_sec > 0.5:
+            self._dbg_last_obs_log_sec = self.now_sec()
+            if len(self.cur_obstacles_in_interest) != 0:
+                obs_summary = "; ".join(
+                    f"id={o.id} static={int(o.is_static)} "
+                    f"gap={(o.s_start - self.cur_s) % self.track_length:.2f}m "
+                    f"d={o.d_center:.2f} size={o.size:.2f}"
+                    for o in self.cur_obstacles_in_interest
+                )
+            else:
+                obs_summary = "none"
+            self._dbg_log(
+                f"[OBSTACLES] cur_s={self.cur_s:.2f} cur_d={self.cur_d:.2f} vs={self.cur_vs:.2f} "
+                f"n={len(self.cur_obstacles_in_interest)} [{obs_summary}]"
+            )
+
         # safety check
         if self.cur_volt < self.volt_threshold:
             self.get_logger().error(
@@ -1646,6 +1783,13 @@ class StateMachine(Node):
             self.get_logger().warn(f"[{self.name}] FTGONLY sector !!!")
         else:
             self.cur_state, self.local_wpnts_src = self.state_transitions[self.cur_state](self)
+
+        if self.cur_state.value != self._dbg_last_state_value:
+            self._dbg_log(
+                f"[STATE_CHANGE] {self._dbg_last_state_value} -> {self.cur_state.value} "
+                f"src={self.local_wpnts_src.value} s={self.cur_s:.2f} d={self.cur_d:.2f} vs={self.cur_vs:.2f}"
+            )
+            self._dbg_last_state_value = self.cur_state.value
 
         if self.cur_state == StateType.TRAILING:
             # NOTE: check_ot_cloest_target() intentionally NOT called -- it promoted the
