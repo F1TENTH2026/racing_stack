@@ -119,6 +119,22 @@ def time_to_float(stamp) -> float:
     return stamp.sec + stamp.nanosec * 1e-9
 
 
+def _default_debug_log_dir() -> Path:
+    """<repo>/logfile if this source file lives inside a git checkout (true for a
+    symlink-install, which is how this workspace is normally built -- __file__
+    resolves through the symlink to the tracked source), so debug logs land
+    somewhere `git add logfile/` already picks up instead of needing a manual copy
+    out of the home directory after every run. Falls back to a fixed home-directory
+    path if the source isn't inside a repo (e.g. a non-symlink install, where
+    __file__ points into install/ instead of src/).
+    """
+    here = Path(__file__).resolve()
+    for parent in [here.parent, *here.parents]:
+        if (parent / ".git").exists():
+            return parent / "logfile"
+    return Path("~/roboracer_debug_logs").expanduser()
+
+
 class StateMachine(Node):
     """
     This state machine subscribes to topics and calculates flags/conditions.
@@ -421,7 +437,7 @@ class StateMachine(Node):
         self._dbg_last_obs_log_sec = 0.0
         self._dbg_last_static_log_sec = 0.0
         try:
-            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", "~/roboracer_debug_logs")).expanduser()
+            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)
             run_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_path = log_dir / f"state_machine_{run_stamp}.log"

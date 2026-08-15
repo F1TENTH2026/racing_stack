@@ -83,6 +83,24 @@ def _opposite(side: str) -> str:
     return "right" if side == "left" else "left"
 
 
+def _default_debug_log_dir() -> Path:
+    """<repo>/logfile if this source file lives inside a git checkout (true for a
+    symlink-install, which is how this workspace is normally built -- __file__
+    resolves through the symlink to the tracked source), so debug logs land
+    somewhere `git add logfile/` already picks up instead of needing a manual copy
+    out of the home directory after every run. Falls back to a fixed home-directory
+    path if the source isn't inside a repo (e.g. a non-symlink install, where
+    __file__ points into install/ instead of src/). Kept identical to
+    state_machine_node.py's helper of the same name -- separate packages, no shared
+    import between them.
+    """
+    here = Path(__file__).resolve()
+    for parent in [here.parent, *here.parents]:
+        if (parent / ".git").exists():
+            return parent / "logfile"
+    return Path("~/roboracer_debug_logs").expanduser()
+
+
 class StaticObstacleSpliner(Node):
     """Plans an evasion path around the nearest static obstacle ahead."""
 
@@ -838,7 +856,7 @@ class StaticObstacleSpliner(Node):
         self._dbg_fh = None
         self._dbg_last_log_sec = 0.0
         try:
-            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", "~/roboracer_debug_logs")).expanduser()
+            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)
             run_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_path = log_dir / f"static_avoidance_{run_stamp}.log"
