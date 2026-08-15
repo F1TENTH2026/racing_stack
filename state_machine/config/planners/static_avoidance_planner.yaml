@@ -8,7 +8,24 @@ min_horizon: 0.0
 max_horizon: 7.0
 lateral_width_m: 0.1 
 free_scaling_reference_distance_m: 2.0
-latest_threshold: 0.25
+# [s] How old the static_otwpnts message may be and still count as "fresh" for the
+# OVERTAKE *entry* gate (_static_path_available()). 0.25 s was tuned for sim, where
+# the planner->state_machine hop is effectively free. On the real car, logfile/
+# state_machine_20260815_154036.log shows the message DOES arrive with real
+# waypoints (raw_wpnts>0 in 133/312 samples) but its header stamp is already
+# 0.40-1.04 s old (mean 0.59 s) by the time state_machine reads it -- every single
+# one past the old 0.25 s threshold, so path_exists never went true and the car sat
+# in TRAILING/GB_TRACK the whole run despite the planner successfully building a
+# path (candidate_valid=true) the entire time. 1.5 s gives margin over the observed
+# max and is safe for STATIC specifically: the obstacle does not move, so a
+# geometrically stale-by-a-second path is still valid, and _check_free_frenet
+# re-validates clearance against the obstacle's CURRENT position every loop
+# regardless of the cached path's age. Do NOT copy this into
+# dynamic_avoidance_planner.yaml -- a moving obstacle's avoidance path really does
+# go stale that fast. The real fix is finding why this one hop takes up to 1 s
+# (CPU load / QoS depth / executor starvation on the car) -- this value only stops
+# that latency from silently discarding an otherwise-good path in the meantime.
+latest_threshold: 1.5
 hyst_timer_sec: 4.0
 killing_timer_sec: 10.0
 on_spline_front_horizon_thres_m: 0.5
