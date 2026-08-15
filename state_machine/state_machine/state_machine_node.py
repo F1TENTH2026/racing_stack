@@ -1148,19 +1148,26 @@ class StateMachine(Node):
         """
         wpnts_data = self.cur_static_avoidance_wpnts
         if wpnts_data.frozen:
-            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": True}
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": True, "raw_n": None, "age": None}
             return bool(wpnts_data.is_init)
 
+        # raw_n / age are logged even on failure so a run can tell apart "topic never
+        # arrives" (raw_n stays None/0 -- publisher/remap/QoS/network problem) from
+        # "arrives but is always judged stale" (raw_n > 0, age >> latest_threshold --
+        # almost always a clock mismatch between this node and the publisher, e.g. one
+        # of the two running with use_sim_time and the other not).
         src = self.static_avoidance_wpnts
-        if src is None or len(src.wpnts) == 0:
-            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False}
+        raw_n = None if src is None else len(src.wpnts)
+        if src is None or raw_n == 0:
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False, "raw_n": raw_n, "age": None}
             return False
-        if (self.now_sec() - time_to_float(src.header.stamp)) > wpnts_data.latest_threshold:
-            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False}
+        age = self.now_sec() - time_to_float(src.header.stamp)
+        if age > wpnts_data.latest_threshold:
+            self._static_path_dbg = {"exists": bool(wpnts_data.is_init), "ttl_ok": False, "raw_n": raw_n, "age": age}
             return False
 
         wpnts_data.initialize_traj(src)
-        self._static_path_dbg = {"exists": True, "ttl_ok": True}
+        self._static_path_dbg = {"exists": True, "ttl_ok": True, "raw_n": raw_n, "age": age}
         return True
 
     def _check_static_overtaking_mode(self) -> bool:
@@ -1197,12 +1204,16 @@ class StateMachine(Node):
                 )
 
         dbg = self._static_path_dbg or {}
+        raw_n = dbg.get("raw_n")
+        age = dbg.get("age")
         static_ot_line = (
             f"[STATIC_OT] state={self.cur_state.value} "
             f"path_exists={int(dbg.get('exists', False))} "
             f"path_locked={int(self._src_cache(self.local_wpnts_src) is self.cur_static_avoidance_wpnts)} "
             f"path_ttl_ok={int(dbg.get('ttl_ok', False))} path_safe={int(path_safe)} "
             f"on_spline={int(on_spline)} speed={self.cur_vs:.2f} "
+            f"raw_wpnts={'-' if raw_n is None else raw_n} "
+            f"raw_age={'-' if age is None else f'{age:.2f}'}s "
             f"decision={'OVERTAKE' if decision else 'TRAILING'}"
             + (f" reason={reason}" if reason else "")
             + blocked_detail
