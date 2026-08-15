@@ -22,7 +22,7 @@ from spliner.static_avoidance_node import StaticObstacleSpliner
 HALF_WIDTH = 0.9
 OBS_SIZE = 0.4
 EGO_WIDTH = 0.29
-MIN_FREE_DIST = 0.12
+MIN_FREE_DIST = 0.16
 
 
 class _Clock:
@@ -93,6 +93,11 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
     node._logger = _Logger()
     node.get_logger = lambda: node._logger
     node.map_filter = _MapFilter()
+    # __new__ skips __init__, so _setup_debug_log_file() (which normally sets these)
+    # never runs; _log() reads _dbg_last_log_sec unconditionally regardless of
+    # whether the debug log file opened.
+    node._dbg_fh = None
+    node._dbg_last_log_sec = 0.0
 
     # Mirrors stack_master/config/static_avoidance_planner.yaml.
     for key, value in dict(

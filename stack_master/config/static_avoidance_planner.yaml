@@ -123,7 +123,17 @@ static_avoidance_planner:
     # the finished path. Must stay >= the state machine's
     # static_avoidance_planner.lateral_width_m (0.10) so a path this planner
     # accepts is one the state machine accepts.
-    min_free_dist_m: 0.12
+    # 0.12 -> 0.16: logfile/state_machine_20260815_155720.log shows the same
+    # tracked obstacle's `size` swinging ~13 cm frame to frame (e.g. obs id 17:
+    # 0.38->0.25 m), which feeds directly into d_left/d_right (detect.cpp:
+    # d_left = d_center + size/2) and into this planner's own free_dist check --
+    # so an under-sized frame both draws the path closer AND judges it as clear.
+    # 0.16 m sized against a 0.50 m obstacle-to-wall corridor (0.50 - ego_width_m
+    # 0.29 - ~0.045 m kept for boundary_margin's wall clearance): it is the most
+    # this planner can give the obstacle side without eating the wall margin.
+    # Not a full fix -- a single frame that undershoots by more than that still
+    # gets through -- but it absorbs the swing seen in that log.
+    min_free_dist_m: 0.16
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can

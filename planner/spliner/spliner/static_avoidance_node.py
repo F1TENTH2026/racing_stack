@@ -199,7 +199,7 @@ class StaticObstacleSpliner(Node):
             # --- safety ---
             "boundary_margin": 0.19,
             "ego_width_m": 0.29,
-            "min_free_dist_m": 0.12,
+            "min_free_dist_m": 0.16,
             "ego_grace_m": 1.0,
             "use_map_filter": True,
             "kernel_size": 4,
