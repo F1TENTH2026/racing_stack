@@ -316,7 +316,15 @@ class Opponent_Trajectory(PredictionNode):
                             traversed_distance = 0
 
 
-                rate.sleep()
+            # Loop-body level, NOT nested inside `if opponent is not None`.
+            # While nested, an iteration that found no opponent (time trials, or
+            # the opponent simply out of range) skipped the sleep entirely and
+            # this loop spun as fast as the interpreter allowed, burning a whole
+            # core for as long as the track was clear.
+            # The opponent-present path is unchanged: this was already the last
+            # statement of that branch, and that branch is the last statement of
+            # the loop body, so dedenting cannot reorder anything.
+            rate.sleep()
 
 #########################HELPER FUNCTIONS######################################
 
