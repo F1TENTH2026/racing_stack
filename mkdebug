@@ -1,0 +1,5 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+python3 "$SCRIPT_DIR/stack_master/scripts/build_lap_inspector.py" --map "$@"
