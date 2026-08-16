@@ -24,6 +24,10 @@ class LapAnalyser(Node):
                          allow_undeclared_parameters=True,
                          automatically_declare_parameters_from_overrides=True)
 
+        # NOISE_LAP
+        self.track_length = None
+        self.MIN_LAP_TIME = 3.0   # 이 시간보다 빠른 통과는 무시 (트랙에 맞게 조정)
+
         self.get_logger().info("Lap_analyser node started")
 
         # Bind pitwall telemetry to this node so lap metrics get recorded to the
@@ -111,23 +115,17 @@ class LapAnalyser(Node):
                 f"{self.vis_pos.position.y}, {self.vis_pos.position.z}")
 
     def waypoints_cb(self, data: WpntArray):
-        """
-        Callback function of /global_waypoints subscriber.
-
-        Parameters
-        ----------
-        data
-            Data received from /global_waypoints topic
-        """
         if not self.wp_flag:
             # Store original waypoint array
             self.global_lateral_waypoints = np.array([
                 [w.s_m, w.d_right, w.d_left] for w in data.wpnts
             ])
             self.wp_flag = True
+            # NOISE_LAP: 배열을 채운 뒤에 트랙 길이 계산 (한 번만)
+            self.track_length = float(np.max(self.global_lateral_waypoints[:, 0]))
         else:
-            pass
-
+            pass    
+            
     def odom_xy_cb(self, msg):
         # Callback for x,y coordinate odom; simply store the latest message
         self.latest_odom = msg
@@ -206,12 +204,20 @@ class LapAnalyser(Node):
         self.lap_count = -1
         self.n_datapoints = 0
 
+    # NOISE_LAP
     def check_for_finish_line_pass(self, current_s):
-        # detect wrapping of the track, should happen exactly once per round
-        if (self.last_s - current_s) > 1.0:
-            return True
-        else:
+        # 진짜 wrap이면 s가 트랙 길이의 대부분만큼 급감한다.
+        # 몇 m짜리 작은 후진/지터는 랩으로 인정하지 않는다.
+        wrap_threshold = 0.5 * self.track_length if self.track_length else 1.0
+        if (self.last_s - current_s) <= wrap_threshold:
             return False
+        # 디바운스: 방금 통과했는데 또 잡히면(비현실적으로 빠르면) 무시
+        elapsed = (self.get_clock().now() - self.lap_start_time).nanoseconds / 1e9
+        if self.lap_count >= 0 and elapsed < self.MIN_LAP_TIME:
+            self.get_logger().warn(
+                f"Ignoring finish-line pass after only {elapsed:.2f}s")
+            return False
+        return True
 
     def publish_lap_info(self):
         msg = LapData()
