@@ -16,7 +16,7 @@ from rclpy.parameter import Parameter
 
 import numpy as np
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, String
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.interpolate import BPoly
@@ -71,6 +71,11 @@ class ObstacleSpliner(Node):
         self.inflection_points = None
         self.ot_wpnts = None
         self.ot_wpnts_stamp = None
+
+        # do_spline() is only worth its ~40Hz CPU cost while RECOVERY is actually
+        # the active/imminent state; gate the expensive path on it (state_machine_cb).
+        self.state = None
+        self._was_recovering = False
 
         # static params
         self.declare_parameters(
@@ -145,6 +150,8 @@ class ObstacleSpliner(Node):
         # OT trajectory, used to seed the blended-recovery path (first ~1 m of OT).
         self.create_subscription(
             OTWpntArray, "/planner/avoidance/otwpnts", self.ot_wpnts_cb, QoSProfile(depth=10))
+        self.create_subscription(
+            String, "/state_machine", self.state_machine_cb, QoSProfile(depth=10))
 
         self.mrks_pub = self.create_publisher(
             MarkerArray, "/planner/recovery/markers", QoSProfile(depth=10))
@@ -205,6 +212,9 @@ class ObstacleSpliner(Node):
         # transforms3d expects (w, x, y, z)
         euler = quat2euler([quat.w, quat.x, quat.y, quat.z])
         self.cur_yaw = euler[2]
+
+    def state_machine_cb(self, data: String):
+        self.state = data.data
 
     def ot_wpnts_cb(self, data: OTWpntArray):
         # Keep the last VALID OT trajectory. Empty publishes (planner produced nothing
@@ -331,6 +341,18 @@ class ObstacleSpliner(Node):
     # MAIN LOOP #
     #############
     def loop(self):
+        # do_spline() (tangent search + spline fit) is the expensive part of this
+        # node and only matters while RECOVERY is the active state. Skip it the
+        # rest of the time; publish an empty/DELETEALL clear exactly once on the
+        # transition out so stale wpnts/markers don't linger.
+        is_recovering = self.state == "RECOVERY"
+        if not is_recovering:
+            if self._was_recovering:
+                self._publish_empty()
+            self._was_recovering = False
+            return
+        self._was_recovering = True
+
         if self.measuring:
             start = time.perf_counter()
         # Sample data
@@ -373,6 +395,24 @@ class ObstacleSpliner(Node):
         blended_del.action = Marker.DELETEALL
         blended_mrks.markers.insert(0, blended_del)
         self.ot_blended_mrks_pub.publish(blended_mrks)
+
+    def _publish_empty(self):
+        """Called once on the RECOVERY -> other transition so the last computed
+        wpnts/markers don't linger stale while do_spline() is skipped."""
+        stamp = self.get_clock().now().to_msg()
+        del_mrk = Marker()
+        del_mrk.header.stamp = stamp
+        del_mrk.action = Marker.DELETEALL
+
+        empty_wpnts = WpntArray()
+        self.recovery_wpnts_pub.publish(empty_wpnts)
+        self.mrks_pub.publish(MarkerArray(markers=[del_mrk]))
+
+        blended = WpntArray()
+        blended.header.stamp = stamp
+        blended.header.frame_id = "map"
+        self.ot_blended_wpnts_pub.publish(blended)
+        self.ot_blended_mrks_pub.publish(MarkerArray(markers=[del_mrk]))
 
     #########
     # UTILS #
