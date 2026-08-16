@@ -65,6 +65,14 @@ class ControllerManager(Node):
 
         self.name = "controller_manager"
         self.loop_rate = 50  # rate in hertz
+        # Rate for the RViz/telemetry publishes only -- lookahead, steering, future
+        # position, trailing opponent, l1_distance. Five messages per control cycle,
+        # none of which any node subscribes to (only pitwall.rviz), and the trailing
+        # marker additionally evaluates the raceline spline via get_cartesian purely
+        # to place a sphere. The drive command itself is unaffected and still goes out
+        # every cycle at loop_rate. 0 disables the visualisation publishes.
+        self.viz_rate_hz = float(self._get_param('viz_rate_hz', 5.0))
+        self._last_viz = float("-inf")   # -inf so the first cycle always publishes
         self.scan = None
         self._save_requested = False
 
@@ -427,13 +435,22 @@ class ControllerManager(Node):
             self.acc_now,
             self.track_length)
 
-        self.set_lookahead_marker(L1_point, 100)
-        self.visualize_steering(steering_angle)
-        self.visualize_trailing_opponent()
-        self.viz_future_position(future_position, 200)
+        # Visualisation and telemetry only -- decimated to viz_rate_hz. RViz cannot
+        # use a 50 Hz refresh on these and no node subscribes to them, so publishing
+        # every cycle spent the control loop's budget on markers. The drive command
+        # below is untouched and still goes out every cycle.
+        now = time.perf_counter()
+        viz_period = 1.0 / self.viz_rate_hz if self.viz_rate_hz > 0 else float("inf")
+        if now - self._last_viz >= viz_period:
+            self._last_viz = now
+            self.set_lookahead_marker(L1_point, 100)
+            self.visualize_steering(steering_angle)
+            self.visualize_trailing_opponent()
+            self.viz_future_position(future_position, 200)
+            self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance),
+                                      z=float(curvature_waypoints)))
 
         self.curvature_waypoints = curvature_waypoints
-        self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
 
         self.waypoint_safety_counter += 1
         if self.waypoint_safety_counter >= self.loop_rate/self.state_machine_rate * 10:
