@@ -405,6 +405,8 @@ class ObstacleSpliner(Node):
         del_mrk.action = Marker.DELETEALL
 
         empty_wpnts = WpntArray()
+        empty_wpnts.header.stamp = stamp
+        empty_wpnts.header.frame_id = "map"
         self.recovery_wpnts_pub.publish(empty_wpnts)
         self.mrks_pub.publish(MarkerArray(markers=[del_mrk]))
 
