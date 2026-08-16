@@ -12,9 +12,14 @@ if [ -z "$SESSION_DIR" ]; then
   exit 1
 fi
 
-LOG_FILE=$(ls -t "$SESSION_DIR"localization_node_*.log 2>/dev/null | head -1) || true
+# log filename follows the node's ROS name ("kiss_icp_localization", set in
+# localization_node.cpp's Node() ctor), not the exec name (localization_node)
+LOG_FILE=$(ls -t "$SESSION_DIR"kiss_icp_localization_*.log 2>/dev/null | head -1) || true
 if [ -z "$LOG_FILE" ]; then
-  echo "No localization_node log found in $SESSION_DIR" >&2
+  LOG_FILE=$(ls -t "$SESSION_DIR"localization_node_*.log 2>/dev/null | head -1) || true
+fi
+if [ -z "$LOG_FILE" ]; then
+  echo "No kiss_icp_localization log found in $SESSION_DIR" >&2
   exit 1
 fi
 
