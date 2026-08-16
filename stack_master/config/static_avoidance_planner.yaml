@@ -87,7 +87,7 @@ static_avoidance_planner:
     # move over before the obstacle and none to spare after it, so the two
     # sides are deliberately not symmetric.
     post_dist_gain: 0.8
-    post_dist_min: 1.5
+    post_dist_min: 1.5 # 복귀 진입 거리 최소값 1.5
     post_dist_max: 4.0
 
     # [m] Global-line tail appended after the return, so the state machine can
