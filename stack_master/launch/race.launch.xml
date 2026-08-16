@@ -40,6 +40,28 @@
        state machine in 'overlay' (detection-in-the-loop), and ground-truth object
        injection works in 'merge' — switchable live, no relaunch. -->
 
+  <arg name="kill_vscode" default="true"
+       description="주행 시작 시 차량에 떠 있는 VSCode Remote 서버를 종료할지 여부"/>
+
+  <!-- ===== 주행 전 정리: 차량에 남아 있는 VSCode Remote 서버 종료 =====
+       Orin NX는 6코어뿐인데 VSCode Remote를 붙여 두면 node 서버 프로세스 여러 개와
+       ripgrep 파일 인덱서가 상시 떠서 htop 기준 코어 1개에 가까운 CPU를 먹는다.
+       레이싱 스택 노드 하나를 통째로 지우는 것보다 큰 양이라, 주행 시작과 함께 끊는다.
+
+       주의: 랩탑에서 Remote-SSH로 차량에 붙어 있었다면 그 연결이 여기서 끊긴다.
+             로그는 ssh + `tail -f src/racing_stack/logfile/latest_*.log` 로 보면 된다.
+             다시 붙는 순간 서버가 재기동되므로 레이스 중에는 재접속하지 말 것.
+             sim 등에서 끄고 싶으면 kill_vscode:=false.
+
+       패턴을 '[v]scode-server' 로 쓴 이유: shell="true" 라 이 명령을 실행하는 sh 자신의
+       cmdline 에도 패턴 문자열이 들어간다. 그냥 'vscode-server' 로 쓰면 pkill 이 자기
+       부모 셸까지 잡아 죽인다. 대괄호를 씌우면 정규식으로는 여전히 vscode-server 에
+       매치되지만 셸 cmdline 의 리터럴 '[v]scode-server' 에는 매치되지 않는다.
+       || true 는 매치되는 프로세스가 없을 때(pkill 종료코드 1) launch 가 실패로
+       보고하지 않게 하려는 것. -->
+  <executable cmd="pkill -f '[v]scode-server' || true" shell="true" output="log"
+              if="$(var kill_vscode)"/>
+
   <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
     <arg name="map"          value="$(var map)"/>
