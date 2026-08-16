@@ -60,6 +60,14 @@ kiss_icp_localization:
     reject_recover_count: 3
     max_velocity: 15.0
     max_accel: 10.0
+    # sign-aware gate on the SDF correspondence (2D mode only): drop scan
+    # points whose signed distance to the track boundary exceeds this many
+    # metres on the OUTSIDE (positive) side, regardless of max_corr_dist/the
+    # adaptive threshold. Targets wall-clip beams from suspension squat on
+    # hard accel that were landing just past the outer wall and pulling the
+    # fit toward it (observed as early corner turn-in after a bump on a
+    # straight). Starting value, not bag-validated — tune once a bag exists.
+    outside_margin: 0.2
 
     # ---- initial pose ----
     initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

@@ -126,7 +126,8 @@ RegistrationResult AlignScanToTrackSdf(const std::vector<Eigen::Vector3d> &scan,
                                        const Eigen::Isometry3d &initial_guess,
                                        double max_corr_dist, double kernel_sigma,
                                        int max_iterations,
-                                       double convergence_eps) {
+                                       double convergence_eps,
+                                       double outside_margin) {
   RegistrationResult result;
   result.pose = initial_guess;
   if (scan.empty() || !track.Valid()) return result;
@@ -152,6 +153,11 @@ RegistrationResult AlignScanToTrackSdf(const std::vector<Eigen::Vector3d> &scan,
         double val, gx, gy;
         if (!track.ValueGrad(pw.x(), pw.y(), val, gx, gy)) continue;
         if (std::abs(val) > max_corr_dist) continue;
+        // sign-aware: val > 0 is outside the track. A point that's clearly
+        // past the boundary (e.g. a wall-clip beam during suspension squat)
+        // shouldn't get to pull the fit toward it, even if it's still within
+        // max_corr_dist of the zero-level.
+        if (val > outside_margin) continue;
         // residual r = SDF; J = dr/d(dx,dy,dyaw), with d(px,py)/dyaw = (-py, px)
         const Eigen::Vector3d J(gx, gy, gx * (-pw.y()) + gy * pw.x());
         const double w =
@@ -173,6 +179,7 @@ RegistrationResult AlignScanToTrackSdf(const std::vector<Eigen::Vector3d> &scan,
       double val, gx, gy;
       if (!track.ValueGrad(pw.x(), pw.y(), val, gx, gy)) continue;
       if (std::abs(val) > max_corr_dist) continue;
+      if (val > outside_margin) continue;
       const Eigen::Vector3d J(gx, gy, gx * (-pw.y()) + gy * pw.x());
       const double w =
           kernel2 * kernel2 / ((kernel2 + val * val) * (kernel2 + val * val));
