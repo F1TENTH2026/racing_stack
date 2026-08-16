@@ -108,9 +108,16 @@ export CYCLONEDDS_URI="file://$_URS_REPO/cyclonedds.xml"
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-1}"
 
 # --- 3) colcon workspace overlay + gym raycaster dir ---
-# colcon generates setup.{bash,zsh,sh}; source the one matching the live shell.
-if [ -n "${ZSH_VERSION:-}" ]; then _urs_setup=setup.zsh; else _urs_setup=setup.bash; fi
-[ -f "$_URS_WS/install/$_urs_setup" ] && source "$_URS_WS/install/$_urs_setup"
+# Use local_setup, not setup.  setup.* remembers the underlay that was active when
+# the workspace was built; an old build can therefore source /opt/ros/humble on
+# top of this Jazzy environment.  The Conda env above is the intended underlay,
+# so only add this workspace's packages here.
+if [ -n "${ZSH_VERSION:-}" ]; then
+    _urs_local_setup=local_setup.zsh
+else
+    _urs_local_setup=local_setup.bash
+fi
+[ -f "$_URS_WS/install/$_urs_local_setup" ] && source "$_URS_WS/install/$_urs_local_setup"
 export RAYCASTER_DIR="$_URS_REPO/race_utils/raycaster"
 
 # --- macOS portability (no-op on Linux) ---
@@ -157,7 +164,7 @@ cbuild() {
           --cmake-args -DCMAKE_BUILD_TYPE=Release \
                        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                        -DWITH_CUDA=OFF ) \
-        && source "$_URS_WS/install/$_urs_setup" \
+        && source "$_URS_WS/install/$_urs_local_setup" \
         && bash "$_URS_REPO/.install_utils/macos_link_rosidl_typesupports.sh" "$_URS_WS"
 }
 
