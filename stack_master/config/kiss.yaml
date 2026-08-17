@@ -107,4 +107,7 @@ kiss_icp_localization:
     publish_2d_map: false
     publish_2d_scan: false
     publish_aligned_scan: false      # /kiss_loc/scan_aligned for RViz debug
-    print_stats: true
+    # base default: off. localization.launch.xml overrides this with the launch
+    # arg `debug` (race.launch.xml debug:=true), so this value only matters for
+    # a launch path that loads this yaml directly without going through that arg.
+    print_stats: false

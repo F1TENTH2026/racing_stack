@@ -181,6 +181,14 @@ class StateMachine(Node):
         self.only_ftg_zones = []
         self.ftg_counter = 0
 
+        # Per-run debug log file (logfile/state_machine_*.log): off by default so a
+        # normal race doesn't pay disk-write overhead for output nobody reads; pass
+        # debug:=true on race.launch.xml (-> debug_log_enabled:=true here) to get it.
+        # has_parameter guard: automatically_declare_parameters_from_overrides=True
+        # above already auto-declares it if the launch passed an override.
+        if not self.has_parameter("debug_log_enabled"):
+            self.declare_parameter("debug_log_enabled", False)
+        self.debug_log_enabled = bool(self.get_parameter("debug_log_enabled").value)
         self._setup_debug_log_file()
 
         self.cur_s = 0.0
@@ -431,11 +439,16 @@ class StateMachine(Node):
         car or in sim). One file per run, plus a "latest" symlink so `tail -f` works
         without knowing the timestamp. Directory overridable via RACE_DEBUG_LOG_DIR.
         Never allowed to crash the node: a read-only home just disables file logging.
+        Gated on debug_log_enabled (race.launch.xml debug:=true) -- disabled, this
+        only sets up the tracking attrs so _dbg_log()'s `_dbg_fh is None` check
+        no-ops the rest of the class out without touching the disk.
         """
         self._dbg_fh = None
         self._dbg_last_state_value = None
         self._dbg_last_obs_log_sec = 0.0
         self._dbg_last_static_log_sec = 0.0
+        if not self.debug_log_enabled:
+            return
         try:
             log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)

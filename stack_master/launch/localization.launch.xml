@@ -16,6 +16,7 @@
   <arg name="vehicle_config" default="$(find-pkg-share stack_master)/config/CAR/vehicle_config.yaml"/>
   <arg name="use_estop"     default="false"        description="Use emergency stop (true) or not (false)"/>
   <arg name="virtual"       default="false"        description="Inject virtual opponent/obstacles (scan overlay etc.) onto the real LiDAR"/>
+  <arg name="debug"         default="false"        description="Enable verbose debug logging (KISS STAT prints), off by default so a normal race doesn't pay the per-scan log line cost"/>
 
   <let name="maps_dir"                value="$(find-pkg-share stack_master)/maps"/>
   <let name="map_path"                value="$(var maps_dir)/$(var map)/$(var map)"/>
@@ -118,6 +119,8 @@
       <param from="$(find-pkg-share stack_master)/config/kiss.yaml"/>
       <param name="loc_2d_map_yaml" value="$(var map_path).yaml"/>
       <param name="track_map_yaml"  value="$(var map_path).yaml"/>
+      <!-- overrides kiss.yaml's print_stats: STAT line per scan is diagnosis-only -->
+      <param name="print_stats" value="$(var debug)"/>
     </node>
   </group>
 </launch>

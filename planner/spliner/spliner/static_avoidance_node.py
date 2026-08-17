@@ -142,6 +142,11 @@ class StaticObstacleSpliner(Node):
         self.last_good_origin_s = 0.0    # cur_s when the held path was built
         self.last_good_reach = 0.0       # how far ahead of that s the path reached
 
+        # Per-run debug log file (logfile/static_avoidance_*.log): off by default so
+        # a normal race doesn't pay disk-write overhead for output nobody reads; pass
+        # debug:=true on race.launch.xml (-> debug_log_enabled:=true here) to get it.
+        self.debug_log_enabled = bool(
+            self.declare_parameter("debug_log_enabled", False).value)
         self._setup_debug_log_file()
 
         self.declare_all_parameters()
@@ -852,9 +857,14 @@ class StaticObstacleSpliner(Node):
         ~/.ros/log and is painful to locate after a run. Same convention as
         state_machine's _setup_debug_log_file: one file per run + a "latest" symlink,
         directory overridable via RACE_DEBUG_LOG_DIR. Never crashes the node on failure.
+        Gated on debug_log_enabled (race.launch.xml debug:=true) -- disabled, this
+        only sets up the tracking attr so _dbg_log()'s `_dbg_fh is None` check
+        no-ops the rest of the class out without touching the disk.
         """
         self._dbg_fh = None
         self._dbg_last_log_sec = 0.0
+        if not self.debug_log_enabled:
+            return
         try:
             log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)

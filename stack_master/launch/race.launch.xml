@@ -29,6 +29,8 @@
        description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
   <arg name="vis_lane_change" default="false"
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
+  <arg name="debug" default="false"
+       description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -46,6 +48,7 @@
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>
     <arg name="virtual"      value="$(var virtual)"/>
+    <arg name="debug"        value="$(var debug)"/>
   </include>
 
   <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
@@ -73,6 +76,7 @@
     <param name="timetrials_only" value="false"/>
     <param name="ot_planner"      value="$(var ot_planner)"/>
     <param name="map"             value="$(var map)"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
   </node>
 
   <!-- Recovery planner -> /planner/recovery/wpnts -->
@@ -89,6 +93,7 @@
        as a hint for which candidate to prefer. -->
   <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="screen">
     <param from="$(find-pkg-share stack_master)/config/static_avoidance_planner.yaml"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
     <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
   </node>
 
