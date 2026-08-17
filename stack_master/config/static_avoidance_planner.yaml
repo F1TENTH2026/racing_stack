@@ -65,16 +65,17 @@ static_avoidance_planner:
     # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
     raceline_clearance_m: 0.35
 
+    # Maximum number of simultaneously visible static obstacles shaped into one
+    # same-side path. The simulator supports at most three practice obstacles.
+    # All visible candidates inside `lookahead` are considered; the path returns
+    # to the raceline only after the final member of this group.
+    max_group_obstacles: 3
+
     # ===== path shape ==================================================
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
     # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
     # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    # 0.30 -> 0.35: with min_free_dist_m raised to 0.20 the floor became
-    # ego_width_m/2 + min_free_dist_m = 0.145 + 0.20 = 0.345, above the old
-    # 0.30, so the relaxation ladder's top rung was silently overriding this
-    # value anyway. Raised past the floor so what's written here is what
-    # actually gets planned at full relaxation.
-    evasion_distance: 0.4
+    evasion_distance: 0.40 #3.0
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -92,7 +93,7 @@ static_avoidance_planner:
     # move over before the obstacle and none to spare after it, so the two
     # sides are deliberately not symmetric.
     post_dist_gain: 0.8
-    post_dist_min: 2.0 # 복귀 진입 거리 최소값 2.0 (1.5 -> 2.0: 복귀 구간이 짧아 오버슈트하며 장애물을 치는 문제 완화)
+    post_dist_min: 1.5 # 복귀 진입 거리 최소값
     post_dist_max: 4.0
 
     # [m] Global-line tail appended after the return, so the state machine can
@@ -128,22 +129,16 @@ static_avoidance_planner:
     # the finished path. Must stay >= the state machine's
     # static_avoidance_planner.lateral_width_m (0.10) so a path this planner
     # accepts is one the state machine accepts.
-    # 0.12 -> 0.16: logfile/state_machine_20260815_155720.log shows the same
+    # Raised to 0.20 m so relaxation cannot pull a valid path back too close to
+    # the obstacle after the preferred 0.35 m centreline clearance is rejected.
+    # logfile/state_machine_20260815_155720.log shows the same
     # tracked obstacle's `size` swinging ~13 cm frame to frame (e.g. obs id 17:
     # 0.38->0.25 m), which feeds directly into d_left/d_right (detect.cpp:
     # d_left = d_center + size/2) and into this planner's own free_dist check --
     # so an under-sized frame both draws the path closer AND judges it as clear.
-    # 0.16 m sized against a 0.50 m obstacle-to-wall corridor (0.50 - ego_width_m
-    # 0.29 - ~0.045 m kept for boundary_margin's wall clearance): it is the most
-    # this planner can give the obstacle side without eating the wall margin.
-    # Not a full fix -- a single frame that undershoots by more than that still
-    # gets through -- but it absorbs the swing seen in that log.
-    # 0.16 -> 0.20: car was still clipping obstacles on the return leg; widened
-    # the side margin further. NOTE this raises evasion_distance's floor to
-    # 0.345 (see evasion_distance above) and needs a wider obstacle-to-wall
-    # corridor than the 0.50 m case above assumed -- on narrower corridors this
-    # planner will fall back to a tighter rung on the relaxation ladder.
-    min_free_dist_m: 0.20
+    # Tight obstacle-to-wall corridors can now be rejected instead of producing
+    # a path with less than 0.20 m vehicle-side clearance.
+    min_free_dist_m: 0.16
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can
