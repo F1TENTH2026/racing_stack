@@ -30,6 +30,8 @@ class StateMachineParams:
         "lateral_width_ot_m",
         "splini_hyst_timer_sec",
         "emergency_break_horizon",
+        "trailing_speed_scale",
+        "trailing_min_speed_mps",
         "ftg_speed_mps",
         "ftg_timer_sec",
         "gb_ego_width_m",
@@ -130,8 +132,50 @@ class StateMachineParams:
         )
         self.overtaking_horizon_m: float = node.get_parameter("overtaking_horizon_m").value
 
-        self._declare("emergency_break_horizon", 0.5)
+        # [m] Gap to the closest blocking obstacle (cur_gb_wpnts/cur_recovery_wpnts
+        # .closest_gap, set by _check_free_frenet/_check_free_cartesian) at or below
+        # which _apply_trailing_speed_cap kicks in while TRAILING: an obstacle has
+        # been recognised but no avoidance path is committed yet, so GB_TRACK/RECOVERY
+        # would otherwise keep publishing full raceline speed right up to the moment
+        # OVERTAKE/RECOVERY takes over. Was declared but never read before (dead
+        # UNICORN leftover); default raised from 0.5 to 4.0 now that it does something
+        # -- 0.5 m left no reaction time at racing speed.
+        self._declare(
+            "emergency_break_horizon", 4.0,
+            ParameterDescriptor(
+                description="Gap [m] to the blocking obstacle at which trailing_speed_scale kicks in",
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=10.0, step=0.1)],
+            ),
+        )
         self.emergency_break_horizon: float = node.get_parameter("emergency_break_horizon").value
+
+        # Cruise-speed cap applied inside emergency_break_horizon, as a fraction of the
+        # raceline's speed at the car's current s: NOT a stop -- a lower ceiling that
+        # calc_vel_profile still reaches via a normal (not maxed-out) decel curve. Buys
+        # margin for the frame(s) it still takes the avoidance planner to produce/pass a
+        # valid path so OVERTAKE isn't entered already at full speed with little gap left.
+        self._declare(
+            "trailing_speed_scale", 0.5,
+            ParameterDescriptor(
+                description="Cruise-speed cap while TRAILING near an unavoidable-yet obstacle, as a fraction of raceline speed",
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.1, to_value=1.0, step=0.05)],
+            ),
+        )
+        self.trailing_speed_scale: float = node.get_parameter("trailing_speed_scale").value
+
+        # [m/s] Floor under trailing_speed_scale * raceline_speed, so a near-zero
+        # raceline speed (tight corner) can't cap the trailing speed down to a crawl.
+        self._declare(
+            "trailing_min_speed_mps", 1.0,
+            ParameterDescriptor(
+                description="Floor [m/s] under the TRAILING speed cap",
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=5.0, step=0.1)],
+            ),
+        )
+        self.trailing_min_speed_mps: float = node.get_parameter("trailing_min_speed_mps").value
 
         # Lower bound on the ego-vs-opponent closing speed used to turn gap into a
         # time-to-pass (ttc) when slicing the opponent prediction in _check_free_frenet.

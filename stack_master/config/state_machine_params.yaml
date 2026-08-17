@@ -14,7 +14,11 @@ state_machine:
     gb_horizon_m: 15.0
     interest_horizon_m: 20.0
     overtaking_horizon_m: 6.9
-    emergency_break_horizon: 0.5
+    # [m] Gap to the closest blocking obstacle at which TRAILING caps cruise speed
+    # to trailing_speed_scale * raceline speed (see _apply_trailing_speed_cap).
+    # Was 0.5 as a dead/unread leftover; raised now that it's actually consumed --
+    # 0.5 m left no reaction time at racing speed.
+    emergency_break_horizon: 4.0
     # safety
     volt_threshold: 11.0
     # dynamic (replaces dyn_statemachine_tuner.cfg)
@@ -25,6 +29,13 @@ state_machine:
     pred_splini_ttl: 2.0
     overtaking_ttl_sec: 3.0
     overtake_min_closing_mps: 2.5
+    # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
+    # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
+    # still reaches it via a normal decel curve, not the maxed-out braking one.
+    trailing_speed_scale: 0.5
+    # [m/s] Floor under trailing_speed_scale * raceline_speed (tight corners have a
+    # low raceline speed already; don't let the cap crawl toward 0 there).
+    trailing_min_speed_mps: 1.0
     ftg_speed_mps: 0.1
     ftg_timer_sec: 3.0
     ftg_active: false
