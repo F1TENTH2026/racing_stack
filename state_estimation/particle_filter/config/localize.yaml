@@ -1,8 +1,15 @@
+# Particle filter localisation against a saved map.
+#
+# Launched by stack_master/launch/localization.launch.xml, which also brings up
+# the map_server this reads from over /map_server/map.
+
 particle_filter:
   ros__parameters:
     # topic names
     scan_topic: '/scan'
-    odometry_topic: '/odom'
+    # Wheel odometry, for the motion model only - the filter corrects it against
+    # the scan. Namespaced by hardware.launch.xml.
+    odometry_topic: '/vesc/odom'
     # range data downsampling
     angle_step: 18
     max_particles: 4000
@@ -10,10 +17,14 @@ particle_filter:
     # visualization
     viz: 1
     max_viz_particles: 60
-    # ray marching method
-    range_method: 'pcddt' # rmgpu, pcddt
+    # Ray marching method. cddt is CPU and works with a plain range_libc build.
+    # rmgpu is much faster but needs range_libc compiled with CUDA
+    # (compile_with_cuda.sh) - worth doing on the Jetson if this cannot keep up
+    # with the scan rate, but it is the harder build so it is not the default.
+    # Check with: ros2 topic hz /pf/pose/odom
+    range_method: 'cddt'
     theta_discretization: 112
-    # range data filtering
+    # range data filtering. Matches the UST-10LX's guaranteed range.
     max_range: 10
     fine_timing: 0
     publish_odom: 1
@@ -28,9 +39,11 @@ particle_filter:
     motion_dispersion_y: 0.025
     motion_dispersion_theta: 0.25
     # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
-    rangelib_variant: 4 # 2
+    rangelib_variant: 2
 
+# Unused by localization.launch.xml, which points map_server at
+# stack_master/maps/<map>/<map>.yaml instead. Kept for the package's own
+# standalone launch file.
 map_server:
   ros__parameters:
-    # assuming map file is in particle_filter/maps
     map: 'levine'
