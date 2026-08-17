@@ -106,5 +106,5 @@ kiss_icp_localization:
     # ---- map_server owns /map; node publishes neither grid nor band scan ----
     publish_2d_map: false
     publish_2d_scan: false
-    publish_aligned_scan: true       # /kiss_loc/scan_aligned for RViz debug
-    print_stats: false
+    publish_aligned_scan: false      # /kiss_loc/scan_aligned for RViz debug
+    print_stats: true
