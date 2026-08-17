@@ -54,6 +54,9 @@ class ObstacleSpliner(Node):
         # Initialize the node
         self.name = "start_spliner_node"
         super().__init__('start_spline_node_v2')
+        # race.launch.xml 의 debug:=on|off. off 면 마커를 만들지 않는다.
+        self.declare_parameter('debug', True)
+        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
 
         # initialize the instance variable
         self.obs_in_interest = None
@@ -211,7 +214,11 @@ class ObstacleSpliner(Node):
             end = time.perf_counter()
             self.latency_pub.publish(Float32(data=float(end - start)))
         self.evasion_pub.publish(wpnts)
-        self.mrks_pub.publish(mrks)
+        # 경로(evasion_pub)는 state machine 이 먹는 실데이터라 항상 나가고, 마커는
+        # RViz 전용이다. pitwall 은 조종수 랩탑에서 뜨므로 안 붙어 있으면 보낼
+        # 이유가 없다.
+        if self.debug and self.mrks_pub.get_subscription_count() > 0:
+            self.mrks_pub.publish(mrks)
 
     #########
     # UTILS #

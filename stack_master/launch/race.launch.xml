@@ -217,9 +217,18 @@
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
        opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="$(var node_output)"/>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1"/>
-  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="$(var node_output)"/>
+  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  </node>
+  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  </node>
+  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  </node>
 
   <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd

@@ -197,18 +197,21 @@ class Opponent_Trajectory(PredictionNode):
                         points_in_lap += 1
 
 
-                        mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
-                        if len(mrk_array_msg.markers) > marker_max:
-                            del_mrk = mrk_array_msg.markers[0]
-                            mrk_array_msg.markers.pop(0)
-                            mrk_array_msg.markers.pop(0)
+                        # 마커는 RViz 전용. _opp_to_marker 는 get_cartesian(스플라인
+                        # 평가)까지 하므로, 볼 사람이 없으면 만들지 않는다.
+                        if self.viz_ok(self.marker_pub):
+                            mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
+                            if len(mrk_array_msg.markers) > marker_max:
+                                del_mrk = mrk_array_msg.markers[0]
+                                mrk_array_msg.markers.pop(0)
+                                mrk_array_msg.markers.pop(0)
 
-                            del_mrk.action = Marker.DELETEALL
-                            mrk_array_msg.markers.append(del_mrk)
-                            mrk_array_msg.markers.append(mrk_msg)
-                        else:
-                            mrk_array_msg.markers.append(mrk_msg)
-                        self.marker_pub.publish(mrk_array_msg)
+                                del_mrk.action = Marker.DELETEALL
+                                mrk_array_msg.markers.append(del_mrk)
+                                mrk_array_msg.markers.append(mrk_msg)
+                            else:
+                                mrk_array_msg.markers.append(mrk_msg)
+                            self.marker_pub.publish(mrk_array_msg)
                         marker_count += 1
                     if consecutive_points_off_opptraj > 5 and traversed_distance < track_length/2: #if the opponent is off the predicted trajectory for more than 5 points we discard the measurement (variable)
                         projected_opponent_traj.nrofpoints = points_in_lap
@@ -246,18 +249,19 @@ class Opponent_Trajectory(PredictionNode):
                                         first_point = False
                                         points_in_lap += 1
 
-                                        mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
-                                        if len(mrk_array_msg.markers) > marker_max:
-                                            del_mrk = mrk_array_msg.markers[0]
-                                            mrk_array_msg.markers.pop(0)
-                                            mrk_array_msg.markers.pop(0)
+                                        if self.viz_ok(self.marker_pub):   # RViz 전용
+                                            mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
+                                            if len(mrk_array_msg.markers) > marker_max:
+                                                del_mrk = mrk_array_msg.markers[0]
+                                                mrk_array_msg.markers.pop(0)
+                                                mrk_array_msg.markers.pop(0)
 
-                                            del_mrk.action = Marker.DELETEALL
-                                            mrk_array_msg.markers.append(del_mrk)
-                                            mrk_array_msg.markers.append(mrk_msg)
-                                        else:
-                                            mrk_array_msg.markers.append(mrk_msg)
-                                        self.marker_pub.publish(mrk_array_msg)
+                                                del_mrk.action = Marker.DELETEALL
+                                                mrk_array_msg.markers.append(del_mrk)
+                                                mrk_array_msg.markers.append(mrk_msg)
+                                            else:
+                                                mrk_array_msg.markers.append(mrk_msg)
+                                            self.marker_pub.publish(mrk_array_msg)
                                         marker_count += 1
                         consecutive_points_off_opptraj = 0
                         

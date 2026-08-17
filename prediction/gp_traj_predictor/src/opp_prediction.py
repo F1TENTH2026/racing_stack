@@ -130,10 +130,11 @@ class OppTrajPredictor(PredictionNode):
         wpnts_opponent = [OppWpnt(s_m=wp.s_m, d_m=wp.d_m, x_m=wp.x_m, y_m=wp.y_m, proj_vs_mps=wp.vx_mps) for wp in wptlist]
         
         opp_traj_gp_msg = self.make_opponent_trajectory_msg(wpnts_opponent)
-        opp_traj_marker_array = self.visualize_opponent_wpnts(wpnts_opponent)
-        
         self.opp_traj_gp_pub.publish(opp_traj_gp_msg)
-        self.opp_traj_marker_pub.publish(opp_traj_marker_array)
+        # 마커는 RViz 전용. visualize_opponent_wpnts 가 웨이포인트마다 Marker 를
+        # 만들므로, 볼 사람이 없으면 호출 자체를 하지 않는다.
+        if self.viz_ok(self.opp_traj_marker_pub):
+            self.opp_traj_marker_pub.publish(self.visualize_opponent_wpnts(wpnts_opponent))
         
     def make_opponent_trajectory_msg(self, oppwpnts_list: list):
         opponent_trajectory_msg = OpponentTrajectory()
@@ -268,21 +269,25 @@ class OppTrajPredictor(PredictionNode):
         self.marker_beginn.action = Marker.ADD
         self.marker_beginn.pose.position.x = position_beginn.x[0]
         self.marker_beginn.pose.position.y = position_beginn.y[0]
-        self.marker_pub_beginn.publish(self.marker_beginn)
+        if self.viz_ok(self.marker_pub_beginn):
+            self.marker_pub_beginn.publish(self.marker_beginn)
 
         position_end = self.frenet2glob([end_s % self.max_s_updated], [end_d])
         self.marker_end.header.stamp = stamp
         self.marker_end.action = Marker.ADD
         self.marker_end.pose.position.x = position_end.x[0]
         self.marker_end.pose.position.y = position_end.y[0]
-        self.marker_pub_end.publish(self.marker_end)
+        if self.viz_ok(self.marker_pub_end):
+            self.marker_pub_end.publish(self.marker_end)
 
     def delete_all(self) -> None:
         empty_marker = Marker(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'), id=0)
         empty_marker.action = Marker.DELETE
-        self.marker_pub_beginn.publish(empty_marker)
-        empty_marker.id = 1
-        self.marker_pub_end.publish(empty_marker)
+        # 구독자가 없으면 RViz 에 남아 있는 마커도 없으므로 지울 것도 없다.
+        if self.viz_ok(self.marker_pub_beginn, self.marker_pub_end):
+            self.marker_pub_beginn.publish(empty_marker)
+            empty_marker.id = 1
+            self.marker_pub_end.publish(empty_marker)
 
         empty_obs_arr = ObstacleArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'))
         self.prediction_obs_pub.publish(empty_obs_arr)
@@ -393,7 +398,8 @@ class OppTrajPredictor(PredictionNode):
                     prediction_obs_pred_arr = PredictionArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'), id=opponent_pos_copy.obstacles[0].id, dt=self.dt, predictions=prediction_list)
                     self.prediction_obs_pred_pub.publish(prediction_obs_pred_arr)
 
-                    self.opp_marker_pub.publish(opp_marker_array)
+                    if self.viz_ok(self.opp_marker_pub):
+                        self.opp_marker_pub.publish(opp_marker_array)
                     if obstacle_list:
                         self.publish_begin_end_markers(
                             current_opponent_s,
@@ -488,8 +494,9 @@ class OppTrajPredictor(PredictionNode):
                         prediction_obs_pred_arr = PredictionArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'), id=opponent_pos_copy.obstacles[0].id, dt=self.dt, predictions=prediction_list)
                         self.prediction_obs_pred_pub.publish(prediction_obs_pred_arr)
 
-                        self.opp_marker_pub.publish(opp_marker_array)
-                        
+                        if self.viz_ok(self.opp_marker_pub):
+                            self.opp_marker_pub.publish(opp_marker_array)
+
                         self.expire_counter = 0
                         
                         self.publish_begin_end_markers(beginn_s, beginn_d, end_s, end_d)
