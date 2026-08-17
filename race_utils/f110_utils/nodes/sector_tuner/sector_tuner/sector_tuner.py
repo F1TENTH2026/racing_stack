@@ -49,11 +49,16 @@ class SectorTuner(Node):
         # get initial scaling
         self.sectors_params = self.parameters_to_dict()
         self.n_sectors = self.sectors_params['n_sectors']
-        # apply the same clip the dyn callback does, so the yaml is in effect at
-        # startup (otherwise scaling stays raw until the first param change).
+        # apply the same phase_multiplier the dyn callback does, so the yaml is in
+        # effect at startup (otherwise scaling stays raw until the first param
+        # change). phase_multiplier SCALES each sector's configured scaling rather
+        # than clipping it -- a map's speed_scaling.yaml scaling: 1.5 always reaches
+        # 1.5x at phase_multiplier 1.0 (its default) instead of being silently
+        # capped by it. quali's slow-start/fast-attack phase transition
+        # (race_phase_speed_node) moves phase_multiplier, not the sectors.
         for i in range(self.n_sectors):
-            self.sectors_params[f"Sector{i}"]['scaling'] = np.clip(
-                self.sectors_params[f"Sector{i}"]['scaling'], 0, self.sectors_params['global_limit'])
+            self.sectors_params[f"Sector{i}"]['scaling'] = max(
+                0.0, self.sectors_params[f"Sector{i}"]['scaling'] * self.sectors_params['phase_multiplier'])
 
         # unicorn-specific: path to the yaml that can be written back to disk
         # (the map's speed_scaling.yaml). Empty -> save-back disabled.
@@ -65,7 +70,7 @@ class SectorTuner(Node):
         desc = ParameterDescriptor(
             type=ParameterType.PARAMETER_DOUBLE,
             floating_point_range=[FloatingPointRange(from_value=0.0, to_value=2.0, step=0.01)])
-        self.set_descriptor('global_limit', descriptor=desc)
+        self.set_descriptor('phase_multiplier', descriptor=desc)
         for i in range(self.n_sectors):
             self.set_descriptor('Sector' + str(i) + '.scaling', descriptor=desc)
 
@@ -127,10 +132,10 @@ class SectorTuner(Node):
             self.set_parameters(
                 [rclpy.parameter.Parameter('save_params', rclpy.Parameter.Type.BOOL, False)])
 
-        # update params
+        # update params -- multiply, don't clip (see __init__ for why)
         for i in range(self.n_sectors):
-            self.sectors_params[f"Sector{i}"]['scaling'] = np.clip(
-                self.sectors_params[f"Sector{i}"]['scaling'], 0, self.sectors_params['global_limit'])
+            self.sectors_params[f"Sector{i}"]['scaling'] = max(
+                0.0, self.sectors_params[f"Sector{i}"]['scaling'] * self.sectors_params['phase_multiplier'])
 
         self.get_logger().info(str(self.sectors_params))
 
@@ -142,7 +147,7 @@ class SectorTuner(Node):
         try:
             yaml_data = {
                 'save_params': False,
-                'global_limit': float(self.sectors_params['global_limit']),
+                'phase_multiplier': float(self.sectors_params['phase_multiplier']),
                 'n_sectors': int(self.n_sectors),
             }
             for i in range(self.n_sectors):

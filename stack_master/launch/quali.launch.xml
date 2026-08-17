@@ -45,9 +45,10 @@
     세션 내내 speed_scale 로 달린다.
 
   수동 전환 (언제든, 재실행 없이 live):
-    ros2 param set /speed_sector_tuner global_limit 0.5
-  global_limit 은 각 섹터 scaling 의 상한(clip)이라, 맵의 speed_scaling.yaml 에
-  적힌 값을 넘어서지는 않는다.
+    ros2 param set /speed_sector_tuner phase_multiplier 0.5
+  phase_multiplier 는 각 섹터 scaling 에 곱해지는 배율이다(상한 clip 이 아님).
+  맵의 speed_scaling.yaml 에 적힌 scaling 값은 phase_multiplier 1.0 에서 그대로
+  나오고, 0.5 등을 주면 그 값에 곱해져서 줄어든다.
 
   SIM : ros2 launch stack_master quali.launch.xml map:=f sim:=true
   REAL: ros2 launch stack_master quali.launch.xml map:=f sim:=false
@@ -58,7 +59,7 @@
   <arg name="localization" default="kiss" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
   <arg name="speed_scale" default="0.7"
-       description="Speed cap (speed_sector_tuner global_limit, 0.0-2.0) the session STARTS on: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용."/>
+       description="Race-phase multiplier (speed_sector_tuner phase_multiplier, 0.0-2.0) the session STARTS on: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. Multiplies each sector's configured scaling, does not clip it."/>
   <arg name="speed_scale_fast" default="1.0"
        description="Speed cap switched to after fast_after_laps completed laps: 2분 어택 구간용."/>
   <arg name="fast_after_laps" default="10"
@@ -83,11 +84,11 @@
     <arg name="debug"        value="$(var debug)"/>
   </include>
 
-  <!-- ===== Race-phase speed cap =====
-       base_system seeds global_limit with speed_scale at launch; this node makes
-       the single upgrade to speed_scale_fast once fast_after_laps laps are done.
-       It only ever writes the parameter once, so a manual `ros2 param set` at any
-       point (before or after) still wins. -->
+  <!-- ===== Race-phase speed multiplier =====
+       base_system seeds phase_multiplier with speed_scale at launch; this node
+       makes the single upgrade to speed_scale_fast once fast_after_laps laps are
+       done. It only ever writes the parameter once, so a manual `ros2 param set`
+       at any point (before or after) still wins. -->
   <group if="$(var auto_speed_up)">
     <node pkg="stack_master" exec="race_phase_speed_node.py" name="race_phase_speed" output="screen">
       <!-- Explicit types: `speed_scale:=1` on the command line would otherwise be

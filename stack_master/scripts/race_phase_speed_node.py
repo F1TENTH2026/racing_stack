@@ -10,24 +10,26 @@ from f110_msgs.msg import LapData
 
 class RacePhaseSpeedNode(Node):
     """
-    Raises the global speed cap once the car has completed enough laps.
+    Raises the race-phase speed multiplier once the car has completed enough laps.
 
     Quali runs in three phases (3 clean laps, 3 laps with static obstacles, then a
     2-minute attack) and only the last one is about lap time, so the run starts
-    capped and opens up later. That cap is speed_sector_tuner's `global_limit`,
-    which clips every sector's scaling; quali.launch.xml seeds it with the slow
-    value at launch and this node performs the single upgrade to the fast value.
+    slow and opens up later. That knob is speed_sector_tuner's `phase_multiplier`,
+    which MULTIPLIES every sector's configured scaling (not a clip -- a sector's
+    scaling: 1.5 always reaches 1.5x at phase_multiplier 1.0); quali.launch.xml
+    seeds it with the slow value at launch and this node performs the single
+    upgrade to the fast value.
 
     Laps come from lap_analyser's /lap_data, whose lap_count is the number of
     COMPLETED laps (it counts from the car's first finish-line crossing, not from
     launch -- so `fast_after_laps` means laps driven, not laps since boot).
 
     The upgrade latches: once applied it is never undone, and lap_analyser
-    restarting its count (/start_log) cannot drop the car back to the slow cap
-    mid-attack. Manual overrides still work at any time, this node only ever
-    writes `global_limit` once:
+    restarting its count (/start_log) cannot drop the car back to the slow
+    multiplier mid-attack. Manual overrides still work at any time, this node
+    only ever writes `phase_multiplier` once:
 
-        ros2 param set /speed_sector_tuner global_limit 0.5
+        ros2 param set /speed_sector_tuner phase_multiplier 0.5
 
     All knobs are launch args on quali.launch.xml (speed_scale,
     speed_scale_fast, fast_after_laps); set auto_speed_up:=false to not run
@@ -41,7 +43,7 @@ class RacePhaseSpeedNode(Node):
         self.declare_parameter('fast_scale', 1.0)
         self.declare_parameter('fast_after_laps', 10)
         self.declare_parameter('target_node', '/speed_sector_tuner')
-        self.declare_parameter('param_name', 'global_limit')
+        self.declare_parameter('param_name', 'phase_multiplier')
 
         self.slow_scale = float(self.get_parameter('slow_scale').value)
         self.fast_scale = float(self.get_parameter('fast_scale').value)
