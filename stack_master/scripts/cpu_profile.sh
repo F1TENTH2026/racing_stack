@@ -20,6 +20,11 @@
 # 주의 2) 프로파일링 자체가 CPU 를 쓴다. 6코어 Orin 에서 측정 대상이 많을수록
 #         측정값이 오염되므로 노드 수를 늘릴 때는 감안할 것. debug:=off 에서는
 #         아예 실행되지 않는다.
+#
+# 주의 3) 기본으로 --nonblocking 을 쓴다(대상 프로세스를 멈추지 않는다). 주행 중
+#         제어 노드가 멈추면 VESC 페일세이프가 걸릴 수 있기 때문이다. 표본이 조금
+#         어긋나는 것을 감수하는 대신 안전을 택한 것. 차를 세워두고 정확한 값이
+#         필요하면 RACE_PROFILE_BLOCKING=1 로 끈다.
 
 set -uo pipefail
 
@@ -82,6 +87,14 @@ if [ "$SCOPE" != "0" ] && [ "$(id -u)" != "0" ]; then
     exit 0
 fi
 
+# --nonblocking: 표본을 뜰 때 대상 프로세스를 멈추지 않는다. 기본 동작은 매
+# 표본마다 프로세스를 잠깐 정지시키는데, VESC 는 상위 제어기의 명령이 일정 시간
+# 끊기면 페일세이프로 모터 출력을 끊으므로 주행 중에는 정지가 없는 편이 안전하다.
+# 대가로 스택을 읽는 도중 프로세스가 움직여 표본이 조금 어긋날 수 있다.
+# 차를 세워두고 정확도를 우선하고 싶으면 RACE_PROFILE_BLOCKING=1 로 끈다.
+NONBLOCK=(--nonblocking)
+[ "${RACE_PROFILE_BLOCKING:-0}" = "1" ] && NONBLOCK=()
+
 # 노드가 뜨고, 차가 실제로 달리기 시작한 뒤에 표본을 떠야 의미가 있다.
 sleep "$DELAY"
 
@@ -93,7 +106,8 @@ for N in "${NODES[@]}"; do
     fi
     (
         RAW="$(mktemp)"
-        py-spy record --pid "$PID" --duration "$DUR" --format raw -F -o "$RAW" 2>/dev/null
+        py-spy record --pid "$PID" --duration "$DUR" --format raw -F \
+                      "${NONBLOCK[@]}" -o "$RAW" 2>/dev/null
         TOTAL="$(awk '{s+=$NF} END{print s+0}' "$RAW")"
         {
             echo ""
