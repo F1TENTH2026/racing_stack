@@ -67,9 +67,14 @@ static_avoidance_planner:
 
     # ===== path shape ==================================================
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
-    # Real gap to the car's side is this minus ego_width_m/2 = 0.155 m.
+    # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
     # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    evasion_distance: 0.30
+    # 0.30 -> 0.35: with min_free_dist_m raised to 0.20 the floor became
+    # ego_width_m/2 + min_free_dist_m = 0.145 + 0.20 = 0.345, above the old
+    # 0.30, so the relaxation ladder's top rung was silently overriding this
+    # value anyway. Raised past the floor so what's written here is what
+    # actually gets planned at full relaxation.
+    evasion_distance: 0.35
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -87,7 +92,7 @@ static_avoidance_planner:
     # move over before the obstacle and none to spare after it, so the two
     # sides are deliberately not symmetric.
     post_dist_gain: 0.8
-    post_dist_min: 1.5 # 복귀 진입 거리 최소값 1.5
+    post_dist_min: 2.0 # 복귀 진입 거리 최소값 2.0 (1.5 -> 2.0: 복귀 구간이 짧아 오버슈트하며 장애물을 치는 문제 완화)
     post_dist_max: 4.0
 
     # [m] Global-line tail appended after the return, so the state machine can
@@ -133,7 +138,12 @@ static_avoidance_planner:
     # this planner can give the obstacle side without eating the wall margin.
     # Not a full fix -- a single frame that undershoots by more than that still
     # gets through -- but it absorbs the swing seen in that log.
-    min_free_dist_m: 0.16
+    # 0.16 -> 0.20: car was still clipping obstacles on the return leg; widened
+    # the side margin further. NOTE this raises evasion_distance's floor to
+    # 0.345 (see evasion_distance above) and needs a wider obstacle-to-wall
+    # corridor than the 0.50 m case above assumed -- on narrower corridors this
+    # planner will fall back to a tighter rung on the relaxation ladder.
+    min_free_dist_m: 0.20
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can
