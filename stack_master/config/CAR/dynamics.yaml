@@ -19,5 +19,5 @@ a_max: 9.51 # Maximum longitudinal acceleration
 v_min: -5.0 # Minimum longitudinal velocity
 v_max: 20.0 # Maximum longitudinal velocity
 # Keep the driving footprint synchronized with description/urdf/albomb_core.xacro.
-width: 0.18 # width of the vehicle in meters
+width: 0.29 # width of the vehicle in meters
 length: 0.52 # length of the vehicle in meters
