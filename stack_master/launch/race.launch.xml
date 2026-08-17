@@ -106,6 +106,30 @@
     <param name="debug" value="$(var debug_on)"/>
   </node>
 
+  <!-- ===== CPU 프로파일러 (py-spy) =====
+       debug:=on 일 때만 돈다. 터미널을 하나 더 열어 prof3.sh 를 손으로 돌릴 필요가
+       없고, 결과는 다른 디버그 로그와 같은 자리에 같은 규칙으로 떨어진다:
+           logfile/cpu_profile_<stamp>.log  (+ latest_cpu_profile.log 심링크)
+
+       profile_delay 만큼 기다렸다가 profile_duration 동안 표본을 뜬다. 지연을 두는
+       이유: 런치 직후는 노드가 아직 다 뜨지도 않았고 차도 안 움직인다. 그때 뜬
+       표본은 초기화 코드만 보여준다. 기본값은 20초 뒤 30초간이다.
+
+       py-spy 가 없거나 ptrace 가 막혀 있으면(우분투 기본 ptrace_scope=1) 그 사실만
+       로그에 남기고 조용히 끝난다. 프로파일러 때문에 주행이 막히면 안 되므로
+       런치를 실패시키지 않는다. 한 번만 풀어주면 된다:
+           sudo sysctl kernel.yama.ptrace_scope=0
+
+       프로파일링 자체도 CPU 를 쓴다. 순수 측정이 필요하면 profile:=false. -->
+  <arg name="profile" default="true"
+       description="debug:=on 일 때 py-spy CPU 프로파일을 logfile/ 에 남길지 여부"/>
+  <arg name="profile_duration" default="30" description="표본 수집 시간 [s]"/>
+  <arg name="profile_delay"    default="20" description="노드 기동/주행 시작 대기 [s]"/>
+  <executable
+      cmd="$(find-pkg-share stack_master)/scripts/cpu_profile.sh $(var profile_duration) $(var profile_delay)"
+      shell="true" output="log"
+      if="$(eval '$(var debug_on) and \'$(var profile)\' in (\'true\',\'True\',\'1\')')"/>
+
   <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
     <arg name="map"          value="$(var map)"/>

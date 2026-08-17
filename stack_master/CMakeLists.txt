@@ -30,6 +30,14 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+# Install the CPU profiler into share/ so race.launch.xml can reference it by
+# absolute path via $(find-pkg-share stack_master). It is not a ROS node, so it
+# must not go through <node>, which would append --ros-args to a bash script.
+install(PROGRAMS
+  scripts/cpu_profile.sh
+  DESTINATION share/${PROJECT_NAME}/scripts
+)
+
 # Install Python scripts
 install(PROGRAMS
   scripts/simple_mux_node.py
