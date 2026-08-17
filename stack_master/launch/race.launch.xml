@@ -29,6 +29,34 @@
        description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
   <arg name="vis_lane_change" default="false"
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
+
+  <!-- ===== debug:=on|off — 디버그 출력 전체 스위치 =====
+       on  (기본): 지금까지와 동일. 노드 stdout 이 터미널로 나오고, RViz 마커가
+                   viz_rate_hz 로 발행되고, logfile/ 에 디버그 로그가 쌓인다.
+                   랩탑에서 pitwall.launch.xml 을 띄우면 그대로 다 보인다.
+       off      : 터미널이 조용해지고(노드 출력이 log 파일로), 마커 발행이 0 Hz 로
+                  막히고, 디버그 로그 파일을 아예 열지 않는다.
+
+       중요: off 여도 처음에는 RViz 로 2D Pose Estimate 를 여러 번 할 수 있다.
+             kiss_icp 가 /initialpose 를 계속 구독하고 있고, 이 스위치는
+             퍼블리시 쪽만 막기 때문이다. 조이스틱 RB 를 누르면 그때
+             race_supervisor 가 남은 디버그 노드를 정리한다. -->
+  <arg name="debug" default="on"
+       description="디버그 출력 전체 스위치: on(기존 동작) | off(터미널·마커·로그 전부 침묵)"/>
+  <let name="debug_on" value="$(eval '\'$(var debug)\' == \'on\'')"/>
+  <!-- 노드의 output 속성. screen 이면 stdout 이 런치 터미널로 나오고, log 면 ~/.ros/log
+       아래 파일로만 간다. 런치 트리의 노드가 35개라 off 에서는 전부 log 로 돌려야
+       터미널이 실제로 조용해진다. -->
+  <let name="node_output" value="screen" if="$(var debug_on)"/>
+  <let name="node_output" value="log"    unless="$(var debug_on)"/>
+  <!-- 마커/시각화 발행 주기 [Hz]. debug:=off 여도 기동 시점에는 켜 둔다 —
+       RViz 로 2D Pose Estimate 를 하고 그게 제대로 먹었는지 눈으로 확인해야 하기
+       때문이다. off 모드에서 조이스틱 RB 를 누르는 순간 race_supervisor 가 이 값을
+       0 으로 내려 발행을 멈춘다.
+       노드들은 이 값과 별개로 get_subscription_count() 도 확인하므로, 랩탑에서
+       pitwall 을 안 띄웠으면 이 값이 5 여도 마커를 만들지조차 않는다. -->
+  <arg name="viz_rate_hz" default="5.0"
+       description="RViz 마커 발행 주기 [Hz]. 0 이면 발행 안 함"/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -62,19 +90,39 @@
   <executable cmd="pkill -f '[v]scode-server' || true" shell="true" output="log"
               if="$(var kill_vscode)"/>
 
+  <!-- ===== race_supervisor: 조이스틱 RB 로 디버그를 끊는 감시 노드 =====
+       debug:=off 일 때만 실제로 동작한다. 기동 직후에는 마커가 살아 있어서 RViz 로
+       2D Pose Estimate 를 여러 번 할 수 있고, RB(buttons[5]) 를 누르는 순간
+       viz_rate_hz 를 0 으로 내리고 순수 디버그 노드를 종료하고 /debug_enabled 에
+       false 를 latch 발행한다. 되돌리지 않는다.
+
+       주행 모드 전환(LB=조이스틱, RB=자율) 자체는 simple_mux 가 이미 하고 있고,
+       이 노드는 RB 를 "레이스 시작" 신호로만 읽는다. 둘은 서로를 모른다.
+
+       joy_node 는 이 런치 트리 밖에서 따로 띄우므로 여기서 관리하지 않는다.
+       RB 를 받으려면 joy_node 가 살아 있어야 한다는 점만 주의. -->
+  <node pkg="stack_master" exec="race_supervisor_node.py" name="race_supervisor"
+        output="$(var node_output)">
+    <param name="debug" value="$(var debug_on)"/>
+  </node>
+
   <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
     <arg name="map"          value="$(var map)"/>
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>
     <arg name="virtual"      value="$(var virtual)"/>
+    <!-- 하위 런치는 별도 스코프라 $(var ...) 가 자동으로 넘어가지 않는다. 명시 전달. -->
+    <arg name="node_output"  value="$(var node_output)"/>
+    <arg name="debug_on"     value="$(var debug_on)"/>
+    <arg name="viz_rate_hz"  value="$(var viz_rate_hz)"/>
   </include>
 
   <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
        detect publishes /detect/raw_obstacles (Frenet filled at the source);
        tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
        (sim virtual_perception) owns /tracking/obstacles. -->
-  <node pkg="perception" exec="detect" name="detect" output="screen">
+  <node pkg="perception" exec="detect" name="detect" output="$(var node_output)">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <param name="map" value="$(var map)"/>
   </node>
@@ -82,13 +130,17 @@
        on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
   <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
   <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
-  <node pkg="perception" exec="tracking_node" name="tracking" output="screen">
+  <node pkg="perception" exec="tracking_node" name="tracking" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <remap from="/tracking/obstacles" to="$(var tracking_out)"/>
   </node>
 
   <!-- ===== State machine: the racing brain ===== -->
-  <node pkg="state_machine" exec="state_machine" name="state_machine" output="screen">
+  <node pkg="state_machine" exec="state_machine" name="state_machine" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
     <param name="sim"             value="$(var sim)"/>
     <param name="racecar_version" value="$(var racecar_version)"/>
@@ -98,10 +150,16 @@
   </node>
 
   <!-- Recovery planner -> /planner/recovery/wpnts -->
-  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="screen"/>
+  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  </node>
 
   <!-- Start planner -> /planner/start_wpnts -->
-  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="screen"/>
+  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  </node>
 
   <!-- Static avoidance -> /planner/avoidance/static_otwpnts
        Reads /tracking/obstacles DIRECTLY (see the node's docstring): the state
@@ -109,21 +167,25 @@
        never refills it, so a planner gated on /behavior_strategy lost its obstacle
        the moment the car entered OVERTAKE. /behavior_strategy is still subscribed,
        as a hint for which candidate to prefer. -->
-  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="screen">
+  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/static_avoidance_planner.yaml"/>
     <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
   </node>
 
   <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
   <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
-    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="screen">
+    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
       <param name="vis" value="$(var vis_lane_change)"/>
     </node>
-    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="$(var node_output)"/>
   </group>
   <group if="$(eval '\'$(var ot_planner)\' == \'sqp\'')">
-    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="screen"/>
-    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="$(var node_output)"/>
+    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="$(var node_output)"/>
   </group>
 
   <!-- ===== GP opponent-trajectory predictor =====
@@ -131,15 +193,17 @@
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
        opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
-  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="$(var node_output)"/>
+  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1"/>
+  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="$(var node_output)"/>
 
   <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
        (-> simple_mux -> vehicle). Common controller.yaml; save_params writes back
        to the same file. -->
-  <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
+  <node pkg="controller" exec="controller_manager" name="controller_manager" output="$(var node_output)">
+    <param name="debug"       value="$(var debug_on)"/>
+    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="sim" value="$(var sim)"/>

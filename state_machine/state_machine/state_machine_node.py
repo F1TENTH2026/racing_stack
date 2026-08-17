@@ -23,6 +23,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
+from rcl_interfaces.msg import SetParametersResult
 
 import transforms3d
 from ament_index_python.packages import get_package_share_directory
@@ -180,6 +181,15 @@ class StateMachine(Node):
         self.ot_sectors_params = {}
         self.only_ftg_zones = []
         self.ftg_counter = 0
+
+        # ---- 디버그 출력 스위치 (race.launch.xml 의 debug:=on|off 에서 내려온다) ----
+        # debug=False 면 로그 파일을 아예 열지 않고 마커도 발행하지 않는다.
+        # viz_rate_hz 는 마커 발행 주기이며, race_supervisor 가 조이스틱 RB 를 받으면
+        # 런타임에 0 으로 내린다. 루프가 80 Hz 라 여기서 나가는 마커 양이 크다.
+        self.debug = bool(self._get_param_or("debug", True))
+        self.viz_rate_hz = float(self._get_param_or("viz_rate_hz", 5.0))
+        self._last_viz = float("-inf")
+        self.add_on_set_parameters_callback(self._viz_param_cb)
 
         self._setup_debug_log_file()
 
@@ -436,6 +446,10 @@ class StateMachine(Node):
         self._dbg_last_state_value = None
         self._dbg_last_obs_log_sec = 0.0
         self._dbg_last_static_log_sec = 0.0
+        # debug:=off 이면 파일을 열지 않는다. _dbg_log() 가 _dbg_fh is None 을 보고
+        # 조용히 반환하므로, 호출부는 그대로 두어도 아무 것도 쓰이지 않는다.
+        if not self.debug:
+            return
         try:
             log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)
@@ -505,6 +519,56 @@ class StateMachine(Node):
             return v if v is not None else default
         except Exception:
             return default
+
+    def _get_param_or(self, name, default):
+        """_get_str_param 과 같은 방식의 타입 무관 getter. 런치에서 안 내려와도
+        (단독 실행 등) 기본값으로 동작해야 하므로 declare 를 직접 한다."""
+        try:
+            if not self.has_parameter(name):
+                self.declare_parameter(name, default)
+            v = self.get_parameter(name).value
+            return v if v is not None else default
+        except Exception:
+            return default
+
+    def _viz_param_cb(self, params):
+        """race_supervisor 가 RB 를 받으면 viz_rate_hz 를 0 으로 내린다."""
+        for p in params:
+            if p.name == "viz_rate_hz":
+                try:
+                    self.viz_rate_hz = float(p.value)
+                except (TypeError, ValueError):
+                    return SetParametersResult(successful=False,
+                                               reason="viz_rate_hz must be a number")
+                self._dbg_log(f"[VIZ] viz_rate_hz -> {self.viz_rate_hz}")
+        return SetParametersResult(successful=True)
+
+    def _viz_tick(self) -> bool:
+        """이번 루프가 마커를 낼 차례인가. loop() 앞머리에서 정확히 한 번 부른다.
+
+        루프당 한 번만 부르는 이유: 시계를 여기서 옮기므로, 마커마다 부르면 첫
+        호출이 시계를 옮겨 같은 루프의 나머지가 전부 막힌다.
+
+          - debug:=off 로 띄웠으면 항상 False (마커를 아예 안 만든다)
+          - viz_rate_hz 주기가 아직 아니면 False. 루프는 80 Hz 지만 RViz 는 그
+            속도를 쓰지 못한다. race_supervisor 가 RB 를 받아 0 으로 내리면
+            그 시점부터 영구히 False 가 된다.
+        """
+        if not self.debug or self.viz_rate_hz <= 0.0:
+            return False
+        now = time.perf_counter()
+        if now - self._last_viz < 1.0 / self.viz_rate_hz:
+            return False
+        self._last_viz = now
+        return True
+
+    @staticmethod
+    def _has_sub(*pubs) -> bool:
+        """구독자가 하나라도 있는가. pitwall 은 랩탑에서 띄우므로 랩탑이 안 붙어
+        있으면 마커를 만들어봐야 아무도 보지 않는다. 지금은 구독자가 0 이어도
+        Marker 객체를 만들어 직렬화까지 하고 있었다. particle_filter 가 이미
+        쓰고 있는 관례와 같다."""
+        return any(p.get_subscription_count() > 0 for p in pubs)
 
     def _load_sector_yamls(self):
         # read the map sector yamls into sectors_params / ot_sectors_params (ROS1 /map_params, /ot_map_params)
@@ -1450,6 +1514,10 @@ class StateMachine(Node):
     # VIZ #
     #######
     def _publish_debug(self, local_wpnts):
+        # 매 루프(80 Hz) dict 를 만들어 json.dumps 하던 진단 스냅샷. 순수 디버그
+        # 토픽이라 debug:=off 이거나 구독자가 없으면 만들지 않는다.
+        if not self.debug or not self._has_sub(self.debug_pub):
+            return
         # Emit a per-loop JSON snapshot on /state_machine/debug capturing the
         # full local_wpnts source-selection state. Purpose: catch a stale source
         # cache (e.g. cur_recovery_wpnts frozen at an old snapshot while the raw
@@ -1560,24 +1628,30 @@ class StateMachine(Node):
         loc_wpnts.header.stamp = self.get_clock().now().to_msg()
         loc_wpnts.header.frame_id = "map"
 
-        for i, wpnt in enumerate(loc_wpnts.wpnts):
-            mrk = Marker()
-            mrk.header.frame_id = "map"
-            mrk.type = mrk.SPHERE
-            mrk.scale.x = 0.15
-            mrk.scale.y = 0.15
-            mrk.scale.z = 0.15
-            mrk.color.a = 1.0
-            mrk.color.g = 1.0
-            mrk.id = i + 1  # 0 reserved for the DELETEALL marker (avoid duplicate id in the array)
-            mrk.pose.position.x = wpnt.x_m
-            mrk.pose.position.y = wpnt.y_m
-            mrk.pose.position.z = wpnt.vx_mps
-            mrk.pose.orientation.w = 1.0
-            loc_markers.markers.append(mrk)
+        # loc_wpnts 는 실제 경로 데이터라 항상 나가야 하지만, 마커는 RViz 전용이다.
+        # 웨이포인트 하나당 Marker 하나(n_loc_wpnts=80)를 80 Hz 로 만들고 있었다 —
+        # 초당 6400 개다. 필요할 때만 만든다.
+        want_markers = self._viz_now and self._has_sub(self.vis_loc_wpnt_pub)
+        if want_markers:
+            for i, wpnt in enumerate(loc_wpnts.wpnts):
+                mrk = Marker()
+                mrk.header.frame_id = "map"
+                mrk.type = mrk.SPHERE
+                mrk.scale.x = 0.15
+                mrk.scale.y = 0.15
+                mrk.scale.z = 0.15
+                mrk.color.a = 1.0
+                mrk.color.g = 1.0
+                mrk.id = i + 1  # 0 reserved for the DELETEALL marker (avoid duplicate id in the array)
+                mrk.pose.position.x = wpnt.x_m
+                mrk.pose.position.y = wpnt.y_m
+                mrk.pose.position.z = wpnt.vx_mps
+                mrk.pose.orientation.w = 1.0
+                loc_markers.markers.append(mrk)
 
         self.loc_wpnt_pub.publish(loc_wpnts)
-        self.vis_loc_wpnt_pub.publish(loc_markers)
+        if want_markers:
+            self.vis_loc_wpnt_pub.publish(loc_markers)
 
     def visualize_state(self, state: str):
         if self.first_visualization:
@@ -1751,6 +1825,8 @@ class StateMachine(Node):
     def loop(self):
         self._splini_dbg = None
         self._recovery_dbg = None
+        # 이번 루프가 마커를 낼 차례인지 여기서 한 번만 판정한다 (_viz_tick 참고).
+        self._viz_now = self._viz_tick()
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()
@@ -1902,7 +1978,8 @@ class StateMachine(Node):
             overtaking_target_mrk.pose.orientation.w = 1.0
         else:
             overtaking_target_mrk.action = Marker.DELETEALL
-        self.overtaking_marker_pub.publish(overtaking_target_mrk)
+        if self._viz_now and self._has_sub(self.overtaking_marker_pub):
+            self.overtaking_marker_pub.publish(overtaking_target_mrk)
 
         trailing_target_mrk = Marker()
         trailing_target_mrk.header.frame_id = "map"  # set always so the DELETEALL marker isn't dropped by RViz (empty frame)
@@ -1918,7 +1995,8 @@ class StateMachine(Node):
             trailing_target_mrk.pose.orientation.w = 1.0
         else:
             trailing_target_mrk.action = Marker.DELETEALL
-        self.trailing_marker_pub.publish(trailing_target_mrk)
+        if self._viz_now and self._has_sub(self.trailing_marker_pub):
+            self.trailing_marker_pub.publish(trailing_target_mrk)
 
         if self.measuring:
             end = time.perf_counter()

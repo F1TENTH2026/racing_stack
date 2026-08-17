@@ -71,6 +71,11 @@ class ObstacleSpliner(Node):
         # Initialize the node
         self.name = "recovery_spliner_node"
         super().__init__(self.name)
+        # race.launch.xml 의 debug:=on|off 에서 내려온다. off 면 로그 파일을 열지
+        # 않고 마커도 만들지 않는다. 선언 순서상 _setup_debug_log_file() 보다 먼저
+        # 읽어야 한다.
+        self.declare_parameter('debug', True)
+        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
         self._setup_debug_log_file()
         # 1 Hz perf summary accumulators (see _flush_perf). Kept as plain counters so
         # the 40 Hz loop only does integer adds; the formatting happens once a second.
@@ -182,6 +187,9 @@ class ObstacleSpliner(Node):
             {'name': 'smooth_len', 'default': self.smooth_len, 'descriptor': double_smooth_len_pd},
             {'name': 'publish_spline_samples', 'default': self.publish_spline_samples, 'descriptor': bool_pd},
             {'name': 'marker_rate_hz', 'default': self.marker_rate_hz, 'descriptor': double_marker_rate_pd},
+            # 스택 공통 이름. 런치가 이 값을 내려주고, race_supervisor 가 RB 를
+            # 받으면 0 으로 바꾼다. dyn_param_cb 에서 marker_rate_hz 와 같게 다룬다.
+            {'name': 'viz_rate_hz', 'default': self.marker_rate_hz, 'descriptor': double_marker_rate_pd},
         ]
         self.declare_all_parameters(param_dicts=param_dicts)
 
@@ -371,6 +379,11 @@ class ObstacleSpliner(Node):
                 self.publish_spline_samples = param.value
             elif param_name == 'marker_rate_hz':
                 self.marker_rate_hz = param.value
+            elif param_name == 'viz_rate_hz':
+                # 스택 공통 이름. race_supervisor 가 조이스틱 RB 를 받으면 모든
+                # 노드에 이 이름으로 0 을 내리므로, 이 노드의 marker_rate_hz 와
+                # 같은 것으로 취급한다.
+                self.marker_rate_hz = param.value
 
         if hasattr(self, 'map_filter'):
             self.map_filter.set_erosion_kernel_size(self.kernel_size)
@@ -401,8 +414,16 @@ class ObstacleSpliner(Node):
         # rate. Nothing subscribes to the marker topics in code -- only pitwall.rviz --
         # so decimating them costs nothing but visual refresh rate, while the path the
         # state machine follows keeps updating every tick.
+        # 주기 + debug 스위치 + 실제 구독자, 셋 다 통과해야 마커를 만든다.
+        # 구독자 검사가 핵심이다: pitwall 은 랩탑에서 띄우므로, 랩탑이 안 붙어
+        # 있으면 marker_rate_hz 가 5 여도 만들 이유가 없다.
         marker_period = 1.0 / self.marker_rate_hz if self.marker_rate_hz > 0 else float("inf")
-        build_markers = (loop_start - self._last_marker_build) >= marker_period
+        build_markers = (
+            self.debug
+            and (loop_start - self._last_marker_build) >= marker_period
+            and (self.mrks_pub.get_subscription_count() > 0
+                 or self.ot_blended_mrks_pub.get_subscription_count() > 0)
+        )
         if build_markers:
             self._last_marker_build = loop_start
             self._perf_marker_pubs += 1
@@ -472,6 +493,10 @@ class ObstacleSpliner(Node):
         to crash the node: a read-only home just disables file logging.
         """
         self._dbg_fh = None
+        # debug:=off 이면 파일을 열지 않는다. _dbg_log() 가 None 을 보고 조용히
+        # 반환하므로 호출부는 그대로 두어도 된다.
+        if not self.debug:
+            return
         try:
             log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
             log_dir.mkdir(parents=True, exist_ok=True)
