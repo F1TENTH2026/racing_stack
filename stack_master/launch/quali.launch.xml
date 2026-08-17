@@ -60,7 +60,7 @@
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
   <arg name="speed_scale" default="0.7"
        description="Race-phase multiplier (speed_sector_tuner phase_multiplier, 0.0-2.0) the session STARTS on: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. Multiplies each sector's configured scaling, does not clip it."/>
-  <arg name="speed_scale_fast" default="1.0"
+  <arg name="speed_scale_fast" default="1.2"
        description="Speed cap switched to after fast_after_laps completed laps: 2분 어택 구간용."/>
   <arg name="fast_after_laps" default="10"
        description="Completed laps (lap_analyser /lap_data) after which speed_scale -> speed_scale_fast. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
