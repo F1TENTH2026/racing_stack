@@ -45,10 +45,6 @@ class ChangeAvoidanceNode(Node):
         # Initialize node
         super().__init__('change_avoidance_node')
 
-        # race.launch.xml 의 debug:=on|off 에서 내려온다. off 면 마커를 만들지 않는다.
-        self.declare_parameter('debug', True)
-        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
-
         # Params
         self.local_wpnts = None
         self.lookahead = 15
@@ -488,19 +484,7 @@ class ChangeAvoidanceNode(Node):
                 return "right", d_apex_right, left_gap, right_gap
 
     ### Visualize SPL Rviz ###
-    def _viz_ok(self, *pubs) -> bool:
-        """마커를 만들어도 되는가. debug:=off 이면 무조건 False, 켜져 있어도
-        구독자가 없으면 False — pitwall(RViz)은 조종수 랩탑에서 뜨므로 붙어 있지
-        않은 동안 Marker 를 만들어 직렬화하는 것은 순수한 낭비다."""
-        if not self.debug:
-            return False
-        return any(p.get_subscription_count() > 0 for p in pubs)
-
     def visualize_dynamic_spliner(self, evasion_s, evasion_d, evasion_x, evasion_y, evasion_v):
-        # RViz 전용. debug:=off 이거나 pitwall 이 안 붙어 있으면 마커를
-        # 만들지도 않는다 — 아래 루프는 점마다 Marker 를 생성한다.
-        if not self._viz_ok(self.mrks_pub):
-            return
         mrks = MarkerArray()
         if len(evasion_s) == 0:
             pass
@@ -531,10 +515,6 @@ class ChangeAvoidanceNode(Node):
             self.mrks_pub.publish(mrks)
 
     def visualize_spline_samples(self, x_vals, y_vals):
-        # RViz 전용. debug:=off 이거나 pitwall 이 안 붙어 있으면 마커를
-        # 만들지도 않는다 — 아래 루프는 점마다 Marker 를 생성한다.
-        if not self._viz_ok(self.spline_sample_pub):
-            return
         marker_array = MarkerArray()
         for i, (x, y) in enumerate(zip(x_vals, y_vals)):
             marker = Marker()
@@ -939,10 +919,6 @@ class ChangeAvoidanceNode(Node):
         self._inner_xy = inner_lane_resampled
 
     def publish_start_end_markers(self, start_s, obs_start_u, obs_end_u, end_s):
-        # RViz 전용. debug:=off 이거나 pitwall 이 안 붙어 있으면 마커를
-        # 만들지도 않는다 — 아래 루프는 점마다 Marker 를 생성한다.
-        if not self._viz_ok(self.avoidance_pts_pub):
-            return
         """회피 구간의 핵심 s 포인트 4개를 큰 구 마커로 발행 (디버깅용).
         path start(=차량, 청록), obstacle start(노랑), obstacle end(주황), path end(자홍).
         모두 raceline(d=0) 위에 찍는다."""
@@ -982,10 +958,6 @@ class ChangeAvoidanceNode(Node):
         self.lane_offset_pub.publish(Float32MultiArray(data=[float(self.lane_offset), float(-self.lane_offset)]))
 
     def publish_lane_markers(self, center_xy, outer_xy, inner_xy):
-        # RViz 전용. debug:=off 이거나 pitwall 이 안 붙어 있으면 마커를
-        # 만들지도 않는다 — 아래 루프는 점마다 Marker 를 생성한다.
-        if not self._viz_ok(self.lane_mrks_pub):
-            return
         """Publish center / outer(left) / inner(right) lanes as colored line strips.
         Center: white, outer/left: green, inner/right: red."""
         mrks = MarkerArray()
@@ -1011,11 +983,7 @@ class ChangeAvoidanceNode(Node):
     def clear_all_markers(self):
         """Send DELETEALL to every avoidance marker topic so nothing lingers in rviz when
         we stop overtaking. Also publishes an empty evasion path to reset the merger side."""
-        # DELETEALL 은 RViz 에 남은 마커를 지우는 용도다. 구독자가 없으면 지울
-        # 것도 없다. 아래 evasion_pub 은 실데이터라 항상 내보낸다.
-        for pub in ((self.mrks_pub, self.spline_sample_pub, self.avoidance_pts_pub)
-                    if self._viz_ok(self.mrks_pub, self.spline_sample_pub,
-                                    self.avoidance_pts_pub) else ()):
+        for pub in (self.mrks_pub, self.spline_sample_pub, self.avoidance_pts_pub):
             mrks = MarkerArray()
             del_mrk = Marker(header=Header(stamp=self.get_clock().now().to_msg(), frame_id="map"))
             del_mrk.action = Marker.DELETEALL

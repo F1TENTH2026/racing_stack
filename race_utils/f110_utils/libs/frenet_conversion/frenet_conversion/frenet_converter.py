@@ -4,10 +4,8 @@ from scipy.interpolate import CubicSpline
 
 class FrenetConverter:
     def __init__(self, waypoints_x: np.array, waypoints_y: np.array, waypoints_psi: np.array = None):
-        # Coerced once here so the hot paths can index and broadcast without
-        # re-converting; callers pass lists as well as arrays.
-        self.waypoints_x = np.asarray(waypoints_x, dtype=float)
-        self.waypoints_y = np.asarray(waypoints_y, dtype=float)
+        self.waypoints_x = waypoints_x
+        self.waypoints_y = waypoints_y
         self.waypoints_psi = waypoints_psi
         self.waypoints_s = None
         self.spline_x = None
@@ -20,26 +18,17 @@ class FrenetConverter:
         self.build_raceline()
 
     def build_raceline(self):
-        # Cumulative arc length, vectorised. This used to be a Python loop calling
-        # np.linalg.norm on a 2-element list per waypoint -- ~1000 interpreter
-        # round-trips per rebuild, and frenet_odom_republisher rebuilds the converter
-        # every time /global_waypoints arrives (0.5 Hz), not just at startup.
-        # sqrt(dx*dx + dy*dy) rather than np.hypot: hypot's stabilised algorithm
-        # differs from np.linalg.norm in the last ulp, and that 1e-14 on the spline
-        # knots is visible after cubic extrapolation. This form is bit-identical to
-        # the norm-in-a-loop it replaces, and np.cumsum matches the sequential
-        # accumulation bit for bit, so the raceline is unchanged exactly.
-        dx = np.diff(self.waypoints_x)
-        dy = np.diff(self.waypoints_y)
-        self.waypoints_s = np.concatenate(([0.0], np.cumsum(np.sqrt(dx * dx + dy * dy))))
+        self.waypoints_s = [0.0]
+        prev_wpnt_x =  self.waypoints_x[0]
+        prev_wpnt_y =  self.waypoints_y[0]
+        for wpnt_x, wpnt_y in zip(self.waypoints_x[1:], self.waypoints_y[1:]):
+            dist = np.linalg.norm([wpnt_x - prev_wpnt_x, wpnt_y - prev_wpnt_y])
+            prev_wpnt_x = wpnt_x
+            prev_wpnt_y = wpnt_y
+            self.waypoints_s.append(self.waypoints_s[-1] + dist)
         self.spline_x = CubicSpline(self.waypoints_s, self.waypoints_x)
         self.spline_y = CubicSpline(self.waypoints_s, self.waypoints_y)
-        # One spline over both coordinates. Evaluating it returns (n, 2) in a single
-        # scipy call, halving the per-evaluation Python overhead on the projection
-        # path, which evaluates position and derivative 4 times per get_frenet().
-        # spline_x / spline_y are kept because they are part of this class's surface.
-        self._spline_xy = CubicSpline(
-            self.waypoints_s, np.column_stack((self.waypoints_x, self.waypoints_y)))
+        self.waypoints_s = np.asarray(self.waypoints_s)
         self.raceline_length = self.waypoints_s[-1]
         # Actual mean waypoint spacing. MUST match the raceline or the approx-s
         # seed (index*spacing) lands on the wrong part of the track and the
@@ -47,43 +36,14 @@ class FrenetConverter:
         if len(self.waypoints_x) > 1:
             self.waypoints_distance_m = self.raceline_length / (len(self.waypoints_x) - 1)
 
-    def _nearest_idx(self, x, y) -> np.ndarray:
-        """Index of the nearest raceline waypoint for each query point.
-
-        The shared kernel behind get_closest_index() and get_approx_s(), which were
-        two copies of this same argmin. Three things the old copies did that this
-        does not:
-
-          * np.tile materialised a full len(waypoints) x len(x) copy of the raceline
-            on every call; broadcasting needs no copy at all.
-          * np.linalg.norm([dist_x.T, dist_y.T], axis=0) built a Python list of two
-            arrays, which numpy then had to stack into a third array before touching
-            any arithmetic.
-          * that norm took a square root of every element. argmin over distance and
-            over squared distance pick the same index, so the sqrt was computed and
-            discarded.
-
-        Returns one index per query point, shaped like the old argmin(..., axis=1).
-        """
-        x = np.asarray(x, dtype=float).reshape(-1)
-        y = np.asarray(y, dtype=float).reshape(-1)
-        dx = self.waypoints_x[:, None] - x[None, :]
-        dy = self.waypoints_y[:, None] - y[None, :]
-        return np.argmin(dx * dx + dy * dy, axis=0)
-
     def get_frenet(self, x, y, s=None) -> np.array:
-        # Compute Frenet coordinates for a given (x, y) point.
-        # One nearest-waypoint search, not two: get_closest_index() and
-        # get_approx_s() computed the identical argmin over the whole raceline, and
-        # this called both. The index is what get_closest_index() returned; the
-        # arc length at that index is what get_approx_s() returned.
-        idx = self._nearest_idx(x, y)
-        self.closest_index = idx  # kept updated for get_frenet_velocities()
+        # Compute Frenet coordinates for a given (x, y) point
+        self.closest_index = self.get_closest_index(x, y) #update idx for other functionalities
         if s is None:
-            # TRUE cumulative arc length at the nearest waypoint (not index*spacing,
-            # which would assume uniform 0.1 m spacing).
-            s = self.waypoints_s[idx]
-        s, d = self.get_frenet_coord(x, y, s)
+            s = self.get_approx_s(x, y)
+            s, d = self.get_frenet_coord(x, y, s)
+        else:
+            s, d = self.get_frenet_coord(x, y, s)
 
         return np.array([s, d])
 
@@ -91,9 +51,14 @@ class FrenetConverter:
         """
         Finds the s-coordinate of the given point by finding the nearest waypoint.
         """
+        # get distance with broadcasting multiple arrays
+        lenx = len(x)
+        dist_x = x - np.tile(self.waypoints_x, (lenx, 1)).T
+        dist_y = y - np.tile(self.waypoints_y, (lenx, 1)).T
+        idx = np.argmin(np.linalg.norm([dist_x.T, dist_y.T], axis=0), axis=1)
         # Use the TRUE cumulative arc-length at the nearest waypoint (not
         # index*spacing, which assumes uniform 0.1 m spacing).
-        return self.waypoints_s[self._nearest_idx(x, y)]
+        return self.waypoints_s[idx]
 
     def get_frenet_velocities(self, vx, vy, theta) -> np.array:
         """
@@ -128,7 +93,11 @@ class FrenetConverter:
         Returns:
             int: index of the closest waypoint
         """
-        self.closest_index = self._nearest_idx(x, y)
+        # get distance with broadcasting multiple arrays
+        lenx = len(x)
+        dist_x = x - np.tile(self.waypoints_x, (lenx, 1)).T
+        dist_y = y - np.tile(self.waypoints_y, (lenx, 1)).T
+        self.closest_index = np.argmin(np.linalg.norm([dist_x.T, dist_y.T], axis=0), axis=1)
         return self.closest_index
 
 
@@ -162,37 +131,23 @@ class FrenetConverter:
         return s, d
 
     def check_perpendicular(self, x, y, s, eps_m=0.01) -> Union[bool, float]:
+        # obtain unit vector parallel to the track
+        dx_ds, dy_ds = self.get_derivative(s)
+        tangent = np.array([dx_ds, dy_ds])
         if np.any(np.isnan(s)):
             raise ValueError("BUB FRENET CONVERTER: S is nan")
-
-        # Two scipy calls instead of four: the combined spline returns x and y
-        # together. The derivative is still taken at s % raceline_length while the
-        # position is taken at raw s -- that asymmetry is what get_derivative() and
-        # the direct spline_x(s)/spline_y(s) calls did before, and changing it would
-        # move the projection for any s outside [0, raceline_length).
-        s = np.asarray(s, dtype=float)
-        pos = self._spline_xy(s)                                   # (n, 2)
-        der = self._spline_xy(s % self.raceline_length, 1)         # (n, 2)
-
-        # Unit tangent, then the parallel and perpendicular components of the
-        # track-to-point vector. Written out rather than assembled into (2, n)
-        # arrays for einsum: same arithmetic, without building four intermediates
-        # per call on a path that runs four times per get_frenet().
-        # Divide rather than multiply by a reciprocal: the two differ in the last
-        # ulp, and dividing is what the np.linalg.norm form here did, so this stays
-        # bit-identical to it.
-        tx, ty = der[:, 0], der[:, 1]
-        norm = np.sqrt(tx * tx + ty * ty)
-        tx = tx / norm
-        ty = ty / norm
+        tangent /= np.linalg.norm(tangent, axis=0)
 
         # obtain vector from the track to the point
-        x_vec = np.asarray(x, dtype=float).reshape(-1) - pos[:, 0]
-        y_vec = np.asarray(y, dtype=float).reshape(-1) - pos[:, 1]
+        x_vec = x - self.spline_x(s)
+        y_vec = y - self.spline_y(s)
+        point_to_track = np.array([x_vec, y_vec])
 
-        # projection of point_to_track on the tangent, and on its left normal
-        proj = tx * x_vec + ty * y_vec
-        d = -ty * x_vec + tx * y_vec
+        # check if the vectors are perpendicular
+        # computes the projection of point_to_track on tangent
+        proj = np.einsum('ij,ij->j', tangent, point_to_track)
+        perps = np.array([-tangent[1, :], tangent[0, :]])
+        d = np.einsum('ij,ij->j', perps, point_to_track)
 
         # TODO commented out because of computational efficiency
         # eps_m * point_to_track_norm is needed to make it scale invariant

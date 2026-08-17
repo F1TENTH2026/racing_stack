@@ -142,11 +142,11 @@ class StaticObstacleSpliner(Node):
         self.last_good_origin_s = 0.0    # cur_s when the held path was built
         self.last_good_reach = 0.0       # how far ahead of that s the path reached
 
-        # race.launch.xml 의 debug:=on|off. off 면 로그 파일을 열지 않고 마커도
-        # 만들지 않는다. _setup_debug_log_file() 이 이 값을 보므로 그 앞에서 읽는다.
-        self.declare_parameter('debug', True)
-        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
-
+        # Per-run debug log file (logfile/static_avoidance_*.log): off by default so
+        # a normal race doesn't pay disk-write overhead for output nobody reads; pass
+        # debug:=true on race.launch.xml (-> debug_log_enabled:=true here) to get it.
+        self.debug_log_enabled = bool(
+            self.declare_parameter("debug_log_enabled", False).value)
         self._setup_debug_log_file()
 
         self.declare_all_parameters()
@@ -398,11 +398,7 @@ class StaticObstacleSpliner(Node):
         self._log(dbg)
 
         self.evasion_pub.publish(path)
-        # 경로(evasion_pub)는 state machine 이 먹는 실데이터라 항상 나가고,
-        # 마커는 RViz 전용이다. 랩탑에서 pitwall 을 안 띄웠으면 _markers() 를
-        # 호출조차 하지 않는다 — 경로 점 하나당 Marker 하나를 만드는 함수다.
-        if self.debug and self.mrks_pub.get_subscription_count() > 0:
-            self.mrks_pub.publish(self._markers(path))
+        self.mrks_pub.publish(self._markers(path))
         if self.measure:
             self.latency_pub.publish(Float32(data=float(time.perf_counter() - started)))
 
@@ -861,12 +857,13 @@ class StaticObstacleSpliner(Node):
         ~/.ros/log and is painful to locate after a run. Same convention as
         state_machine's _setup_debug_log_file: one file per run + a "latest" symlink,
         directory overridable via RACE_DEBUG_LOG_DIR. Never crashes the node on failure.
+        Gated on debug_log_enabled (race.launch.xml debug:=true) -- disabled, this
+        only sets up the tracking attr so _dbg_log()'s `_dbg_fh is None` check
+        no-ops the rest of the class out without touching the disk.
         """
         self._dbg_fh = None
         self._dbg_last_log_sec = 0.0
-        # debug:=off 이면 파일을 열지 않는다. _dbg_log() 가 None 을 보고 조용히
-        # 반환하므로 호출부는 그대로 두어도 된다.
-        if not self.debug:
+        if not self.debug_log_enabled:
             return
         try:
             log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()

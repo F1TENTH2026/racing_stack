@@ -1,10 +1,5 @@
 <?xml version="1.0"?>
 <launch>
-  <!-- race.launch.xml 의 debug 스위치에서 내려온다. 단독 실행 시에는 기존 동작(screen). -->
-  <arg name="node_output" default="screen" description="노드 output 속성 (screen|log)"/>
-  <arg name="debug_on"    default="true"   description="디버그 출력 활성 여부"/>
-  <arg name="log_level"   default="info"   description="rcutils 로그 레벨"/>
-  <arg name="viz_rate_hz" default="5.0"    description="RViz 마커 발행 주기 [Hz], 0 이면 발행 안 함"/>
   <!-- Arguments -->
   <arg name="sim"            default="false"      description="Use simulator (true) or real hardware (false)"/>
   <arg name="map"            default=""           description="Map name (required for sim, and for virtual:=true)"/>
@@ -26,7 +21,7 @@
     <!-- VESC: motor driver + ackermann converter + wheel odometry (/vesc/odom) -->
     <group>
       <push_ros_namespace namespace="vesc"/>
-      <node pkg="vesc_driver" exec="vesc_driver_node" args="--ros-args --log-level $(var log_level)" name="vesc_driver_node" output="$(var node_output)">
+      <node pkg="vesc_driver" exec="vesc_driver_node" name="vesc_driver_node" output="screen">
         <param from="$(var vehicle_config)"/>
       </node>
       <include file="$(find-pkg-share vesc_ackermann)/launch/ackermann_to_vesc_node.launch.xml">
@@ -42,7 +37,7 @@
          identity remap leaves it on /scan. -->
     <let name="lidar_scan_out" value="/scan_raw" if="$(var virtual)"/>
     <let name="lidar_scan_out" value="/scan"     unless="$(var virtual)"/>
-    <node pkg="urg_node" exec="urg_node_driver" args="--ros-args --log-level $(var log_level)" name="urg_node" output="$(var node_output)">
+    <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
       <param from="$(var vehicle_config)"/>
       <remap from="/scan" to="$(var lidar_scan_out)"/>
     </node>
@@ -51,7 +46,7 @@
          so they can differ by SIM/CAR — edit config/CAR/static_transforms.yaml,
          no launch change needed. config_dir is CAR here (this is the unless-sim
          group); in sim base_link->laser comes from the gym URDF and there is no IMU. -->
-    <node pkg="stack_master" exec="static_tf_publisher.py" args="--ros-args --log-level $(var log_level)" name="static_tf_publisher" output="$(var node_output)">
+    <node pkg="stack_master" exec="static_tf_publisher.py" name="static_tf_publisher" output="screen">
       <param from="$(var config_dir)/static_transforms.yaml"/>
     </node>
 
@@ -89,11 +84,11 @@
        pitwall panel can switch the mux to keyboard at runtime. On the real (headless)
        car, run keyboard_joy_node on the operator laptop instead. The mux starts on joy
        and only honours /joy_keyboard once the panel flips /ego/use_keyboard. -->
-  <node pkg="stack_master" exec="keyboard_joy_node.py" args="--ros-args --log-level $(var log_level)" name="keyboard_joy" output="$(var node_output)"
+  <node pkg="stack_master" exec="keyboard_joy_node.py" name="keyboard_joy" output="screen"
         if="$(var sim)"/>
 
   <!-- Joystick / Command mux -->
-  <node pkg="stack_master" exec="simple_mux_node.py" args="--ros-args --log-level $(var log_level)" name="simple_mux" output="log">
+  <node pkg="stack_master" exec="simple_mux_node.py" name="simple_mux" output="log">
     <param from="$(var vehicle_config)"/>
     <param name="in_topic"      value="/vesc/high_level/ackermann_cmd"/>
     <param name="out_topic"     value="/vesc/ackermann_cmd"/>

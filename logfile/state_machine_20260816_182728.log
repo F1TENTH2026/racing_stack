@@ -1,0 +1,236 @@
+# state_machine debug log started 20260816_182728  map='0815test3'
+1786872456.073 [OBSTACLES] cur_s=7.93 cur_d=0.18 vs=0.00 n=0 [none]
+1786872456.073 [STATE_CHANGE] None -> GB_TRACK src=GB_TRACK s=7.93 d=0.18 vs=0.00
+1786872456.625 [OBSTACLES] cur_s=8.02 cur_d=0.18 vs=1.00 n=0 [none]
+1786872457.160 [OBSTACLES] cur_s=9.25 cur_d=0.06 vs=3.09 n=0 [none]
+1786872457.690 [OBSTACLES] cur_s=10.66 cur_d=0.17 vs=2.59 n=0 [none]
+1786872458.078 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=11.33 d=0.30 vs=2.36
+1786872458.286 [OBSTACLES] cur_s=11.04 cur_d=0.71 vs=1.25 n=0 [none]
+1786872458.805 [OBSTACLES] cur_s=9.81 cur_d=0.97 vs=-0.02 n=0 [none]
+1786872459.386 [OBSTACLES] cur_s=9.63 cur_d=0.97 vs=0.00 n=0 [none]
+1786872459.911 [OBSTACLES] cur_s=9.63 cur_d=0.97 vs=0.00 n=0 [none]
+1786872460.413 [OBSTACLES] cur_s=9.42 cur_d=0.70 vs=-0.48 n=0 [none]
+1786872460.960 [OBSTACLES] cur_s=8.50 cur_d=0.40 vs=-0.73 n=0 [none]
+1786872461.209 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=8.00 d=0.29 vs=-0.35
+1786872461.523 [OBSTACLES] cur_s=7.80 cur_d=0.23 vs=0.00 n=0 [none]
+1786872462.034 [OBSTACLES] cur_s=7.79 cur_d=0.23 vs=0.00 n=0 [none]
+1786872462.573 [OBSTACLES] cur_s=7.51 cur_d=0.22 vs=0.00 n=0 [none]
+1786872463.094 [OBSTACLES] cur_s=7.51 cur_d=0.22 vs=0.00 n=0 [none]
+1786872463.654 [OBSTACLES] cur_s=7.32 cur_d=0.23 vs=0.00 n=0 [none]
+1786872464.253 [OBSTACLES] cur_s=7.29 cur_d=0.23 vs=0.00 n=0 [none]
+1786872464.689 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=7.24 d=0.32 vs=0.00
+1786872464.758 [OBSTACLES] cur_s=7.24 cur_d=0.37 vs=0.00 n=0 [none]
+1786872464.765 [STATE_CHANGE] LOSTLINE -> RECOVERY src=RECOVERY s=7.24 d=0.37 vs=0.00
+1786872465.289 [OBSTACLES] cur_s=7.24 cur_d=0.40 vs=0.00 n=0 [none]
+1786872465.805 [OBSTACLES] cur_s=7.24 cur_d=0.40 vs=0.00 n=0 [none]
+1786872466.317 [OBSTACLES] cur_s=16.48 cur_d=-0.89 vs=0.00 n=0 [none]
+1786872466.320 [STATE_CHANGE] RECOVERY -> LOSTLINE src=GB_TRACK s=16.48 d=-0.89 vs=0.00
+1786872466.719 [STATE_CHANGE] LOSTLINE -> RECOVERY src=RECOVERY s=16.88 d=-0.43 vs=0.00
+1786872466.893 [OBSTACLES] cur_s=16.88 cur_d=-0.44 vs=0.00 n=0 [none]
+1786872467.394 [OBSTACLES] cur_s=16.97 cur_d=-0.47 vs=0.00 n=0 [none]
+1786872467.827 [STATE_CHANGE] RECOVERY -> LOSTLINE src=GB_TRACK s=17.50 d=-1.02 vs=0.00
+1786872467.920 [OBSTACLES] cur_s=17.50 cur_d=-1.02 vs=0.00 n=0 [none]
+1786872468.433 [OBSTACLES] cur_s=17.50 cur_d=-1.02 vs=0.00 n=0 [none]
+1786872469.005 [OBSTACLES] cur_s=17.48 cur_d=-0.97 vs=-0.19 n=0 [none]
+1786872469.530 [OBSTACLES] cur_s=17.35 cur_d=-0.62 vs=-0.31 n=1 [id=5 static=1 gap=0.77m d=-0.38 size=0.20]
+1786872469.540 [STATIC_OT] state=GB_TRACK path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=-0.31 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872469.540 [STATE_CHANGE] LOSTLINE -> TRAILING src=GB_TRACK s=17.35 d=-0.62 vs=-0.31
+1786872469.616 [STATIC_OT_TRANSITION] first_valid_path_to_overtake_ms=0.0
+1786872469.618 [STATE_CHANGE] TRAILING -> OVERTAKE src=OVERTAKE s=17.35 d=-0.60 vs=-0.29
+1786872469.928 [STATIC_OT] state=OVERTAKE path_exists=1 path_locked=1 path_ttl_ok=0 path_safe=0 on_spline=0 speed=-0.19 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872469.930 [STATE_CHANGE] OVERTAKE -> TRAILING src=GB_TRACK s=17.27 d=-0.29 vs=-0.19
+1786872470.089 [OBSTACLES] cur_s=17.25 cur_d=-0.18 vs=-0.20 n=1 [id=5 static=1 gap=0.82m d=-0.31 size=0.44]
+1786872470.255 [STATIC_OT] state=TRAILING path_exists=1 path_locked=0 path_ttl_ok=1 path_safe=1 on_spline=1 speed=-0.20 raw_wpnts=81 raw_age=0.46s decision=OVERTAKE
+1786872470.260 [STATE_CHANGE] TRAILING -> OVERTAKE src=OVERTAKE s=17.23 d=-0.06 vs=-0.20
+1786872470.460 [STATE_CHANGE] OVERTAKE -> RECOVERY src=RECOVERY s=17.17 d=0.16 vs=-0.23
+1786872470.648 [OBSTACLES] cur_s=17.11 cur_d=0.35 vs=-0.24 n=0 [none]
+1786872470.885 [STATE_CHANGE] RECOVERY -> LOSTLINE src=GB_TRACK s=17.05 d=0.51 vs=-0.27
+1786872471.225 [OBSTACLES] cur_s=16.89 cur_d=0.80 vs=-0.12 n=0 [none]
+1786872471.732 [OBSTACLES] cur_s=16.88 cur_d=0.81 vs=0.00 n=0 [none]
+1786872472.288 [OBSTACLES] cur_s=16.83 cur_d=0.88 vs=-0.08 n=0 [none]
+1786872472.837 [OBSTACLES] cur_s=16.66 cur_d=1.03 vs=-0.19 n=0 [none]
+1786872473.376 [OBSTACLES] cur_s=16.63 cur_d=1.05 vs=0.00 n=0 [none]
+1786872473.885 [OBSTACLES] cur_s=16.31 cur_d=-1.44 vs=0.00 n=0 [none]
+1786872474.405 [OBSTACLES] cur_s=16.13 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872474.923 [OBSTACLES] cur_s=16.13 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872475.446 [OBSTACLES] cur_s=16.13 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872475.993 [OBSTACLES] cur_s=16.13 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872476.534 [OBSTACLES] cur_s=16.14 cur_d=-1.93 vs=0.00 n=0 [none]
+1786872477.044 [OBSTACLES] cur_s=16.14 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872477.566 [OBSTACLES] cur_s=16.14 cur_d=-1.93 vs=0.00 n=0 [none]
+1786872478.069 [OBSTACLES] cur_s=16.14 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872478.583 [OBSTACLES] cur_s=16.14 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872479.090 [OBSTACLES] cur_s=16.14 cur_d=-1.93 vs=0.00 n=0 [none]
+1786872479.614 [OBSTACLES] cur_s=16.14 cur_d=-1.94 vs=0.00 n=0 [none]
+1786872479.993 [STATE_CHANGE] LOSTLINE -> RECOVERY src=RECOVERY s=16.58 d=-0.61 vs=0.00
+1786872480.154 [OBSTACLES] cur_s=16.58 cur_d=-0.61 vs=0.00 n=0 [none]
+1786872480.726 [OBSTACLES] cur_s=16.58 cur_d=-0.61 vs=0.00 n=0 [none]
+1786872481.230 [OBSTACLES] cur_s=16.58 cur_d=-0.61 vs=0.00 n=0 [none]
+1786872481.899 [OBSTACLES] cur_s=16.66 cur_d=-0.51 vs=0.73 n=0 [none]
+1786872482.414 [OBSTACLES] cur_s=17.27 cur_d=-0.12 vs=2.25 n=0 [none]
+1786872482.585 [STATE_CHANGE] RECOVERY -> GB_TRACK src=GB_TRACK s=17.70 d=-0.02 vs=2.70
+1786872482.930 [OBSTACLES] cur_s=18.93 cur_d=0.02 vs=3.68 n=0 [none]
+1786872483.481 [OBSTACLES] cur_s=21.39 cur_d=0.11 vs=4.93 n=0 [none]
+1786872484.056 [OBSTACLES] cur_s=24.03 cur_d=-0.05 vs=4.97 n=0 [none]
+1786872484.646 [OBSTACLES] cur_s=26.48 cur_d=0.24 vs=4.01 n=0 [none]
+1786872485.170 [OBSTACLES] cur_s=28.78 cur_d=0.14 vs=3.59 n=0 [none]
+1786872485.712 [OBSTACLES] cur_s=30.23 cur_d=0.03 vs=3.61 n=0 [none]
+1786872486.244 [OBSTACLES] cur_s=32.60 cur_d=0.22 vs=3.33 n=0 [none]
+1786872486.757 [OBSTACLES] cur_s=34.25 cur_d=0.11 vs=3.41 n=0 [none]
+1786872487.275 [OBSTACLES] cur_s=1.33 cur_d=0.10 vs=4.06 n=1 [id=10 static=1 gap=2.40m d=0.49 size=0.27]
+1786872487.871 [OBSTACLES] cur_s=4.36 cur_d=0.10 vs=4.91 n=1 [id=10 static=0 gap=0.37m d=1.39 size=0.22]
+1786872488.405 [OBSTACLES] cur_s=7.23 cur_d=-0.15 vs=4.82 n=0 [none]
+1786872489.010 [OBSTACLES] cur_s=9.76 cur_d=0.24 vs=3.42 n=0 [none]
+1786872489.517 [OBSTACLES] cur_s=11.05 cur_d=-0.08 vs=2.12 n=0 [none]
+1786872490.067 [OBSTACLES] cur_s=12.12 cur_d=-0.04 vs=2.54 n=0 [none]
+1786872490.625 [OBSTACLES] cur_s=14.00 cur_d=0.21 vs=3.63 n=0 [none]
+1786872491.172 [OBSTACLES] cur_s=15.62 cur_d=0.01 vs=2.23 n=0 [none]
+1786872491.738 [OBSTACLES] cur_s=16.68 cur_d=-0.16 vs=2.45 n=0 [none]
+1786872492.285 [OBSTACLES] cur_s=18.38 cur_d=0.24 vs=3.17 n=0 [none]
+1786872492.834 [OBSTACLES] cur_s=20.97 cur_d=0.03 vs=4.74 n=0 [none]
+1786872493.338 [OBSTACLES] cur_s=23.49 cur_d=-0.19 vs=4.90 n=0 [none]
+1786872493.900 [OBSTACLES] cur_s=26.07 cur_d=0.25 vs=4.30 n=0 [none]
+1786872494.375 [STATIC_OT] state=GB_TRACK path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=3.70 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872494.375 [STATE_CHANGE] GB_TRACK -> TRAILING src=GB_TRACK s=27.84 d=0.07 vs=3.70
+1786872494.468 [OBSTACLES] cur_s=28.21 cur_d=0.12 vs=3.62 n=1 [id=13 static=1 gap=0.79m d=0.25 size=0.25]
+1786872494.623 [STATIC_OT] state=TRAILING path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=3.51 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872494.782 [STATE_CHANGE] TRAILING -> OVERTAKE src=OVERTAKE s=28.61 d=0.55 vs=1.26
+1786872494.892 [STATIC_OT] state=OVERTAKE path_exists=1 path_locked=1 path_ttl_ok=1 path_safe=1 on_spline=0 speed=0.64 raw_wpnts=86 raw_age=0.60s decision=OVERTAKE
+1786872495.012 [OBSTACLES] cur_s=28.69 cur_d=0.46 vs=0.22 n=0 [none]
+1786872495.013 [STATE_CHANGE] OVERTAKE -> LOSTLINE src=GB_TRACK s=28.69 d=0.46 vs=0.22
+1786872495.551 [OBSTACLES] cur_s=29.05 cur_d=0.69 vs=0.00 n=0 [none]
+1786872496.053 [OBSTACLES] cur_s=29.04 cur_d=0.68 vs=0.00 n=0 [none]
+1786872496.554 [OBSTACLES] cur_s=29.05 cur_d=0.68 vs=0.00 n=0 [none]
+1786872497.112 [OBSTACLES] cur_s=29.07 cur_d=0.69 vs=-0.03 n=0 [none]
+1786872497.619 [OBSTACLES] cur_s=29.02 cur_d=0.60 vs=-0.24 n=0 [none]
+1786872497.942 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=28.67 d=0.17 vs=-0.64
+1786872498.160 [OBSTACLES] cur_s=28.48 cur_d=-0.07 vs=-0.75 n=0 [none]
+1786872498.692 [OBSTACLES] cur_s=28.17 cur_d=-0.25 vs=-0.55 n=0 [none]
+1786872498.944 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=28.08 d=-0.30 vs=0.00
+1786872499.211 [OBSTACLES] cur_s=28.04 cur_d=-0.35 vs=0.00 n=0 [none]
+1786872499.397 [STATE_CHANGE] LOSTLINE -> RECOVERY src=RECOVERY s=28.03 d=-0.37 vs=0.00
+1786872499.750 [OBSTACLES] cur_s=28.01 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872500.274 [OBSTACLES] cur_s=28.01 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872500.819 [OBSTACLES] cur_s=28.00 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872501.341 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872501.882 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872502.387 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872502.923 [OBSTACLES] cur_s=28.00 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872503.438 [OBSTACLES] cur_s=28.00 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872503.955 [OBSTACLES] cur_s=28.01 cur_d=-0.40 vs=0.00 n=0 [none]
+1786872504.476 [OBSTACLES] cur_s=28.01 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872504.984 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872505.512 [OBSTACLES] cur_s=28.01 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872506.017 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872506.541 [OBSTACLES] cur_s=28.01 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872507.042 [OBSTACLES] cur_s=28.00 cur_d=-0.41 vs=0.00 n=0 [none]
+1786872507.543 [OBSTACLES] cur_s=28.07 cur_d=-0.31 vs=0.00 n=0 [none]
+1786872508.049 [OBSTACLES] cur_s=28.15 cur_d=-0.16 vs=0.00 n=0 [none]
+1786872508.566 [OBSTACLES] cur_s=28.19 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872509.100 [OBSTACLES] cur_s=28.20 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872509.351 [STATE_CHANGE] RECOVERY -> LOSTLINE src=GB_TRACK s=28.20 d=-0.09 vs=0.00
+1786872509.409 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=28.20 d=-0.09 vs=0.00
+1786872509.684 [OBSTACLES] cur_s=28.20 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872510.199 [OBSTACLES] cur_s=28.20 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872510.706 [OBSTACLES] cur_s=28.20 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872511.238 [OBSTACLES] cur_s=28.26 cur_d=-0.09 vs=0.57 n=0 [none]
+1786872511.788 [OBSTACLES] cur_s=29.04 cur_d=-0.03 vs=3.15 n=0 [none]
+1786872512.347 [OBSTACLES] cur_s=31.01 cur_d=0.19 vs=3.53 n=0 [none]
+1786872512.909 [OBSTACLES] cur_s=33.03 cur_d=0.01 vs=3.26 n=0 [none]
+1786872513.489 [OBSTACLES] cur_s=0.26 cur_d=-0.11 vs=3.62 n=0 [none]
+1786872514.003 [OBSTACLES] cur_s=1.60 cur_d=0.13 vs=3.85 n=0 [none]
+1786872514.512 [OBSTACLES] cur_s=4.40 cur_d=0.05 vs=4.88 n=0 [none]
+1786872515.075 [OBSTACLES] cur_s=7.22 cur_d=-0.21 vs=4.82 n=0 [none]
+1786872515.576 [OBSTACLES] cur_s=9.19 cur_d=0.16 vs=3.65 n=0 [none]
+1786872516.142 [OBSTACLES] cur_s=10.92 cur_d=-0.08 vs=2.21 n=0 [none]
+1786872516.654 [OBSTACLES] cur_s=12.20 cur_d=-0.01 vs=2.61 n=0 [none]
+1786872517.195 [OBSTACLES] cur_s=14.02 cur_d=0.15 vs=3.78 n=0 [none]
+1786872517.654 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=15.45 d=0.37 vs=2.53
+1786872517.779 [OBSTACLES] cur_s=15.66 cur_d=0.27 vs=2.31 n=0 [none]
+1786872517.779 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=15.66 d=0.27 vs=2.31
+1786872518.294 [OBSTACLES] cur_s=16.70 cur_d=0.00 vs=2.18 n=0 [none]
+1786872518.833 [OBSTACLES] cur_s=18.25 cur_d=0.15 vs=3.16 n=0 [none]
+1786872519.060 [STATE_CHANGE] GB_TRACK -> RECOVERY src=RECOVERY s=19.24 d=0.30 vs=3.83
+1786872519.405 [OBSTACLES] cur_s=20.63 cur_d=0.22 vs=4.31 n=0 [none]
+1786872519.490 [STATE_CHANGE] RECOVERY -> GB_TRACK src=GB_TRACK s=21.40 d=0.05 vs=4.18
+1786872520.009 [OBSTACLES] cur_s=23.61 cur_d=-0.15 vs=4.81 n=0 [none]
+1786872520.220 [STATIC_OT] state=GB_TRACK path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=4.55 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872520.220 [STATE_CHANGE] GB_TRACK -> TRAILING src=GB_TRACK s=24.74 d=0.05 vs=4.55
+1786872520.450 [STATIC_OT] state=TRAILING path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=4.44 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872520.569 [OBSTACLES] cur_s=26.19 cur_d=0.26 vs=3.95 n=1 [id=14 static=1 gap=2.81m d=0.18 size=0.28]
+1786872520.658 [STATIC_OT] state=TRAILING path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=3.79 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872520.907 [STATIC_OT] state=TRAILING path_exists=1 path_locked=0 path_ttl_ok=1 path_safe=1 on_spline=1 speed=3.28 raw_wpnts=148 raw_age=0.87s decision=OVERTAKE
+1786872520.907 [STATE_CHANGE] TRAILING -> OVERTAKE src=OVERTAKE s=27.02 d=0.21 vs=3.28
+1786872521.111 [OBSTACLES] cur_s=27.63 cur_d=0.18 vs=2.66 n=1 [id=14 static=1 gap=1.41m d=0.19 size=0.31]
+1786872521.615 [OBSTACLES] cur_s=27.77 cur_d=0.43 vs=2.59 n=0 [none]
+1786872521.700 [STATE_CHANGE] OVERTAKE -> LOSTLINE src=GB_TRACK s=27.84 d=0.43 vs=2.52
+1786872522.122 [OBSTACLES] cur_s=28.70 cur_d=0.54 vs=0.00 n=0 [none]
+1786872522.637 [OBSTACLES] cur_s=28.70 cur_d=0.53 vs=0.00 n=0 [none]
+1786872523.170 [OBSTACLES] cur_s=28.70 cur_d=0.54 vs=0.00 n=0 [none]
+1786872523.713 [OBSTACLES] cur_s=28.61 cur_d=0.50 vs=-0.67 n=0 [none]
+1786872524.237 [OBSTACLES] cur_s=27.88 cur_d=0.45 vs=-0.50 n=0 [none]
+1786872524.541 [STATE_CHANGE] LOSTLINE -> RECOVERY src=RECOVERY s=27.85 d=0.46 vs=0.00
+1786872524.761 [OBSTACLES] cur_s=27.91 cur_d=0.44 vs=0.70 n=0 [none]
+1786872525.280 [OBSTACLES] cur_s=28.75 cur_d=0.29 vs=2.02 n=0 [none]
+1786872525.865 [OBSTACLES] cur_s=30.04 cur_d=0.18 vs=2.71 n=0 [none]
+1786872526.386 [OBSTACLES] cur_s=32.10 cur_d=0.23 vs=3.41 n=0 [none]
+1786872526.931 [OBSTACLES] cur_s=34.25 cur_d=0.21 vs=3.37 n=0 [none]
+1786872527.444 [OBSTACLES] cur_s=1.48 cur_d=0.15 vs=4.10 n=0 [none]
+1786872527.715 [STATE_CHANGE] RECOVERY -> LOSTLINE src=GB_TRACK s=2.69 d=0.19 vs=4.80
+1786872527.771 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=2.95 d=0.19 vs=4.86
+1786872528.013 [OBSTACLES] cur_s=3.83 cur_d=0.15 vs=4.95 n=0 [none]
+1786872528.579 [OBSTACLES] cur_s=6.58 cur_d=-0.16 vs=4.97 n=0 [none]
+1786872529.116 [OBSTACLES] cur_s=8.96 cur_d=0.07 vs=3.73 n=0 [none]
+1786872529.715 [OBSTACLES] cur_s=10.68 cur_d=0.01 vs=2.51 n=0 [none]
+1786872530.225 [OBSTACLES] cur_s=11.88 cur_d=-0.04 vs=2.43 n=0 [none]
+1786872530.744 [OBSTACLES] cur_s=13.50 cur_d=0.05 vs=3.68 n=0 [none]
+1786872531.274 [OBSTACLES] cur_s=15.26 cur_d=0.15 vs=2.91 n=0 [none]
+1786872531.797 [OBSTACLES] cur_s=16.55 cur_d=-0.05 vs=2.47 n=0 [none]
+1786872532.344 [OBSTACLES] cur_s=17.91 cur_d=0.19 vs=3.05 n=0 [none]
+1786872532.650 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=19.06 d=0.33 vs=3.68
+1786872532.903 [OBSTACLES] cur_s=20.28 cur_d=0.27 vs=4.64 n=0 [none]
+1786872532.912 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=20.28 d=0.27 vs=4.64
+1786872533.435 [OBSTACLES] cur_s=23.28 cur_d=-0.28 vs=4.93 n=0 [none]
+1786872533.994 [OBSTACLES] cur_s=25.54 cur_d=0.09 vs=4.38 n=0 [none]
+1786872534.555 [OBSTACLES] cur_s=27.95 cur_d=0.14 vs=3.65 n=0 [none]
+1786872534.640 [STATIC_OT] state=GB_TRACK path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=3.63 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872534.640 [STATE_CHANGE] GB_TRACK -> TRAILING src=GB_TRACK s=27.96 d=0.15 vs=3.63
+1786872534.890 [STATIC_OT] state=TRAILING path_exists=0 path_locked=0 path_ttl_ok=0 path_safe=0 on_spline=0 speed=3.49 raw_wpnts=0 raw_age=-s decision=TRAILING reason=NO_STATIC_PATH
+1786872535.076 [STATE_CHANGE] TRAILING -> OVERTAKE src=OVERTAKE s=28.39 d=0.54 vs=1.51
+1786872535.220 [OBSTACLES] cur_s=28.73 cur_d=0.49 vs=0.00 n=0 [none]
+1786872535.419 [STATE_CHANGE] OVERTAKE -> LOSTLINE src=GB_TRACK s=28.65 d=0.38 vs=-0.03
+1786872535.730 [OBSTACLES] cur_s=29.14 cur_d=0.88 vs=0.03 n=0 [none]
+1786872536.298 [OBSTACLES] cur_s=29.37 cur_d=1.11 vs=0.00 n=0 [none]
+1786872536.834 [OBSTACLES] cur_s=29.43 cur_d=1.10 vs=0.00 n=0 [none]
+1786872537.419 [OBSTACLES] cur_s=29.42 cur_d=1.10 vs=0.00 n=0 [none]
+1786872537.925 [OBSTACLES] cur_s=29.42 cur_d=1.11 vs=0.00 n=0 [none]
+1786872538.441 [OBSTACLES] cur_s=29.43 cur_d=1.10 vs=0.00 n=0 [none]
+1786872538.949 [OBSTACLES] cur_s=29.40 cur_d=0.63 vs=-1.89 n=0 [none]
+1786872539.231 [STATE_CHANGE] LOSTLINE -> GB_TRACK src=GB_TRACK s=28.99 d=0.20 vs=-1.22
+1786872539.453 [OBSTACLES] cur_s=28.84 cur_d=-0.00 vs=-0.48 n=0 [none]
+1786872539.955 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872540.463 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872542.747 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872543.303 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872543.814 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872544.420 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872545.284 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872545.958 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872546.467 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872546.968 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872547.481 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872547.993 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872548.692 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872549.241 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872549.780 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872550.290 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872550.837 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872551.432 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872551.947 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872552.479 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872553.022 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872553.619 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872554.202 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872554.703 [OBSTACLES] cur_s=28.73 cur_d=-0.10 vs=0.00 n=0 [none]
+1786872555.862 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]
+1786872557.072 [OBSTACLES] cur_s=28.73 cur_d=-0.09 vs=0.00 n=0 [none]

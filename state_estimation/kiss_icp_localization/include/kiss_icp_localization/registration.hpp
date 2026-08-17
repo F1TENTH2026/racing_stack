@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Geometry>
+#include <limits>
 #include <vector>
 
 #include "kiss_icp_localization/track_mask.hpp"
@@ -33,13 +34,19 @@ RegistrationResult AlignScanToMap(const std::vector<Eigen::Vector3d> &scan,
 // optimized; z/roll/pitch are carried unchanged from initial_guess, so the
 // returned pose is a full SE(3) isometry consumable by the same downstream
 // pipeline as AlignScanToMap. max_corr_dist gates points by |SDF| (points far
-// from any wall are ignored). result.num_correspondences counts points that
-// landed on the SDF grid this iteration.
-RegistrationResult AlignScanToTrackSdf(const std::vector<Eigen::Vector3d> &scan,
-                                       const TrackMask &track,
-                                       const Eigen::Isometry3d &initial_guess,
-                                       double max_corr_dist, double kernel_sigma,
-                                       int max_iterations,
-                                       double convergence_eps);
+// from any wall are ignored) — that gate is sign-blind, so a point that lands
+// just past the track boundary (e.g. a beam clipping the wall on suspension
+// squat) can still pass if it's within max_corr_dist of the zero-level.
+// outside_margin adds a second, sign-aware gate on the *positive* (outside)
+// side only: points with SDF > outside_margin are dropped regardless of
+// max_corr_dist/the adaptive threshold, so they can no longer pull the fit
+// toward a wall the vehicle never actually crossed. Defaults to +inf (off)
+// so existing callers are unaffected. result.num_correspondences counts
+// points that landed on the SDF grid this iteration.
+RegistrationResult AlignScanToTrackSdf(
+    const std::vector<Eigen::Vector3d> &scan, const TrackMask &track,
+    const Eigen::Isometry3d &initial_guess, double max_corr_dist,
+    double kernel_sigma, int max_iterations, double convergence_eps,
+    double outside_margin = std::numeric_limits<double>::infinity());
 
 }  // namespace kiss_loc

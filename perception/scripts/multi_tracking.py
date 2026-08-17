@@ -296,13 +296,6 @@ class StaticDynamic(Node):
                          allow_undeclared_parameters=True,
                          automatically_declare_parameters_from_overrides=True)
 
-        # race.launch.xml 의 debug:=on|off 에서 내려온다. off 면 마커를 만들지 않는다.
-        # 이 노드는 automatically_declare_parameters_from_overrides 를 쓰므로 런치가
-        # 값을 주면 이미 선언돼 있고, 단독 실행 시에는 아래에서 선언된다.
-        if not self.has_parameter('debug'):
-            self.declare_parameter('debug', True)
-        self.debug = bool(self.get_parameter('debug').value)
-
         # --- Variables ---
         self.meas_obstacles = []
         self.tracked_obstacles = []
@@ -865,9 +858,7 @@ class StaticDynamic(Node):
 
         markers = MarkerArray()
         markers.markers = markers_array
-        # RViz 전용 마커. debug:=off 이거나 pitwall 이 안 붙어 있으면 보내지 않는다.
-        if getattr(self, 'debug', True) and self.static_dynamic_marker_pub.get_subscription_count() > 0:
-            self.static_dynamic_marker_pub.publish(markers)
+        self.static_dynamic_marker_pub.publish(markers)
 
     def publishObstacles(self):
         obstaclearray_temp = ObstacleArray()

@@ -29,41 +29,8 @@
        description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
   <arg name="vis_lane_change" default="false"
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
-
-  <!-- ===== debug:=on|off — 디버그 출력 전체 스위치 =====
-       on  (기본): 지금까지와 동일. 노드 stdout 이 터미널로 나오고, RViz 마커가
-                   viz_rate_hz 로 발행되고, logfile/ 에 디버그 로그가 쌓인다.
-                   랩탑에서 pitwall.launch.xml 을 띄우면 그대로 다 보인다.
-       off      : 터미널이 조용해지고(노드 출력이 log 파일로), 마커 발행이 0 Hz 로
-                  막히고, 디버그 로그 파일을 아예 열지 않는다.
-
-       중요: off 여도 처음에는 RViz 로 2D Pose Estimate 를 여러 번 할 수 있다.
-             kiss_icp 가 /initialpose 를 계속 구독하고 있고, 이 스위치는
-             퍼블리시 쪽만 막기 때문이다. 조이스틱 RB 를 누르면 그때
-             race_supervisor 가 남은 디버그 노드를 정리한다. -->
-  <arg name="debug" default="on"
-       description="디버그 출력 전체 스위치: on(기존 동작) | off(터미널·마커·로그 전부 침묵)"/>
-  <let name="debug_on" value="$(eval '\'$(var debug)\' == \'on\'')"/>
-  <!-- 노드의 output 속성. screen 이면 stdout 이 런치 터미널로 나오고, log 면 ~/.ros/log
-       아래 파일로만 간다. 런치 트리의 노드가 35개라 off 에서는 전부 log 로 돌려야
-       터미널이 실제로 조용해진다. -->
-  <let name="node_output" value="screen" if="$(var debug_on)"/>
-  <let name="node_output" value="log"    unless="$(var debug_on)"/>
-  <!-- 마커/시각화 발행 주기 [Hz]. debug:=off 여도 기동 시점에는 켜 둔다 —
-       RViz 로 2D Pose Estimate 를 하고 그게 제대로 먹었는지 눈으로 확인해야 하기
-       때문이다. off 모드에서 조이스틱 RB 를 누르는 순간 race_supervisor 가 이 값을
-       0 으로 내려 발행을 멈춘다.
-       노드들은 이 값과 별개로 get_subscription_count() 도 확인하므로, 랩탑에서
-       pitwall 을 안 띄웠으면 이 값이 5 여도 마커를 만들지조차 않는다. -->
-  <arg name="viz_rate_hz" default="5.0"
-       description="RViz 마커 발행 주기 [Hz]. 0 이면 발행 안 함"/>
-  <!-- rcutils 로그 레벨. off 에서 fatal 로 내리는 이유는 실측으로 확인했다:
-       fatal 하나로 /rosout 발행과 ~/.ros/log 파일 기록이 동시에 0 이 된다.
-       (disable_rosout_logs 플래그는 rosout 만 막고 파일은 그대로 쌓였다.)
-       error 가 아니라 fatal 인 것은 의도적이다: 평시 출력은 0 이면서, 정말로
-       죽는 상황의 FATAL 은 남아야 사고 후에 볼 기록이 있다. -->
-  <let name="log_level" value="info"  if="$(var debug_on)"/>
-  <let name="log_level" value="fatal" unless="$(var debug_on)"/>
+  <arg name="debug" default="false"
+       description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -75,86 +42,20 @@
        state machine in 'overlay' (detection-in-the-loop), and ground-truth object
        injection works in 'merge' — switchable live, no relaunch. -->
 
-  <arg name="kill_vscode" default="true"
-       description="주행 시작 시 차량에 떠 있는 VSCode Remote 서버를 종료할지 여부"/>
-
-  <!-- ===== 주행 전 정리: 차량에 남아 있는 VSCode Remote 서버 종료 =====
-       Orin NX는 6코어뿐인데 VSCode Remote를 붙여 두면 node 서버 프로세스 여러 개와
-       ripgrep 파일 인덱서가 상시 떠서 htop 기준 코어 1개에 가까운 CPU를 먹는다.
-       레이싱 스택 노드 하나를 통째로 지우는 것보다 큰 양이라, 주행 시작과 함께 끊는다.
-
-       주의: 랩탑에서 Remote-SSH로 차량에 붙어 있었다면 그 연결이 여기서 끊긴다.
-             로그는 ssh + `tail -f src/racing_stack/logfile/latest_*.log` 로 보면 된다.
-             다시 붙는 순간 서버가 재기동되므로 레이스 중에는 재접속하지 말 것.
-             sim 등에서 끄고 싶으면 kill_vscode:=false.
-
-       패턴을 '[v]scode-server' 로 쓴 이유: shell="true" 라 이 명령을 실행하는 sh 자신의
-       cmdline 에도 패턴 문자열이 들어간다. 그냥 'vscode-server' 로 쓰면 pkill 이 자기
-       부모 셸까지 잡아 죽인다. 대괄호를 씌우면 정규식으로는 여전히 vscode-server 에
-       매치되지만 셸 cmdline 의 리터럴 '[v]scode-server' 에는 매치되지 않는다.
-       || true 는 매치되는 프로세스가 없을 때(pkill 종료코드 1) launch 가 실패로
-       보고하지 않게 하려는 것. -->
-  <executable cmd="pkill -f '[v]scode-server' || true" shell="true" output="log"
-              if="$(var kill_vscode)"/>
-
-  <!-- ===== race_supervisor: 조이스틱 RB 로 디버그를 끊는 감시 노드 =====
-       debug:=off 일 때만 실제로 동작한다. 기동 직후에는 마커가 살아 있어서 RViz 로
-       2D Pose Estimate 를 여러 번 할 수 있고, RB(buttons[5]) 를 누르는 순간
-       viz_rate_hz 를 0 으로 내리고 순수 디버그 노드를 종료하고 /debug_enabled 에
-       false 를 latch 발행한다. 되돌리지 않는다.
-
-       주행 모드 전환(LB=조이스틱, RB=자율) 자체는 simple_mux 가 이미 하고 있고,
-       이 노드는 RB 를 "레이스 시작" 신호로만 읽는다. 둘은 서로를 모른다.
-
-       joy_node 는 이 런치 트리 밖에서 따로 띄우므로 여기서 관리하지 않는다.
-       RB 를 받으려면 joy_node 가 살아 있어야 한다는 점만 주의. -->
-  <node pkg="stack_master" exec="race_supervisor_node.py" args="--ros-args --log-level $(var log_level)" name="race_supervisor"
-        output="$(var node_output)">
-    <param name="debug" value="$(var debug_on)"/>
-  </node>
-
-  <!-- ===== CPU 프로파일러 (py-spy) =====
-       debug:=on 일 때만 돈다. 터미널을 하나 더 열어 prof3.sh 를 손으로 돌릴 필요가
-       없고, 결과는 다른 디버그 로그와 같은 자리에 같은 규칙으로 떨어진다:
-           logfile/cpu_profile_<stamp>.log  (+ latest_cpu_profile.log 심링크)
-
-       profile_delay 만큼 기다렸다가 profile_duration 동안 표본을 뜬다. 지연을 두는
-       이유: 런치 직후는 노드가 아직 다 뜨지도 않았고 차도 안 움직인다. 그때 뜬
-       표본은 초기화 코드만 보여준다. 기본값은 20초 뒤 30초간이다.
-
-       py-spy 가 없거나 ptrace 가 막혀 있으면(우분투 기본 ptrace_scope=1) 그 사실만
-       로그에 남기고 조용히 끝난다. 프로파일러 때문에 주행이 막히면 안 되므로
-       런치를 실패시키지 않는다. 한 번만 풀어주면 된다:
-           sudo sysctl kernel.yama.ptrace_scope=0
-
-       프로파일링 자체도 CPU 를 쓴다. 순수 측정이 필요하면 profile:=false. -->
-  <arg name="profile" default="true"
-       description="debug:=on 일 때 py-spy CPU 프로파일을 logfile/ 에 남길지 여부"/>
-  <arg name="profile_duration" default="30" description="표본 수집 시간 [s]"/>
-  <arg name="profile_delay"    default="20" description="노드 기동/주행 시작 대기 [s]"/>
-  <executable
-      cmd="$(find-pkg-share stack_master)/scripts/cpu_profile.sh $(var profile_duration) $(var profile_delay)"
-      shell="true" output="log"
-      if="$(eval '$(var debug_on) and \'$(var profile)\' in (\'true\',\'True\',\'1\')')"/>
-
   <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
     <arg name="map"          value="$(var map)"/>
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>
     <arg name="virtual"      value="$(var virtual)"/>
-    <!-- 하위 런치는 별도 스코프라 $(var ...) 가 자동으로 넘어가지 않는다. 명시 전달. -->
-    <arg name="node_output"  value="$(var node_output)"/>
-    <arg name="debug_on"     value="$(var debug_on)"/>
-    <arg name="viz_rate_hz"  value="$(var viz_rate_hz)"/>
-      <arg name="log_level"    value="$(var log_level)"/>
-</include>
+    <arg name="debug"        value="$(var debug)"/>
+  </include>
 
   <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
        detect publishes /detect/raw_obstacles (Frenet filled at the source);
        tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
        (sim virtual_perception) owns /tracking/obstacles. -->
-  <node pkg="perception" exec="detect" args="--ros-args --log-level $(var log_level)" name="detect" output="$(var node_output)">
+  <node pkg="perception" exec="detect" name="detect" output="screen">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <param name="map" value="$(var map)"/>
   </node>
@@ -162,36 +63,27 @@
        on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
   <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
   <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
-  <node pkg="perception" exec="tracking_node" args="--ros-args --log-level $(var log_level)" name="tracking" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  <node pkg="perception" exec="tracking_node" name="tracking" output="screen">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <remap from="/tracking/obstacles" to="$(var tracking_out)"/>
   </node>
 
   <!-- ===== State machine: the racing brain ===== -->
-  <node pkg="state_machine" exec="state_machine" args="--ros-args --log-level $(var log_level)" name="state_machine" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  <node pkg="state_machine" exec="state_machine" name="state_machine" output="screen">
     <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
     <param name="sim"             value="$(var sim)"/>
     <param name="racecar_version" value="$(var racecar_version)"/>
     <param name="timetrials_only" value="false"/>
     <param name="ot_planner"      value="$(var ot_planner)"/>
     <param name="map"             value="$(var map)"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
   </node>
 
   <!-- Recovery planner -> /planner/recovery/wpnts -->
-  <node pkg="recovery_spliner" exec="recovery_spliner_node" args="--ros-args --log-level $(var log_level)" name="recovery_spliner_node" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
-  </node>
+  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="screen"/>
 
   <!-- Start planner -> /planner/start_wpnts -->
-  <node pkg="spliner" exec="start_spline_node_v2" args="--ros-args --log-level $(var log_level)" name="start_planner" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
-  </node>
+  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="screen"/>
 
   <!-- Static avoidance -> /planner/avoidance/static_otwpnts
        Reads /tracking/obstacles DIRECTLY (see the node's docstring): the state
@@ -199,25 +91,22 @@
        never refills it, so a planner gated on /behavior_strategy lost its obstacle
        the moment the car entered OVERTAKE. /behavior_strategy is still subscribed,
        as a hint for which candidate to prefer. -->
-  <node pkg="spliner" exec="static_avoidance_node" args="--ros-args --log-level $(var log_level)" name="static_avoidance_planner" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="screen">
     <param from="$(find-pkg-share stack_master)/config/static_avoidance_planner.yaml"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
     <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
   </node>
 
   <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
   <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
-    <node pkg="lane_change_planner" exec="change_avoidance_node" args="--ros-args --log-level $(var log_level)" name="planner_change" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="screen">
       <param name="vis" value="$(var vis_lane_change)"/>
     </node>
-    <node pkg="lane_change_planner" exec="update_waypoints" args="--ros-args --log-level $(var log_level)" name="waypoint_updater" output="$(var node_output)"/>
+    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
   </group>
   <group if="$(eval '\'$(var ot_planner)\' == \'sqp\'')">
-    <node pkg="sqp_planner" exec="sqp_avoidance_node" args="--ros-args --log-level $(var log_level)" name="planner_sqp" output="$(var node_output)"/>
-    <node pkg="sqp_planner" exec="update_waypoints" args="--ros-args --log-level $(var log_level)" name="waypoint_updater" output="$(var node_output)"/>
+    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="screen"/>
+    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
   </group>
 
   <!-- ===== GP opponent-trajectory predictor =====
@@ -225,26 +114,15 @@
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
        opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory" args="--ros-args --log-level $(var log_level)"       name="OpponentHalflap"                output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
-  </node>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" args="--ros-args --log-level $(var log_level)" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
-  </node>
-  <node pkg="gp_traj_predictor" exec="opp_prediction" args="--ros-args --log-level $(var log_level)"           name="opponent_propagation_predictor" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
-  </node>
+  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
+  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
+  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
 
   <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
        (-> simple_mux -> vehicle). Common controller.yaml; save_params writes back
        to the same file. -->
-  <node pkg="controller" exec="controller_manager" args="--ros-args --log-level $(var log_level)" name="controller_manager" output="$(var node_output)">
-    <param name="debug"       value="$(var debug_on)"/>
-    <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
+  <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="sim" value="$(var sim)"/>

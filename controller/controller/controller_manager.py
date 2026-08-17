@@ -65,16 +65,6 @@ class ControllerManager(Node):
 
         self.name = "controller_manager"
         self.loop_rate = 50  # rate in hertz
-        # Rate for the RViz/telemetry publishes only -- lookahead, steering, future
-        # position, trailing opponent, l1_distance. Five messages per control cycle,
-        # none of which any node subscribes to (only pitwall.rviz), and the trailing
-        # marker additionally evaluates the raceline spline via get_cartesian purely
-        # to place a sphere. The drive command itself is unaffected and still goes out
-        # every cycle at loop_rate. 0 disables the visualisation publishes.
-        self.viz_rate_hz = float(self._get_param('viz_rate_hz', 5.0))
-        self._last_viz = float("-inf")   # -inf so the first cycle always publishes
-        # race.launch.xml 의 debug:=on|off. off 면 시각화를 아예 만들지 않는다.
-        self.debug = bool(self._get_param('debug', True))
         self.scan = None
         self._save_requested = False
 
@@ -437,28 +427,13 @@ class ControllerManager(Node):
             self.acc_now,
             self.track_length)
 
-        # Visualisation and telemetry only -- decimated to viz_rate_hz. RViz cannot
-        # use a 50 Hz refresh on these and no node subscribes to them, so publishing
-        # every cycle spent the control loop's budget on markers. The drive command
-        # below is untouched and still goes out every cycle.
-        now = time.perf_counter()
-        viz_period = 1.0 / self.viz_rate_hz if self.viz_rate_hz > 0 else float("inf")
-        # 구독자 검사도 함께: pitwall 은 랩탑에서 뜨므로 안 붙어 있으면 만들 이유가
-        # 없다. 다섯 개 중 하나라도 구독자가 있으면 전부 낸다 — 대표 하나만 보면
-        # RViz 에서 그 항목만 꺼둔 사람에게 나머지까지 사라진다.
-        if (self.debug and now - self._last_viz >= viz_period
-                and any(p.get_subscription_count() > 0 for p in (
-                    self.lookahead_pub, self.steering_pub, self.future_position_pub,
-                    self.trailing_pub, self.l1_pub))):
-            self._last_viz = now
-            self.set_lookahead_marker(L1_point, 100)
-            self.visualize_steering(steering_angle)
-            self.visualize_trailing_opponent()
-            self.viz_future_position(future_position, 200)
-            self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance),
-                                      z=float(curvature_waypoints)))
+        self.set_lookahead_marker(L1_point, 100)
+        self.visualize_steering(steering_angle)
+        self.visualize_trailing_opponent()
+        self.viz_future_position(future_position, 200)
 
         self.curvature_waypoints = curvature_waypoints
+        self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
 
         self.waypoint_safety_counter += 1
         if self.waypoint_safety_counter >= self.loop_rate/self.state_machine_rate * 10:

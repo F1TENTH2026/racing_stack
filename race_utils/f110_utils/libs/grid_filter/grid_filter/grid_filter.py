@@ -73,30 +73,3 @@ class GridFilter:
         if px < 0 or py < 0 or px >= self.eroded_image.shape[1] or py >= self.eroded_image.shape[0]:
             return False
         return self.eroded_image[py, px] == 255
-
-    def are_points_inside(self, xs, ys):
-        """Vectorised is_point_inside() over whole arrays of coordinates.
-
-        Element-for-element identical to calling is_point_inside() in a loop --
-        including the two "outside" cases (no map received yet, and pixel outside
-        the image) and including world_to_pixel()'s truncation-toward-zero, which
-        astype() reproduces exactly rather than flooring.
-
-        Exists because the spline planners bounds-check every sample of every
-        candidate path on every loop iteration; at 40 Hz the per-point Python call
-        was the hot path, and the work itself is one affine transform plus an array
-        lookup.
-
-        Returns a bool ndarray shaped like the inputs.
-        """
-        xs = np.asarray(xs, dtype=float)
-        ys = np.asarray(ys, dtype=float)
-        inside = np.zeros(xs.shape, dtype=bool)
-        if self.eroded_image is None:
-            return inside
-        height, width = self.eroded_image.shape
-        px = ((xs - self.origin[0]) / self.resolution).astype(np.int64)
-        py = ((ys - self.origin[1]) / self.resolution).astype(np.int64)
-        valid = (px >= 0) & (py >= 0) & (px < width) & (py < height)
-        inside[valid] = self.eroded_image[py[valid], px[valid]] == 255
-        return inside

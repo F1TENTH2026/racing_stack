@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-import datetime
-import os
 import time
-from pathlib import Path
 from typing import List, Any, Tuple
 
 import rclpy
@@ -19,7 +16,7 @@ from rclpy.parameter import Parameter
 
 import numpy as np
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, String
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.interpolate import BPoly
@@ -29,21 +26,6 @@ from frenet_conversion.frenet_converter import FrenetConverter
 from transforms3d.euler import quat2euler
 from grid_filter.grid_filter import GridFilter
 import trajectory_planning_helpers as tph
-
-
-def _default_debug_log_dir() -> Path:
-    """<repo>/logfile if this source file lives inside a git checkout, so debug logs
-    land somewhere `git add logfile/` already picks up instead of needing a manual
-    copy out of the home directory after every run. Falls back to a fixed
-    home-directory path otherwise. Kept identical to the helpers of the same name in
-    state_machine_node.py and static_avoidance_node.py -- separate packages, no
-    shared import between them.
-    """
-    here = Path(__file__).resolve()
-    for parent in [here.parent, *here.parents]:
-        if (parent / ".git").exists():
-            return parent / "logfile"
-    return Path.home() / "racing_logs"
 
 
 class ObstacleSpliner(Node):
@@ -71,24 +53,6 @@ class ObstacleSpliner(Node):
         # Initialize the node
         self.name = "recovery_spliner_node"
         super().__init__(self.name)
-        # race.launch.xml 의 debug:=on|off 에서 내려온다. off 면 로그 파일을 열지
-        # 않고 마커도 만들지 않는다. 선언 순서상 _setup_debug_log_file() 보다 먼저
-        # 읽어야 한다.
-        self.declare_parameter('debug', True)
-        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
-        self._setup_debug_log_file()
-        # 1 Hz perf summary accumulators (see _flush_perf). Kept as plain counters so
-        # the 40 Hz loop only does integer adds; the formatting happens once a second.
-        self._perf_window_start = time.perf_counter()
-        self._perf_cpu_ticks = self._read_self_cpu_ticks()
-        self._perf_loops = 0
-        self._perf_splines = 0
-        self._perf_blended = 0
-        self._perf_samples = 0
-        self._perf_danger = 0
-        self._perf_marker_pubs = 0
-        self._perf_loop_s_sum = 0.0
-        self._perf_loop_s_max = 0.0
 
         # initialize the instance variable
         self.gb_wpnts = None
@@ -107,6 +71,11 @@ class ObstacleSpliner(Node):
         self.inflection_points = None
         self.ot_wpnts = None
         self.ot_wpnts_stamp = None
+
+        # do_spline() is only worth its ~40Hz CPU cost while RECOVERY is actually
+        # the active/imminent state; gate the expensive path on it (state_machine_cb).
+        self.state = None
+        self._was_recovering = False
 
         # static params
         self.declare_parameters(
@@ -136,21 +105,6 @@ class ObstacleSpliner(Node):
         self.spline_scale = 0.8
         self.kernel_size = 5
         self.smooth_len = 1.0
-        # Per-sample bounds-check viz on /planner/recovery/spline_samples. One Marker
-        # per spline sample, rebuilt and published on every do_spline() call -- at
-        # 40 Hz, and twice per loop whenever the OT-blended path also splines, that is
-        # thousands of Marker objects a second built and serialised in Python for a
-        # topic only RViz reads. Off by default; flip it live while debugging.
-        self.publish_spline_samples = False
-        # Rate for the RViz marker arrays only. The planner still replans and
-        # publishes /planner/recovery/wpnts -- the data the state machine actually
-        # consumes -- at the full loop rate; this decimates the visualisation, which
-        # profiling showed to be the single largest cost in the loop (one CYLINDER
-        # Marker per waypoint, ~90 of them, rebuilt 40x a second for a topic no node
-        # subscribes to). 0 disables the marker arrays entirely.
-        self.marker_rate_hz = 5.0
-        # -inf so the very first loop always builds markers.
-        self._last_marker_build = float("-inf")
 
         int_lookahead_pd = ParameterDescriptor(
             type=ParameterType.PARAMETER_INTEGER,
@@ -172,10 +126,6 @@ class ObstacleSpliner(Node):
             type=ParameterType.PARAMETER_DOUBLE,
             floating_point_range=[FloatingPointRange(from_value=0.0, to_value=3.0, step=0.001)]
         )
-        double_marker_rate_pd = ParameterDescriptor(
-            type=ParameterType.PARAMETER_DOUBLE,
-            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=40.0, step=0.5)]
-        )
         bool_pd = ParameterDescriptor(type=ParameterType.PARAMETER_BOOL)
 
         param_dicts = [
@@ -185,11 +135,6 @@ class ObstacleSpliner(Node):
             {'name': 'spline_scale', 'default': self.spline_scale, 'descriptor': double_spline_scale_pd},
             {'name': 'kernel_size', 'default': self.kernel_size, 'descriptor': int_kernel_pd},
             {'name': 'smooth_len', 'default': self.smooth_len, 'descriptor': double_smooth_len_pd},
-            {'name': 'publish_spline_samples', 'default': self.publish_spline_samples, 'descriptor': bool_pd},
-            {'name': 'marker_rate_hz', 'default': self.marker_rate_hz, 'descriptor': double_marker_rate_pd},
-            # 스택 공통 이름. 런치가 이 값을 내려주고, race_supervisor 가 RB 를
-            # 받으면 0 으로 바꾼다. dyn_param_cb 에서 marker_rate_hz 와 같게 다룬다.
-            {'name': 'viz_rate_hz', 'default': self.marker_rate_hz, 'descriptor': double_marker_rate_pd},
         ]
         self.declare_all_parameters(param_dicts=param_dicts)
 
@@ -205,6 +150,8 @@ class ObstacleSpliner(Node):
         # OT trajectory, used to seed the blended-recovery path (first ~1 m of OT).
         self.create_subscription(
             OTWpntArray, "/planner/avoidance/otwpnts", self.ot_wpnts_cb, QoSProfile(depth=10))
+        self.create_subscription(
+            String, "/state_machine", self.state_machine_cb, QoSProfile(depth=10))
 
         self.mrks_pub = self.create_publisher(
             MarkerArray, "/planner/recovery/markers", QoSProfile(depth=10))
@@ -265,6 +212,9 @@ class ObstacleSpliner(Node):
         # transforms3d expects (w, x, y, z)
         euler = quat2euler([quat.w, quat.x, quat.y, quat.z])
         self.cur_yaw = euler[2]
+
+    def state_machine_cb(self, data: String):
+        self.state = data.data
 
     def ot_wpnts_cb(self, data: OTWpntArray):
         # Keep the last VALID OT trajectory. Empty publishes (planner produced nothing
@@ -375,15 +325,6 @@ class ObstacleSpliner(Node):
                 self.kernel_size = param.value
             elif param_name == 'smooth_len':
                 self.smooth_len = param.value
-            elif param_name == 'publish_spline_samples':
-                self.publish_spline_samples = param.value
-            elif param_name == 'marker_rate_hz':
-                self.marker_rate_hz = param.value
-            elif param_name == 'viz_rate_hz':
-                # 스택 공통 이름. race_supervisor 가 조이스틱 RB 를 받으면 모든
-                # 노드에 이 이름으로 0 을 내리므로, 이 노드의 marker_rate_hz 와
-                # 같은 것으로 취급한다.
-                self.marker_rate_hz = param.value
 
         if hasattr(self, 'map_filter'):
             self.map_filter.set_erosion_kernel_size(self.kernel_size)
@@ -392,43 +333,39 @@ class ObstacleSpliner(Node):
             f"[{self.name}] Dynamic reconf triggered new params: "
             f"min_candidates_lookahead_n: {self.min_candidates_lookahead_n}, "
             f"num_kappas: {self.num_kappas}, spline_scale: {self.spline_scale}, "
-            f"kernel_size: {self.kernel_size}, smooth_len: {self.smooth_len}, "
-            f"publish_spline_samples: {self.publish_spline_samples}"
+            f"kernel_size: {self.kernel_size}, smooth_len: {self.smooth_len}"
         )
-        self._dbg_log(f"[PARAM] publish_spline_samples={self.publish_spline_samples} "
-                      f"marker_rate_hz={self.marker_rate_hz} "
-                      f"kernel_size={self.kernel_size} spline_scale={self.spline_scale}")
         return SetParametersResult(successful=True)
 
     #############
     # MAIN LOOP #
     #############
     def loop(self):
-        loop_start = time.perf_counter()
+        # do_spline() (tangent search + spline fit) is the expensive part of this
+        # node and only matters while RECOVERY is the active state. Skip it the
+        # rest of the time; publish an empty/DELETEALL clear exactly once on the
+        # transition out so stale wpnts/markers don't linger.
+        is_recovering = self.state == "RECOVERY"
+        if not is_recovering:
+            if self._was_recovering:
+                self._publish_empty()
+            self._was_recovering = False
+            return
+        self._was_recovering = True
+
         if self.measuring:
-            start = loop_start
+            start = time.perf_counter()
         # Sample data
         gb_scaled_wpnts = self.gb_scaled_wpnts.wpnts
 
-        # RViz marker arrays run at marker_rate_hz, the waypoints at the full loop
-        # rate. Nothing subscribes to the marker topics in code -- only pitwall.rviz --
-        # so decimating them costs nothing but visual refresh rate, while the path the
-        # state machine follows keeps updating every tick.
-        # 주기 + debug 스위치 + 실제 구독자, 셋 다 통과해야 마커를 만든다.
-        # 구독자 검사가 핵심이다: pitwall 은 랩탑에서 띄우므로, 랩탑이 안 붙어
-        # 있으면 marker_rate_hz 가 5 여도 만들 이유가 없다.
-        marker_period = 1.0 / self.marker_rate_hz if self.marker_rate_hz > 0 else float("inf")
-        build_markers = (
-            self.debug
-            and (loop_start - self._last_marker_build) >= marker_period
-            and (self.mrks_pub.get_subscription_count() > 0
-                 or self.ot_blended_mrks_pub.get_subscription_count() > 0)
-        )
-        if build_markers:
-            self._last_marker_build = loop_start
-            self._perf_marker_pubs += 1
+        wpnts, mrks = self.do_spline(gb_wpnts=gb_scaled_wpnts)
 
-        wpnts, mrks = self.do_spline(gb_wpnts=gb_scaled_wpnts, build_markers=build_markers)
+        # Prepend DELETEALL so stale markers from the previous frame are cleared, then
+        # publish once (also clears them when do_spline returns no markers).
+        del_mrk = Marker()
+        del_mrk.header.stamp = self.get_clock().now().to_msg()
+        del_mrk.action = Marker.DELETEALL
+        mrks.markers.insert(0, del_mrk)
 
         # Publish wpnts and markers
         if self.measuring:
@@ -437,17 +374,7 @@ class ObstacleSpliner(Node):
             latency_msg.data = float(1 / (end - start))
             self.latency_pub.publish(latency_msg)
         self.recovery_wpnts_pub.publish(wpnts)
-
-        # Prepend DELETEALL so stale markers from the previous frame are cleared, then
-        # publish once (also clears them when do_spline returns no markers). Skipped
-        # entirely on decimated ticks rather than publishing an empty array, which
-        # would blank the display between refreshes instead of holding the last frame.
-        if build_markers:
-            del_mrk = Marker()
-            del_mrk.header.stamp = self.get_clock().now().to_msg()
-            del_mrk.action = Marker.DELETEALL
-            mrks.markers.insert(0, del_mrk)
-            self.mrks_pub.publish(mrks)
+        self.mrks_pub.publish(mrks)
 
         # OT-blended recovery: keep the first ~1 m of the OT path, then spline to GB.
         # Published every loop; empty when no OT path exists so the state machine
@@ -457,131 +384,37 @@ class ObstacleSpliner(Node):
         seed_info = self._ot_blend_seed()
         if seed_info is not None:
             seed, head_xy = seed_info
-            self._perf_blended += 1
             blended, blended_mrks = self.do_spline(
-                gb_wpnts=gb_scaled_wpnts, seed=seed, head_xy=head_xy,
-                build_markers=build_markers)
+                gb_wpnts=gb_scaled_wpnts, seed=seed, head_xy=head_xy)
         blended.header.stamp = self.get_clock().now().to_msg()
         blended.header.frame_id = "map"
         self.ot_blended_wpnts_pub.publish(blended)
 
-        if build_markers:
-            blended_del = Marker()
-            blended_del.header.stamp = self.get_clock().now().to_msg()
-            blended_del.action = Marker.DELETEALL
-            blended_mrks.markers.insert(0, blended_del)
-            self.ot_blended_mrks_pub.publish(blended_mrks)
+        blended_del = Marker()
+        blended_del.header.stamp = self.get_clock().now().to_msg()
+        blended_del.action = Marker.DELETEALL
+        blended_mrks.markers.insert(0, blended_del)
+        self.ot_blended_mrks_pub.publish(blended_mrks)
 
-        elapsed = time.perf_counter() - loop_start
-        self._perf_loops += 1
-        self._perf_loop_s_sum += elapsed
-        self._perf_loop_s_max = max(self._perf_loop_s_max, elapsed)
-        self._flush_perf()
+    def _publish_empty(self):
+        """Called once on the RECOVERY -> other transition so the last computed
+        wpnts/markers don't linger stale while do_spline() is skipped."""
+        stamp = self.get_clock().now().to_msg()
+        del_mrk = Marker()
+        del_mrk.header.stamp = stamp
+        del_mrk.action = Marker.DELETEALL
 
-    ########################
-    # DEBUG LOG + PERF     #
-    ########################
-    def _setup_debug_log_file(self):
-        """Per-run plain-text perf log for this node -- how long the 40 Hz loop
-        actually takes, how many splines it ran, and this process's own CPU share.
+        empty_wpnts = WpntArray()
+        empty_wpnts.header.stamp = stamp
+        empty_wpnts.header.frame_id = "map"
+        self.recovery_wpnts_pub.publish(empty_wpnts)
+        self.mrks_pub.publish(MarkerArray(markers=[del_mrk]))
 
-        Written unconditionally so the numbers exist without anyone remembering to
-        start a separate measurement tool: a profiler you have to launch by hand is a
-        profiler that does not get launched. Same convention as state_machine's and
-        static_avoidance_node's helpers of the same name -- one file per run plus a
-        "latest" symlink, directory overridable via RACE_DEBUG_LOG_DIR. Never allowed
-        to crash the node: a read-only home just disables file logging.
-        """
-        self._dbg_fh = None
-        # debug:=off 이면 파일을 열지 않는다. _dbg_log() 가 None 을 보고 조용히
-        # 반환하므로 호출부는 그대로 두어도 된다.
-        if not self.debug:
-            return
-        try:
-            log_dir = Path(os.environ.get("RACE_DEBUG_LOG_DIR", str(_default_debug_log_dir()))).expanduser()
-            log_dir.mkdir(parents=True, exist_ok=True)
-            run_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_path = log_dir / f"recovery_spliner_{run_stamp}.log"
-            self._dbg_fh = open(log_path, "a", buffering=1)
-            latest = log_dir / "latest_recovery_spliner.log"
-            if latest.is_symlink() or latest.exists():
-                latest.unlink()
-            latest.symlink_to(log_path.name)
-            self._dbg_fh.write(f"# recovery_spliner perf log started {run_stamp}\n")
-            self._dbg_fh.write("# [PERF] fields: loops=timer ticks in the window, "
-                               "hz=achieved loop rate, loop_ms avg/max=wall time inside loop(), "
-                               "splines=do_spline calls, blended=loops that also splined the "
-                               "OT-blended path, samples=mean spline samples bounds-checked, "
-                               "danger=splines aborted on the bounds check, mrk_hz=achieved "
-                               "RViz marker rate (see marker_rate_hz; the wpnt topics stay at "
-                               "the full loop rate), cpu=this process's own CPU over the window "
-                               "(100% = one core), viz=spline-sample marker publishing\n")
-            self.get_logger().info(f"[{self.name}] perf log: {log_path} (latest: {latest})")
-        except OSError as e:
-            self.get_logger().warn(f"[{self.name}] could not open debug log file: {e}")
-
-    def _dbg_log(self, msg: str) -> None:
-        if getattr(self, "_dbg_fh", None) is None:
-            return
-        try:
-            now = self.get_clock().now().nanoseconds * 1e-9
-            self._dbg_fh.write(f"{now:.3f} {msg}\n")
-        except OSError:
-            pass
-
-    @staticmethod
-    def _read_self_cpu_ticks():
-        """utime+stime for this process in clock ticks, or None if unreadable.
-
-        Read straight from /proc rather than shelling out, so the 1 Hz summary can
-        carry the node's own CPU without a sysstat dependency or a second process.
-        """
-        try:
-            with open("/proc/self/stat") as fh:
-                raw = fh.read()
-            # Drop "pid (comm) " first: comm may itself contain spaces or parens,
-            # which would otherwise shift every field index after it.
-            raw = raw[raw.rfind(") ") + 2:].split()
-            return int(raw[11]) + int(raw[12])       # utime + stime
-        except (OSError, ValueError, IndexError):
-            return None
-
-    def _flush_perf(self, period_s: float = 1.0) -> None:
-        """Emit one [PERF] line per period_s. Aggregating rather than logging every
-        tick keeps this from becoming its own 40 Hz load -- the thing being measured.
-        """
-        now = time.perf_counter()
-        window = now - self._perf_window_start
-        if window < period_s:
-            return
-
-        cpu = "n/a"
-        ticks = self._read_self_cpu_ticks()
-        if ticks is not None and self._perf_cpu_ticks is not None:
-            clk = os.sysconf("SC_CLK_TCK") or 100
-            cpu = f"{(ticks - self._perf_cpu_ticks) / clk / window * 100:.1f}%"
-        self._perf_cpu_ticks = ticks
-
-        loops = self._perf_loops
-        self._dbg_log(
-            f"[PERF] loops={loops} hz={loops / window:.1f} "
-            f"loop_ms avg={self._perf_loop_s_sum / max(loops, 1) * 1e3:.2f} "
-            f"max={self._perf_loop_s_max * 1e3:.2f} "
-            f"splines={self._perf_splines} blended={self._perf_blended} "
-            f"samples={self._perf_samples / max(self._perf_splines, 1):.1f} "
-            f"danger={self._perf_danger} mrk_hz={self._perf_marker_pubs / window:.1f} "
-            f"cpu={cpu} viz={'on' if self.publish_spline_samples else 'off'}"
-        )
-
-        self._perf_window_start = now
-        self._perf_loops = 0
-        self._perf_splines = 0
-        self._perf_blended = 0
-        self._perf_samples = 0
-        self._perf_danger = 0
-        self._perf_marker_pubs = 0
-        self._perf_loop_s_sum = 0.0
-        self._perf_loop_s_max = 0.0
+        blended = WpntArray()
+        blended.header.stamp = stamp
+        blended.header.frame_id = "map"
+        self.ot_blended_wpnts_pub.publish(blended)
+        self.ot_blended_mrks_pub.publish(MarkerArray(markers=[del_mrk]))
 
     #########
     # UTILS #
@@ -633,8 +466,7 @@ class ObstacleSpliner(Node):
 
         return tangent_idx
 
-    def do_spline(self, gb_wpnts: WpntArray, seed=None, head_xy=None,
-                  build_markers: bool = True) -> Tuple[WpntArray, MarkerArray]:
+    def do_spline(self, gb_wpnts: WpntArray, seed=None, head_xy=None) -> Tuple[WpntArray, MarkerArray]:
         """
         Creates an evasion trajectory for the closest obstacle by splining between pre- and post-apex points.
 
@@ -792,51 +624,30 @@ class ObstacleSpliner(Node):
                 is_closed=False
             )
 
-        # Bounds-check every sample in one vectorised pass instead of a Python call
-        # per sample. are_points_inside() is element-for-element identical to
-        # is_point_inside(), so the accepted/rejected split below is unchanged; only
-        # the cost moves from ~N interpreter round-trips to one numpy pass.
-        n_samples = samples.shape[0]
-        inside_all = self.map_filter.are_points_inside(samples[:, 0], samples[:, 1])
-        failed = np.flatnonzero(~inside_all)
-        # First sample that fails, or n_samples if all pass. The loop below stops
-        # there, exactly where the previous per-sample `break` did.
-        first_fail = int(failed[0]) if failed.size else n_samples
-        danger_flag = first_fail < n_samples
-
-        for i in range(first_fail):
+        danger_flag = False
+        bounds_check_results = []  # debug: True if sample passed is_point_inside
+        for i in range(samples.shape[0]):
             gb_wpnt_i = int((s_[i] / wpnt_dist) % self.gb_max_idx)
+
+            inside = self.map_filter.is_point_inside(samples[i, 0], samples[i, 1])
+            bounds_check_results.append(inside)
+            if not inside:
+                self.get_logger().info(
+                    f"[{self.name}]: Evasion trajectory too close to TRACKBOUNDS, aborting evasion",
+                    throttle_duration_sec=2,
+                )            # if abs(evasion_d[i]) > abs(tb_dist) - self.spline_bound_mindist:
+                danger_flag = True
+                break
             # Get V from gb wpnts and go slower if we are going through the inside
             vi = gb_wpnts[gb_wpnt_i].vx_mps if outside else gb_wpnts[gb_wpnt_i].vx_mps * 0.9  # TODO make speed scaling ros param
             wpnts.wpnts.append(
                 self.xyv_to_wpnts(x=samples[i, 0], y=samples[i, 1], s=s_[i], d=d_[i], v=vi, psi=psi_[i] + np.pi / 2, kappa=kappa_[i], wpnts=wpnts)
             )
-            # Skipping the append, not just the publish: the cost being avoided is
-            # Marker.__init__ itself, which profiling put at ~43% of the loop.
-            if build_markers:
-                mrk_rgb = (0.0, 0.0, 1.0) if seed is not None else None  # blue for OT-blended
-                mrks.markers.append(self.xyv_to_markers(x=samples[i, 0], y=samples[i, 1], v=vi, mrks=mrks, rgb=mrk_rgb))
+            mrk_rgb = (0.0, 0.0, 1.0) if seed is not None else None  # blue for OT-blended
+            mrks.markers.append(self.xyv_to_markers(x=samples[i, 0], y=samples[i, 1], v=vi, mrks=mrks, rgb=mrk_rgb))
 
-        if danger_flag:
-            self.get_logger().info(
-                f"[{self.name}]: Evasion trajectory too close to TRACKBOUNDS, aborting evasion",
-                throttle_duration_sec=2,
-            )
-
-        # Debug viz, off by default -- see publish_spline_samples. The old per-sample
-        # loop only recorded results up to and including the failing sample and left
-        # the remainder as the "unchecked tail"; slicing here reproduces that.
-        # Also tied to build_markers, so turning the debug viz on for a look does not
-        # reintroduce a full-rate marker flood.
-        if self.publish_spline_samples and build_markers:
-            checked = inside_all[:first_fail + 1] if danger_flag else inside_all
-            self._publish_spline_samples_markers(samples, checked.tolist())
-
-        # Per-loop perf accounting; flushed as a 1 Hz summary by loop().
-        self._perf_splines += 1
-        self._perf_samples += n_samples
-        if danger_flag:
-            self._perf_danger += 1
+        # Debug: visualize every spline sample colored by bounds check
+        self._publish_spline_samples_markers(samples, bounds_check_results)
 
         # Fill the rest of OTWpnts
         wpnts.header.stamp = self.get_clock().now().to_msg()

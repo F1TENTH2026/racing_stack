@@ -60,6 +60,26 @@ kiss_icp_localization:
     reject_recover_count: 3
     max_velocity: 15.0
     max_accel: 10.0
+    # sign-aware gate on the SDF correspondence (2D mode only): drop scan
+    # points whose signed distance to the track boundary exceeds this many
+    # metres on the OUTSIDE (positive) side, regardless of max_corr_dist/the
+    # adaptive threshold. Targets wall-clip beams from suspension squat on
+    # hard accel that were landing just past the outer wall and pulling the
+    # fit toward it (observed as early corner turn-in after a bump on a
+    # straight). Starting value, not bag-validated — tune once a bag exists.
+    outside_margin: 0.2
+    # wheel-odom / accelerometer cross-check (traction-slip gate): erpm has no
+    # independent way to tell real ground speed from a spinning wheel, and on
+    # a straight the SDF match can't observe (=correct) the longitudinal drift
+    # that leaks in from an inflated erpm reading. Does NOT cap speed — only
+    # compares erpm's implied accel against the IMU's measured forward accel
+    # each /vesc/odom sample; when they disagree by more than
+    # slip_accel_thresh [m/s^2] (wheelspin or brake lockup), that step's
+    # velocity is taken from IMU-integrated accel instead of the raw erpm
+    # jump. Full erpm speed is trusted the rest of the time. Starting values,
+    # not bag-validated — tune once a bag exists.
+    slip_accel_thresh: 3.0     # m/s^2 mismatch to trigger the gate
+    accel_lpf_alpha: 0.2       # low-pass on IMU forward accel before compare
 
     # ---- initial pose ----
     initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -86,5 +106,8 @@ kiss_icp_localization:
     # ---- map_server owns /map; node publishes neither grid nor band scan ----
     publish_2d_map: false
     publish_2d_scan: false
-    publish_aligned_scan: true       # /kiss_loc/scan_aligned for RViz debug
+    publish_aligned_scan: false      # /kiss_loc/scan_aligned for RViz debug
+    # base default: off. localization.launch.xml overrides this with the launch
+    # arg `debug` (race.launch.xml debug:=true), so this value only matters for
+    # a launch path that loads this yaml directly without going through that arg.
     print_stats: false

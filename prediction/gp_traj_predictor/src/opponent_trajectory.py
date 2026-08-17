@@ -3,7 +3,6 @@
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 import numpy as np
-from threading import Thread
 from prediction_node import PredictionNode
 from f110_msgs.msg import ObstacleArray, OpponentTrajectory, Obstacle, OppWpnt, WpntArray,ProjOppTraj, ProjOppPoint
 from nav_msgs.msg import Odometry
@@ -96,239 +95,233 @@ class Opponent_Trajectory(PredictionNode):
     #Main Loop
     def make_opponent_trajectory(self):
 
-        """Make the opponent trajectory and publish it"""
+        """One-time setup, then hand control to a loop_rate-Hz timer serviced by a
+        multithreaded executor. Replaces the old create_rate()+while-loop: that
+        combo ran a second (busy-ish) wait loop in the main thread on top of the
+        executor thread already spinning this node's subscriptions -- the timer
+        lets the SAME executor drive both, like every other node in this repo
+        (see recovery_spliner_node's create_timer()). State that used to live as
+        locals inside the while-loop now lives on self so it survives between
+        separate loop() calls -- see the block below for what moved."""
 
-
-        rate = self.create_rate(self.loop_rate)
         self.lap_count = 0
-        first_point = True
+        self.first_point = True
         # The constructor already waits for and caches the first global path.
         # Do not wait again: the ROS 2 waypoint publisher may publish it only once.
         self.global_wpnts = self.glb_wpnts
-        ego_s_sorted = [wnpt.s_m for wnpt in self.global_wpnts.wpnts]
-        bound_right = [wnpt.d_right for wnpt in self.global_wpnts.wpnts]#all positive
-        bound_left = [wnpt.d_left for wnpt in self.global_wpnts.wpnts]#all positive
+        self.ego_s_sorted = [wnpt.s_m for wnpt in self.global_wpnts.wpnts]
+        self.bound_right = [wnpt.d_right for wnpt in self.global_wpnts.wpnts]#all positive
+        self.bound_left = [wnpt.d_left for wnpt in self.global_wpnts.wpnts]#all positive
         self.treshold = self.track_length/2 #treshold for checking if we are going "backwards" in the s direction
-        number_of_wpnts = len(ego_s_sorted)
-        raw_opponent_traj = np.zeros((number_of_wpnts,11))
-        projected_opponent_traj = ProjOppTraj()
-        first_point = True
-        traversed_distance = 0
-        index = None
-        points_in_lap = 0
-        track_length = self.track_length
-        marker_count = 0
-        marker_max = 5
-        mrk_array_msg = MarkerArray()
-        initial_lap = True
-        consecutive_points_off_opptraj = 0
+        self.number_of_wpnts = len(self.ego_s_sorted)
+        self.raw_opponent_traj = np.zeros((self.number_of_wpnts,11))
+        self.projected_opponent_traj = ProjOppTraj()
+        self.traversed_distance = 0
+        self.index = None
+        self.points_in_lap = 0
+        self.marker_count = 0
+        self.marker_max = 5
+        self.mrk_array_msg = MarkerArray()
+        self.initial_lap = True
+        self.consecutive_points_off_opptraj = 0
+        # Set by project_opponent_trajectory(); read back a loop() call later
+        # (see the "if points_in_lap > 5" branch below), so it has to persist too.
+        self.trav_dist = 0.0
 
         self.obstacle_cb(self.wait_for_message('/tracking/obstacles', ObstacleArray))
-        # Keep subscriber callbacks running independently from the legacy
-        # trajectory-collection loop.  spin_once() in that loop can miss
-        # high-rate obstacle updates and leave a stale first message forever.
+        # One executor now drives both loop() (via the timer) and the
+        # subscriptions -- no separate rate/sleep loop needed.
         self._executor = MultiThreadedExecutor(num_threads=2)
         self._executor.add_node(self)
-        self._executor_thread = Thread(target=self._executor.spin, daemon=True)
-        self._executor_thread.start()
-        while rclpy.ok():
-            #sample data
-            skip = False
-            obstacle_array = self.obstacle_array
-            position_in_map_frenet = self.position_in_map_frenet.copy()
-            
-            if index is not None and self.lap_count >= 1:
-                time_diff = self.now_seconds() - raw_opponent_traj[index][6]
-                #time_diff = 0 #for ROSBAG
-                if time_diff > 0.5: #if the timestamp is older than 0.5 seconds we discard the measurement (variable)
-                    if  points_in_lap > 5: #publish some extra information about the opponent trajectory (variable)
-                        projected_opponent_traj.nrofpoints = points_in_lap
-                        self.lap_count += trav_dist/track_length
-                        projected_opponent_traj.lapcount = self.lap_count
-                        projected_opponent_traj.opp_is_on_trajectory = True
-                        self.proj_opponent_trajectory_pub.publish(projected_opponent_traj)
-                        projected_opponent_traj = ProjOppTraj()
-                        raw_opponent_traj = np.zeros((number_of_wpnts,11))
-                        
-                        traversed_distance = 0
-                        points_in_lap = 1
-                        first_point = True
-                        index = None
-                    else:       
-                        projected_opponent_traj = ProjOppTraj()
-                        raw_opponent_traj = np.zeros((number_of_wpnts,11))
-                        
-                        traversed_distance = 0
-                        points_in_lap = 1
-                        first_point = True
-                        index = None
+        self.create_timer(1.0 / self.loop_rate, self.loop)
+        self._executor.spin()
 
-            opponent = self.find_nearest_dyn_obstacle(obstacle_array=obstacle_array, position_in_map_frenet=position_in_map_frenet, track_length=track_length)
-            if opponent is not None:
-                old_index = index
-                index = self.get_index(ego_s_sorted, opponent[0])
+    def loop(self):
+        """Runs at loop_rate Hz (registered in make_opponent_trajectory). One
+        pass of what used to be the while-loop body; unchanged logic, just
+        reading/writing self.xxx instead of locals so it persists correctly
+        between separate timer-triggered calls."""
+        #sample data
+        obstacle_array = self.obstacle_array
+        position_in_map_frenet = self.position_in_map_frenet.copy()
 
-                if index != old_index: #if the index is the same as the old index we dont update the opponent trajectory (this also gets rid of the delta time = 0 problem in simulation)
-                    raw_opponent_traj[index] = opponent #s, d, vs, vd, is_static, is_visible, timestamp, s_var, d_var, vs_var, vd_var
+        if self.index is not None and self.lap_count >= 1:
+            time_diff = self.now_seconds() - self.raw_opponent_traj[self.index][6]
+            #time_diff = 0 #for ROSBAG
+            if time_diff > 0.5: #if the timestamp is older than 0.5 seconds we discard the measurement (variable)
+                if  self.points_in_lap > 5: #publish some extra information about the opponent trajectory (variable)
+                    self.projected_opponent_traj.nrofpoints = self.points_in_lap
+                    self.lap_count += self.trav_dist/self.track_length
+                    self.projected_opponent_traj.lapcount = self.lap_count
+                    self.projected_opponent_traj.opp_is_on_trajectory = True
+                    self.proj_opponent_trajectory_pub.publish(self.projected_opponent_traj)
+                    self.projected_opponent_traj = ProjOppTraj()
+                    self.raw_opponent_traj = np.zeros((self.number_of_wpnts,11))
+
+                    self.traversed_distance = 0
+                    self.points_in_lap = 1
+                    self.first_point = True
+                    self.index = None
+                else:
+                    self.projected_opponent_traj = ProjOppTraj()
+                    self.raw_opponent_traj = np.zeros((self.number_of_wpnts,11))
+
+                    self.traversed_distance = 0
+                    self.points_in_lap = 1
+                    self.first_point = True
+                    self.index = None
+
+        opponent = self.find_nearest_dyn_obstacle(obstacle_array=obstacle_array, position_in_map_frenet=position_in_map_frenet, track_length=self.track_length)
+        if opponent is not None:
+            old_index = self.index
+            self.index = self.get_index(self.ego_s_sorted, opponent[0])
+
+            if self.index != old_index: #if the index is the same as the old index we dont update the opponent trajectory (this also gets rid of the delta time = 0 problem in simulation)
+                self.raw_opponent_traj[self.index] = opponent #s, d, vs, vd, is_static, is_visible, timestamp, s_var, d_var, vs_var, vd_var
 
 
-                    trav_dist, proj_opponent, ignore_datapoint_flag, first_point, publish_flag = self.project_opponent_trajectory(old_index=old_index, index=index,
-                                                                                raw_opponent_traj=raw_opponent_traj, 
-                                                                                proj_opponent_traj=projected_opponent_traj, 
-                                                                                track_length=track_length, 
-                                                                                trav_dist=traversed_distance, 
-                                                                                bound_left=bound_left, bound_right=bound_right,
-                                                                                first_point=first_point)
-                    
-                    if ignore_datapoint_flag:
-                        index = old_index
+                self.trav_dist, proj_opponent, ignore_datapoint_flag, self.first_point, publish_flag = self.project_opponent_trajectory(old_index=old_index, index=self.index,
+                                                                            raw_opponent_traj=self.raw_opponent_traj,
+                                                                            proj_opponent_traj=self.projected_opponent_traj,
+                                                                            track_length=self.track_length,
+                                                                            trav_dist=self.traversed_distance,
+                                                                            bound_left=self.bound_left, bound_right=self.bound_right,
+                                                                            first_point=self.first_point)
 
-                    
+                if ignore_datapoint_flag:
+                    self.index = old_index
+
+
+                else:
+                    if self.lap_count >= 1 and self.opp_traj_count > 1:
+                        self.consecutive_points_off_opptraj = self.check_if_opponent_is_on_predicted_trajectory(proj_opponent=proj_opponent,
+                                                                                                        consecutive_points_off_opptraj=self.consecutive_points_off_opptraj
+                                                                                                        ,opponent_trajectory=self.opponent_trajectory)
+                    self.projected_opponent_traj.detections.append(proj_opponent)
+                    if self.first_point:
+                        self.projected_opponent_traj.detections.pop(0)
+                    self.traversed_distance += self.trav_dist
+                    self.first_point = False
+                    self.points_in_lap += 1
+
+
+                    mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=self.marker_count, delete_bool=False)
+                    if len(self.mrk_array_msg.markers) > self.marker_max:
+                        del_mrk = self.mrk_array_msg.markers[0]
+                        self.mrk_array_msg.markers.pop(0)
+                        self.mrk_array_msg.markers.pop(0)
+
+                        del_mrk.action = Marker.DELETEALL
+                        self.mrk_array_msg.markers.append(del_mrk)
+                        self.mrk_array_msg.markers.append(mrk_msg)
                     else:
-                        if self.lap_count >= 1 and self.opp_traj_count > 1:      
-                            consecutive_points_off_opptraj = self.check_if_opponent_is_on_predicted_trajectory(proj_opponent=proj_opponent,
-                                                                                                            consecutive_points_off_opptraj=consecutive_points_off_opptraj
-                                                                                                            ,opponent_trajectory=self.opponent_trajectory)
-                        projected_opponent_traj.detections.append(proj_opponent)
-                        if first_point:
-                            projected_opponent_traj.detections.pop(0)
-                        traversed_distance += trav_dist
-                        first_point = False
-                        points_in_lap += 1
+                        self.mrk_array_msg.markers.append(mrk_msg)
+                    self.marker_pub.publish(self.mrk_array_msg)
+                    self.marker_count += 1
+                if self.consecutive_points_off_opptraj > 5 and self.traversed_distance < self.track_length/2: #if the opponent is off the predicted trajectory for more than 5 points we discard the measurement (variable)
+                    self.projected_opponent_traj.nrofpoints = self.points_in_lap
+                    self.projected_opponent_traj.lapcount = self.lap_count
+                    self.projected_opponent_traj.opp_is_on_trajectory = False
+                    opp_traj_count_old = self.opp_traj_count
+                    self.proj_opponent_trajectory_pub.publish(self.projected_opponent_traj)
+                    start_time = self.now_seconds()
+                    while self.opp_traj_count == opp_traj_count_old and self.now_seconds() - start_time < 3:
+                        #Wait for 0.02 seconds to get new opponent trajectory
+                        time.sleep(0.02)
+                        obstacle_array = self.obstacle_array
+                        position_in_map_frenet = self.position_in_map_frenet.copy()
+                        opponent = self.find_nearest_dyn_obstacle(obstacle_array=obstacle_array, position_in_map_frenet=position_in_map_frenet, track_length=self.track_length)
+                        if opponent is not None:
+                            old_index = self.index
+                            self.index = self.get_index(self.ego_s_sorted, opponent[0])
 
-
-                        # 마커는 RViz 전용. _opp_to_marker 는 get_cartesian(스플라인
-                        # 평가)까지 하므로, 볼 사람이 없으면 만들지 않는다.
-                        if self.viz_ok(self.marker_pub):
-                            mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
-                            if len(mrk_array_msg.markers) > marker_max:
-                                del_mrk = mrk_array_msg.markers[0]
-                                mrk_array_msg.markers.pop(0)
-                                mrk_array_msg.markers.pop(0)
-
-                                del_mrk.action = Marker.DELETEALL
-                                mrk_array_msg.markers.append(del_mrk)
-                                mrk_array_msg.markers.append(mrk_msg)
-                            else:
-                                mrk_array_msg.markers.append(mrk_msg)
-                            self.marker_pub.publish(mrk_array_msg)
-                        marker_count += 1
-                    if consecutive_points_off_opptraj > 5 and traversed_distance < track_length/2: #if the opponent is off the predicted trajectory for more than 5 points we discard the measurement (variable)
-                        projected_opponent_traj.nrofpoints = points_in_lap
-                        projected_opponent_traj.lapcount = self.lap_count
-                        projected_opponent_traj.opp_is_on_trajectory = False
-                        opp_traj_count_old = self.opp_traj_count
-                        self.proj_opponent_trajectory_pub.publish(projected_opponent_traj)
-                        start_time = self.now_seconds()
-                        while self.opp_traj_count == opp_traj_count_old and self.now_seconds() - start_time < 3:
-                            #Wait for 0.02 seconds to get new opponent trajectory
-                            time.sleep(0.02)
-                            obstacle_array = self.obstacle_array
-                            position_in_map_frenet = self.position_in_map_frenet.copy()
-                            opponent = self.find_nearest_dyn_obstacle(obstacle_array=obstacle_array, position_in_map_frenet=position_in_map_frenet, track_length=track_length)
-                            if opponent is not None:
-                                old_index = index
-                                index = self.get_index(ego_s_sorted, opponent[0])
-
-                                if index != old_index:
-                                    raw_opponent_traj[index] = opponent
-                                    trav_dist, proj_opponent, ignore_datapoint_flag, first_point, publish_flag = self.project_opponent_trajectory(old_index=old_index, index=index,
-                                                                                                                raw_opponent_traj=raw_opponent_traj, 
-                                                                                                                proj_opponent_traj=projected_opponent_traj, 
-                                                                                                                track_length=track_length, 
-                                                                                                                trav_dist=traversed_distance, 
-                                                                                                                bound_left=bound_left, bound_right=bound_right,
-                                                                                                                first_point=first_point)
-                                    if ignore_datapoint_flag:
-                                        index = old_index
-                                    else:
-                                        projected_opponent_traj.detections.append(proj_opponent)
-                                        if first_point:
-                                            projected_opponent_traj.detections.pop(0)
-                                        traversed_distance += trav_dist
-                                        first_point = False
-                                        points_in_lap += 1
-
-                                        if self.viz_ok(self.marker_pub):   # RViz 전용
-                                            mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=marker_count, delete_bool=False)
-                                            if len(mrk_array_msg.markers) > marker_max:
-                                                del_mrk = mrk_array_msg.markers[0]
-                                                mrk_array_msg.markers.pop(0)
-                                                mrk_array_msg.markers.pop(0)
-
-                                                del_mrk.action = Marker.DELETEALL
-                                                mrk_array_msg.markers.append(del_mrk)
-                                                mrk_array_msg.markers.append(mrk_msg)
-                                            else:
-                                                mrk_array_msg.markers.append(mrk_msg)
-                                            self.marker_pub.publish(mrk_array_msg)
-                                        marker_count += 1
-                        consecutive_points_off_opptraj = 0
-                        
-                        
-
-
-                    #lap complete
-                    if traversed_distance > (track_length/2):
-                        self.lap_count += 0.5
-
-                        #delete first point of the projected opponent trajectory since the velocity is not known
-                        if initial_lap:
-                            initial_lap = False
-                         #checke for a large s gap between consecutive points
-                            for i in range(len(projected_opponent_traj.detections)-1):
-                                if (projected_opponent_traj.detections[i+1].s - projected_opponent_traj.detections[i].s)%self.track_length > 2.5:
-                                    initial_lap = True
-                                    start_index = i+1
-                                    break
-                            if initial_lap: #start over from start_index
-                                #remove points before start_index
-                                for i in range(start_index):
-                                    projected_opponent_traj.detections.pop(0)
-
-                                if len(projected_opponent_traj.detections) > 0:
-                                    index = self.get_index(ego_s_sorted, projected_opponent_traj.detections[-1].s)
-                                    points_in_lap = points_in_lap - start_index
-                                    self.lap_count = 0
-                                    #reset traversed distance
-                                    traversed_distance = (projected_opponent_traj.detections[-1].s-projected_opponent_traj.detections[0].s)%self.track_length
+                            if self.index != old_index:
+                                self.raw_opponent_traj[self.index] = opponent
+                                self.trav_dist, proj_opponent, ignore_datapoint_flag, self.first_point, publish_flag = self.project_opponent_trajectory(old_index=old_index, index=self.index,
+                                                                                                            raw_opponent_traj=self.raw_opponent_traj,
+                                                                                                            proj_opponent_traj=self.projected_opponent_traj,
+                                                                                                            track_length=self.track_length,
+                                                                                                            trav_dist=self.traversed_distance,
+                                                                                                            bound_left=self.bound_left, bound_right=self.bound_right,
+                                                                                                            first_point=self.first_point)
+                                if ignore_datapoint_flag:
+                                    self.index = old_index
                                 else:
-                                    #reset everything
-                                    projected_opponent_traj = ProjOppTraj()
-                                    raw_opponent_traj = np.zeros((number_of_wpnts,11))
-                                    traversed_distance = 0
-                                    points_in_lap = 0
-                                    self.lap_count = 0
-                                    index = None
-                                    first_point = True
-                                    
-                        if not initial_lap:    
-                            projected_opponent_traj.nrofpoints = points_in_lap
-                            projected_opponent_traj.lapcount = self.lap_count
-                            projected_opponent_traj.opp_is_on_trajectory = True
-                            opp_traj_count_old = self.opp_traj_count
+                                    self.projected_opponent_traj.detections.append(proj_opponent)
+                                    if self.first_point:
+                                        self.projected_opponent_traj.detections.pop(0)
+                                    self.traversed_distance += self.trav_dist
+                                    self.first_point = False
+                                    self.points_in_lap += 1
 
-                            # publish projected opponent trajectory
-                            self.proj_opponent_trajectory_pub.publish(projected_opponent_traj)
+                                    mrk_msg = self._opp_to_marker(proj_opp=proj_opponent, id=self.marker_count, delete_bool=False)
+                                    if len(self.mrk_array_msg.markers) > self.marker_max:
+                                        del_mrk = self.mrk_array_msg.markers[0]
+                                        self.mrk_array_msg.markers.pop(0)
+                                        self.mrk_array_msg.markers.pop(0)
 
-                            #reset (make last point of old half lap the first point of the new half lap)
-                            projected_opponent_traj = ProjOppTraj()
-                            projected_opponent_traj.detections.append(proj_opponent)
-                            raw_opponent_traj = np.zeros((number_of_wpnts,11))
-                            raw_opponent_traj[index] = opponent
-                            points_in_lap = 1
-                            traversed_distance = 0
+                                        del_mrk.action = Marker.DELETEALL
+                                        self.mrk_array_msg.markers.append(del_mrk)
+                                        self.mrk_array_msg.markers.append(mrk_msg)
+                                    else:
+                                        self.mrk_array_msg.markers.append(mrk_msg)
+                                    self.marker_pub.publish(self.mrk_array_msg)
+                                    self.marker_count += 1
+                    self.consecutive_points_off_opptraj = 0
 
 
-            # Loop-body level, NOT nested inside `if opponent is not None`.
-            # While nested, an iteration that found no opponent (time trials, or
-            # the opponent simply out of range) skipped the sleep entirely and
-            # this loop spun as fast as the interpreter allowed, burning a whole
-            # core for as long as the track was clear.
-            # The opponent-present path is unchanged: this was already the last
-            # statement of that branch, and that branch is the last statement of
-            # the loop body, so dedenting cannot reorder anything.
-            rate.sleep()
+
+
+                #lap complete
+                if self.traversed_distance > (self.track_length/2):
+                    self.lap_count += 0.5
+
+                    #delete first point of the projected opponent trajectory since the velocity is not known
+                    if self.initial_lap:
+                        self.initial_lap = False
+                     #checke for a large s gap between consecutive points
+                        for i in range(len(self.projected_opponent_traj.detections)-1):
+                            if (self.projected_opponent_traj.detections[i+1].s - self.projected_opponent_traj.detections[i].s)%self.track_length > 2.5:
+                                self.initial_lap = True
+                                start_index = i+1
+                                break
+                        if self.initial_lap: #start over from start_index
+                            #remove points before start_index
+                            for i in range(start_index):
+                                self.projected_opponent_traj.detections.pop(0)
+
+                            if len(self.projected_opponent_traj.detections) > 0:
+                                self.index = self.get_index(self.ego_s_sorted, self.projected_opponent_traj.detections[-1].s)
+                                self.points_in_lap = self.points_in_lap - start_index
+                                self.lap_count = 0
+                                #reset traversed distance
+                                self.traversed_distance = (self.projected_opponent_traj.detections[-1].s-self.projected_opponent_traj.detections[0].s)%self.track_length
+                            else:
+                                #reset everything
+                                self.projected_opponent_traj = ProjOppTraj()
+                                self.raw_opponent_traj = np.zeros((self.number_of_wpnts,11))
+                                self.traversed_distance = 0
+                                self.points_in_lap = 0
+                                self.lap_count = 0
+                                self.index = None
+                                self.first_point = True
+
+                    if not self.initial_lap:
+                        self.projected_opponent_traj.nrofpoints = self.points_in_lap
+                        self.projected_opponent_traj.lapcount = self.lap_count
+                        self.projected_opponent_traj.opp_is_on_trajectory = True
+                        opp_traj_count_old = self.opp_traj_count
+
+                        # publish projected opponent trajectory
+                        self.proj_opponent_trajectory_pub.publish(self.projected_opponent_traj)
+
+                        #reset (make last point of old half lap the first point of the new half lap)
+                        self.projected_opponent_traj = ProjOppTraj()
+                        self.projected_opponent_traj.detections.append(proj_opponent)
+                        self.raw_opponent_traj = np.zeros((self.number_of_wpnts,11))
+                        self.raw_opponent_traj[self.index] = opponent
+                        self.points_in_lap = 1
+                        self.traversed_distance = 0
 
 #########################HELPER FUNCTIONS######################################
 

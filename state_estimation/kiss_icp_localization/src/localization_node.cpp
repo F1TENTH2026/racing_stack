@@ -295,6 +295,33 @@ private:
     reject_recover_count_ = declare_parameter<int>("reject_recover_count", 3);
     max_velocity_ = declare_parameter<double>("max_velocity", 15.0);
     max_accel_ = declare_parameter<double>("max_accel", 10.0);
+    // 2D scan-to-SDF only: sign-aware correspondence gate. max_corr_dist above
+    // is |SDF|-based and doesn't distinguish inside vs outside the track, so a
+    // beam that clips past the wall (suspension squat on hard accel/bumps) can
+    // still register as a valid near-wall point and drag the fit toward it —
+    // this showed up as early corner turn-in after a bump on a straight.
+    // outside_margin drops points whose *signed* SDF exceeds it (>0 = outside
+    // the track), independent of the adaptive threshold that max_corr_dist
+    // rides on. Keep it a few cm looser than typical near-wall jitter so it
+    // doesn't erode legitimate boundary points (see loc_2d_corr_gain's ~1-3deg
+    // per-scan jitter note) — default is a starting point, not a validated
+    // value; retune against a bag once available.
+    outside_margin_ = declare_parameter<double>("outside_margin", 0.2);
+    // Wheel-odom / accelerometer cross-check (traction-slip gate). erpm-derived
+    // v_body_ feeds straight into the position integral (IMU-rate propagation
+    // + next-scan prediction) with no independent check, and on a straight the
+    // SDF match has no longitudinal observability to catch an inflated value —
+    // so wheelspin (or brake lockup) on a slippery floor leaks straight into
+    // the pose and never gets corrected until the next corner. This does NOT
+    // cap speed: it only compares erpm's implied accel (onOdom) against the
+    // IMU's measured forward accel (onImu); when they disagree by more than
+    // slip_accel_thresh [m/s^2] the wheels are assumed to be slipping and
+    // v_body_'s x-component is substituted with an IMU-integrated estimate for
+    // that step instead of the raw erpm jump. Full erpm speed is trusted the
+    // rest of the time. Starting values, not bag-validated; tune once a bag
+    // exists (accel_lpf_alpha smooths IMU accel noise before the compare).
+    slip_accel_thresh_ = declare_parameter<double>("slip_accel_thresh", 3.0);
+    accel_lpf_alpha_ = declare_parameter<double>("accel_lpf_alpha", 0.2);
 
     initial_pose_ = declare_parameter<std::vector<double>>(
         "initial_pose", {0, 0, 0, 0, 0, 0});  // x y z roll pitch yaw
@@ -750,10 +777,39 @@ private:
   // rotation). Overwrites v_body_ directly; the ICP-derived velocity update in
   // processScan is skipped when use_odom_twist_ is set. Single-threaded executor
   // serialises this with processScan/onImu, so the shared v_body_ needs no lock.
+  //
+  // Slip gate: erpm has no independent way to tell real ground speed from a
+  // spinning wheel, and on a straight the SDF match can't observe (=correct)
+  // the resulting longitudinal drift. So before trusting the raw erpm sample,
+  // compare the accel it implies against the IMU's measured forward accel
+  // (a_body_x_filt_, updated in onImu); if they disagree by more than
+  // slip_accel_thresh_, substitute an IMU-integrated velocity for this step
+  // instead. Only touches x (forward) — v_body_.y() stays erpm-direct.
   void onOdom(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    v_body_.x() = msg->twist.twist.linear.x;
+    const double t = rclcpp::Time(msg->header.stamp).seconds();
+    const double v_odom_x = msg->twist.twist.linear.x;
+
+    bool gated = false;
+    if (bias_ready_ && t_odom_prev_ > 0.0) {
+      const double dt = t - t_odom_prev_;
+      if (dt > 0.0 && dt < 0.5) {
+        const double a_odom_x = (v_odom_x - v_odom_prev_x_) / dt;
+        if (std::abs(a_odom_x - a_body_x_filt_) > slip_accel_thresh_) {
+          v_body_.x() = v_odom_prev_x_ + a_body_x_filt_ * dt;
+          gated = true;
+          RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+                               "slip gate: erpm accel %.2f vs imu %.2f m/s^2, "
+                               "using v_x=%.2f instead of erpm %.2f",
+                               a_odom_x, a_body_x_filt_, v_body_.x(), v_odom_x);
+        }
+      }
+    }
+    if (!gated) v_body_.x() = v_odom_x;
     v_body_.y() = msg->twist.twist.linear.y;  // ~0 on a car
     v_body_.z() = 0.0;
+
+    v_odom_prev_x_ = v_odom_x;  // raw erpm, so the next accel calc is erpm-vs-erpm
+    t_odom_prev_ = t;
   }
 
   bool keepPoint(float x, float y, float z) const {
@@ -771,23 +827,39 @@ private:
     const double t = rclcpp::Time(msg->header.stamp).seconds();
     const Eigen::Vector3d w_raw(msg->angular_velocity.x, msg->angular_velocity.y,
                                 msg->angular_velocity.z);
+    const Eigen::Vector3d a_raw(msg->linear_acceleration.x,
+                                msg->linear_acceleration.y,
+                                msg->linear_acceleration.z);
 
     if (!bias_ready_) {
       bias_acc_.push_back(w_raw);
+      accel_bias_acc_.push_back(a_raw);
       if (static_cast<int>(bias_acc_.size()) >= imu_init_samples_) {
         gyro_bias_.setZero();
         for (const auto &w : bias_acc_) gyro_bias_ += w;
         gyro_bias_ /= bias_acc_.size();
         bias_acc_.clear();
+        accel_bias_.setZero();
+        for (const auto &a : accel_bias_acc_) accel_bias_ += a;
+        accel_bias_ /= accel_bias_acc_.size();
+        accel_bias_acc_.clear();
         bias_ready_ = true;
         RCLCPP_INFO(get_logger(), "gyro bias initialized: [%.5f %.5f %.5f] rad/s",
                     gyro_bias_.x(), gyro_bias_.y(), gyro_bias_.z());
+        RCLCPP_INFO(get_logger(), "accel bias initialized: [%.3f %.3f %.3f] m/s^2",
+                    accel_bias_.x(), accel_bias_.y(), accel_bias_.z());
       }
       return;
     }
 
     // angular velocity in LiDAR frame
     const Eigen::Vector3d w = R_il_.transpose() * (w_raw - gyro_bias_);
+    // forward (body x) accel, bias-removed + low-passed: the slip gate's
+    // reference for "how fast the car is actually accelerating", independent
+    // of erpm (see onOdom)
+    const Eigen::Vector3d a = R_il_.transpose() * (a_raw - accel_bias_);
+    a_body_x_filt_ += accel_lpf_alpha_ * (a.x() - a_body_x_filt_);
+
     if (!imu_buf_.empty() && t <= imu_buf_.back().t) return;  // out-of-order
     imu_buf_.push_back({t, w});
     while (!imu_buf_.empty() && imu_buf_.front().t < t - 10.0) imu_buf_.pop_front();
@@ -958,7 +1030,8 @@ private:
     auto result =
         localization_2d_
             ? AlignScanToTrackSdf(ds, loc_mask_, T_pred, th, th / 3.0,
-                                  max_iterations_, convergence_eps_)
+                                  max_iterations_, convergence_eps_,
+                                  outside_margin_)
             : AlignScanToMap(ds, map_, T_pred, th, th / 3.0, max_iterations_,
                              convergence_eps_, use_normals_);
     // 2D: SDF observes only (x,y,yaw) — pin z, drop roll/pitch so the unobserved
@@ -1295,6 +1368,9 @@ private:
   double convergence_eps_, initial_threshold_, min_threshold_, min_motion_;
   double reject_trans_, reject_rot_deg_, max_velocity_, max_accel_;
   double adaptive_range_, vel_smoothing_;
+  double outside_margin_ = std::numeric_limits<double>::infinity();
+  double slip_accel_thresh_ = 3.0;
+  double accel_lpf_alpha_ = 0.2;
   int reject_recover_count_ = 3;
   int consecutive_rejects_ = 0;
   bool stamp_at_scan_end_, imu_en_, deskew_en_, imu_rate_odom_,
@@ -1339,6 +1415,15 @@ private:
   std::vector<Eigen::Vector3d> bias_acc_;
   Eigen::Vector3d gyro_bias_ = Eigen::Vector3d::Zero();
   bool bias_ready_ = false;
+  // accelerometer bias (init'd alongside gyro_bias_) + low-passed forward
+  // (body x) accel, used only by the onOdom() slip gate above
+  std::vector<Eigen::Vector3d> accel_bias_acc_;
+  Eigen::Vector3d accel_bias_ = Eigen::Vector3d::Zero();
+  double a_body_x_filt_ = 0.0;
+  // slip-gate bookkeeping: raw erpm velocity/time from the previous onOdom(),
+  // used to derive erpm's implied accel independent of any gating applied
+  double v_odom_prev_x_ = 0.0;
+  double t_odom_prev_ = -1.0;
 
   std::deque<PendingScan> pending_;
 

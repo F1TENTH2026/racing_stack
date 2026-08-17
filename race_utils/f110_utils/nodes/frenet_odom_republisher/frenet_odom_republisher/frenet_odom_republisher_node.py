@@ -48,11 +48,7 @@ class FrenetOdomRepublisher(Node):
             frenet_vel = self.converter.get_frenet_velocities(odom_vel.x, odom_vel.y, theta)
 
             frenet_msg = msg
-            # get_frenet() above already ran the nearest-waypoint search and left the
-            # index on the converter -- get_frenet_velocities() reads it too. Calling
-            # get_closest_index() here repeated that whole scan over the raceline a
-            # second time, at odometry rate, for a value already in hand.
-            idx = str(self.converter.closest_index[0])
+            idx = str(self.converter.get_closest_index([odom_pos.x], [odom_pos.y])[0])
             frenet_msg.child_frame_id = idx
             frenet_msg.pose.pose.position.x = frenet_pos[0, 0]
             frenet_msg.pose.pose.position.y = frenet_pos[1, 0]
