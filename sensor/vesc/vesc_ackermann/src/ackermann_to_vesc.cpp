@@ -51,7 +51,9 @@ namespace
 {
 // Software hard stop in addition to the vesc_driver brake_max limit. Raising
 // this requires an intentional code/config change after physical validation.
-constexpr double kHardBrakeCurrentLimit = 10.0;
+// Raised 10 -> 30 A for stronger deceleration; the VESC's own Motor Current Max
+// Brake (VESC Tool, not in this repo) still caps whatever is asked for here.
+constexpr double kHardBrakeCurrentLimit = 30.0;
 }
 
 AckermannToVesc::AckermannToVesc(const rclcpp::NodeOptions & options)
@@ -137,7 +139,7 @@ rcl_interfaces::msg::SetParametersResult AckermannToVesc::onSetParameters(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = false;
   if (next_brake_current_max < 0.0 || next_brake_current_max > kHardBrakeCurrentLimit) {
-    result.reason = "brake_current_max must be in [0, 10] A";
+    result.reason = "brake_current_max must be in [0, 30] A";
     return result;
   }
   if (next_brake_current_start < 0.0 ||

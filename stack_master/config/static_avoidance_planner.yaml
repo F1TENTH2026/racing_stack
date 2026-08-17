@@ -74,7 +74,7 @@ static_avoidance_planner:
     # 0.30, so the relaxation ladder's top rung was silently overriding this
     # value anyway. Raised past the floor so what's written here is what
     # actually gets planned at full relaxation.
-    evasion_distance: 0.35
+    evasion_distance: 0.4
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
