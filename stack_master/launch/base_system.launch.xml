@@ -21,6 +21,10 @@
   <arg name="debug"        default="false" description="Enable verbose debug logging (KISS STAT prints etc.), off by default; forwarded to localization.launch.xml"/>
   <arg name="speed_scale"  default="1.0"
        description="Initial value of speed_sector_tuner's phase_multiplier (0.0-2.0), MULTIPLIED onto every sector's scaling (not a clip -- a map's scaling: 1.5 always reaches 1.5x at phase_multiplier 1.0). Default 1.0 == neutral, so this is a no-op unless overridden. Live-tunable afterwards: ros2 param set /speed_sector_tuner phase_multiplier X"/>
+  <arg name="sector_scaling" default="true"
+       description="Use the map's per-sector scaling (true, the normal case) or one flat speed over the whole lap (false, see default_scaling). quali.launch.xml starts its opening laps on false."/>
+  <arg name="default_scaling" default="1.0"
+       description="The flat scaling (0.0-2.0) used everywhere while sector_scaling is false; sectors AND phase_multiplier are ignored then. Live: ros2 param set /speed_sector_tuner default_scaling X"/>
 
   <!-- sim -> SIM config folder, real hardware -> CAR config folder -->
   <let name="config_dir" value="$(find-pkg-share stack_master)/config/SIM" if="$(var sim)"/>
@@ -78,6 +82,11 @@
          The launch-time seed of the race-phase multiplier; quali.launch.xml uses it
          to start a run conservatively and raise it per race phase via ros2 param set. -->
     <param name="phase_multiplier" value="$(var speed_scale)" type="float"/>
+    <!-- Sector-less opening phase: with use_sector_scaling false the tuner ignores
+         the map's sectors and phase_multiplier and applies default_scaling to the
+         whole lap. quali's race_phase_speed node flips it back on after N laps. -->
+    <param name="use_sector_scaling" value="$(var sector_scaling)"  type="bool"/>
+    <param name="default_scaling"    value="$(var default_scaling)" type="float"/>
   </node>
 
   <!-- Overtaking lines: ot_sectors.yaml -> /global_waypoints/overtaking -->
