@@ -25,6 +25,7 @@ import signal
 import subprocess
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
 from std_msgs.msg import Bool
@@ -79,7 +80,8 @@ def main(args=None):
     node = PitwallWatchdog()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # SIGTERM 이면 rclpy 시그널 핸들러가 이미 컨텍스트를 내렸다. rclpy.ok() 확인.
         pass
     finally:
         node.destroy_node()

@@ -33,6 +33,7 @@ LB/RB 로 실제 주행 모드를 바꾸는 것은 simple_mux 의 몫이고, 이
 import subprocess
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
@@ -137,11 +138,15 @@ def main(args=None):
     node = RaceSupervisor()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # SIGTERM(런치가 노드를 정리할 때 보낸다)이면 rclpy 의 시그널 핸들러가 이미
+        # 컨텍스트를 내려놓은 상태라, 아래에서 shutdown 을 또 부르면
+        # "rcl_shutdown already called" 로 트레이스백이 찍힌다. rclpy.ok() 로 확인.
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
