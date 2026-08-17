@@ -49,6 +49,7 @@ install(PROGRAMS
   scripts/global_velocity_planner.py
   scripts/static_tf_publisher.py
   scripts/race_supervisor_node.py
+  scripts/pitwall_watchdog_node.py
   scripts/vesc_calibration_node.py
   scripts/imu_mount_calibration.py
   scripts/imu_gyro_bias_check.py

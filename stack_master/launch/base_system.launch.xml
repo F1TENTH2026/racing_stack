@@ -17,6 +17,7 @@
   <!-- race.launch.xml 의 debug 스위치에서 내려온다. 단독 실행 시에는 기존 동작(screen). -->
   <arg name="node_output" default="screen" description="노드 output 속성 (screen|log)"/>
   <arg name="debug_on"    default="true"   description="디버그 출력 활성 여부"/>
+  <arg name="log_level"   default="info"   description="rcutils 로그 레벨"/>
   <arg name="viz_rate_hz" default="5.0"    description="RViz 마커 발행 주기 [Hz], 0 이면 발행 안 함"/>
   <arg name="map"          description="Map name (folder in stack_master/maps/)"/>
   <arg name="sim"          default="false" description="Use simulator (true) or real hardware (false)"/>
@@ -39,6 +40,7 @@
           <arg name="node_output"    value="$(var node_output)"/>
       <arg name="debug_on"       value="$(var debug_on)"/>
       <arg name="viz_rate_hz"    value="$(var viz_rate_hz)"/>
+      <arg name="log_level"    value="$(var log_level)"/>
 </include>
   </group>
   <!-- REAL: localization brings up VESC/LiDAR + the chosen localization stack. -->
@@ -51,6 +53,7 @@
           <arg name="node_output"    value="$(var node_output)"/>
       <arg name="debug_on"       value="$(var debug_on)"/>
       <arg name="viz_rate_hz"    value="$(var viz_rate_hz)"/>
+      <arg name="log_level"    value="$(var log_level)"/>
 </include>
   </group>
 
@@ -68,14 +71,14 @@
        /global_waypoints/overtaking for the state machine & local planners. -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
 
-  <node pkg="gb_optimizer" exec="global_trajectory_publisher" name="global_republisher" output="$(var node_output)">
+  <node pkg="gb_optimizer" exec="global_trajectory_publisher" args="--ros-args --log-level $(var log_level)" name="global_republisher" output="$(var node_output)">
     <param name="map" value="$(var map)"/>
   </node>
 
   <!-- speed_scaling.yaml -> /global_waypoints_scaled + /sector_markers.
        sector_tuner (not velocity_scaler) also draws the RViz markers.
        Node name must match the yaml's top-level key. -->
-  <node pkg="sector_tuner" exec="sector_tuner" name="speed_sector_tuner" output="$(var node_output)">
+  <node pkg="sector_tuner" exec="sector_tuner" args="--ros-args --log-level $(var log_level)" name="speed_sector_tuner" output="$(var node_output)">
     <param from="$(var maps_dir)/$(var map)/speed_scaling.yaml"/>
     <!-- save_params writes back to the SAME yaml it loaded; the install copy is a
          colcon symlink-install symlink to the source tree, so tuned values persist. -->
@@ -83,7 +86,7 @@
   </node>
 
   <!-- Overtaking lines: ot_sectors.yaml -> /global_waypoints/overtaking -->
-  <node pkg="overtaking_sector_tuner" exec="ot_interpolator" name="ot_sector_tuner" output="$(var node_output)">
+  <node pkg="overtaking_sector_tuner" exec="ot_interpolator" args="--ros-args --log-level $(var log_level)" name="ot_sector_tuner" output="$(var node_output)">
     <param from="$(var maps_dir)/$(var map)/ot_sectors.yaml"/>
     <param name="save_yaml_path" value="$(var maps_dir)/$(var map)/ot_sectors.yaml"/>
   </node>
@@ -91,7 +94,7 @@
   <!-- ===== Frenet conversion service (ROS1: middle_level) =====
        convert_glob2frenetarr_service / convert_frenet2globarr_service over
        /global_waypoints; opp_prediction (headtohead) calls these. -->
-  <node pkg="frenet_conversion_server" exec="frenet_conversion_server_node"
+  <node pkg="frenet_conversion_server" exec="frenet_conversion_server_node" args="--ros-args --log-level $(var log_level)"
         name="frenet_conversion_server_node" output="$(var node_output)">
     <param name="PerceptionOnly" value="false"/>
   </node>
@@ -99,7 +102,7 @@
   <!-- ===== Frenet odometry =====
        /car_state/odom -> /car_state/odom_frenet (s, d) for the planners + SM.
        The node publishes /car_state/frenet/odom; remap to the stack convention. -->
-  <node pkg="frenet_odom_republisher" exec="frenet_odom_republisher_node"
+  <node pkg="frenet_odom_republisher" exec="frenet_odom_republisher_node" args="--ros-args --log-level $(var log_level)"
         name="frenet_odom_republisher" output="$(var node_output)">
     <remap from="/car_state/frenet/odom" to="/car_state/odom_frenet"/>
   </node>
@@ -108,7 +111,7 @@
        Lap times + lateral error + distance-to-boundary stats and RViz markers.
        Needs /global_waypoints, /car_state/odom_frenet, /car_state/odom and
        /state_marker (state machine) - all available once the stack is up. -->
-  <node pkg="lap_analyser" exec="lap_analyser" name="lap_analyser" output="$(var node_output)">
+  <node pkg="lap_analyser" exec="lap_analyser" args="--ros-args --log-level $(var log_level)" name="lap_analyser" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param name="loc_algo" value="$(var localization)"/>

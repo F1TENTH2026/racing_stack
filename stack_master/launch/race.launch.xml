@@ -57,6 +57,13 @@
        pitwall 을 안 띄웠으면 이 값이 5 여도 마커를 만들지조차 않는다. -->
   <arg name="viz_rate_hz" default="5.0"
        description="RViz 마커 발행 주기 [Hz]. 0 이면 발행 안 함"/>
+  <!-- rcutils 로그 레벨. off 에서 fatal 로 내리는 이유는 실측으로 확인했다:
+       fatal 하나로 /rosout 발행과 ~/.ros/log 파일 기록이 동시에 0 이 된다.
+       (disable_rosout_logs 플래그는 rosout 만 막고 파일은 그대로 쌓였다.)
+       error 가 아니라 fatal 인 것은 의도적이다: 평시 출력은 0 이면서, 정말로
+       죽는 상황의 FATAL 은 남아야 사고 후에 볼 기록이 있다. -->
+  <let name="log_level" value="info"  if="$(var debug_on)"/>
+  <let name="log_level" value="fatal" unless="$(var debug_on)"/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -101,7 +108,7 @@
 
        joy_node 는 이 런치 트리 밖에서 따로 띄우므로 여기서 관리하지 않는다.
        RB 를 받으려면 joy_node 가 살아 있어야 한다는 점만 주의. -->
-  <node pkg="stack_master" exec="race_supervisor_node.py" name="race_supervisor"
+  <node pkg="stack_master" exec="race_supervisor_node.py" args="--ros-args --log-level $(var log_level)" name="race_supervisor"
         output="$(var node_output)">
     <param name="debug" value="$(var debug_on)"/>
   </node>
@@ -140,13 +147,14 @@
     <arg name="node_output"  value="$(var node_output)"/>
     <arg name="debug_on"     value="$(var debug_on)"/>
     <arg name="viz_rate_hz"  value="$(var viz_rate_hz)"/>
-  </include>
+      <arg name="log_level"    value="$(var log_level)"/>
+</include>
 
   <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
        detect publishes /detect/raw_obstacles (Frenet filled at the source);
        tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
        (sim virtual_perception) owns /tracking/obstacles. -->
-  <node pkg="perception" exec="detect" name="detect" output="$(var node_output)">
+  <node pkg="perception" exec="detect" args="--ros-args --log-level $(var log_level)" name="detect" output="$(var node_output)">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <param name="map" value="$(var map)"/>
   </node>
@@ -154,7 +162,7 @@
        on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
   <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
   <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
-  <node pkg="perception" exec="tracking_node" name="tracking" output="$(var node_output)">
+  <node pkg="perception" exec="tracking_node" args="--ros-args --log-level $(var log_level)" name="tracking" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
@@ -162,7 +170,7 @@
   </node>
 
   <!-- ===== State machine: the racing brain ===== -->
-  <node pkg="state_machine" exec="state_machine" name="state_machine" output="$(var node_output)">
+  <node pkg="state_machine" exec="state_machine" args="--ros-args --log-level $(var log_level)" name="state_machine" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
@@ -174,13 +182,13 @@
   </node>
 
   <!-- Recovery planner -> /planner/recovery/wpnts -->
-  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="$(var node_output)">
+  <node pkg="recovery_spliner" exec="recovery_spliner_node" args="--ros-args --log-level $(var log_level)" name="recovery_spliner_node" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
   </node>
 
   <!-- Start planner -> /planner/start_wpnts -->
-  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="$(var node_output)">
+  <node pkg="spliner" exec="start_spline_node_v2" args="--ros-args --log-level $(var log_level)" name="start_planner" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
   </node>
@@ -191,7 +199,7 @@
        never refills it, so a planner gated on /behavior_strategy lost its obstacle
        the moment the car entered OVERTAKE. /behavior_strategy is still subscribed,
        as a hint for which candidate to prefer. -->
-  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="$(var node_output)">
+  <node pkg="spliner" exec="static_avoidance_node" args="--ros-args --log-level $(var log_level)" name="static_avoidance_planner" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/static_avoidance_planner.yaml"/>
@@ -200,16 +208,16 @@
 
   <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
   <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
-    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="$(var node_output)">
+    <node pkg="lane_change_planner" exec="change_avoidance_node" args="--ros-args --log-level $(var log_level)" name="planner_change" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
       <param name="vis" value="$(var vis_lane_change)"/>
     </node>
-    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="$(var node_output)"/>
+    <node pkg="lane_change_planner" exec="update_waypoints" args="--ros-args --log-level $(var log_level)" name="waypoint_updater" output="$(var node_output)"/>
   </group>
   <group if="$(eval '\'$(var ot_planner)\' == \'sqp\'')">
-    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="$(var node_output)"/>
-    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="$(var node_output)"/>
+    <node pkg="sqp_planner" exec="sqp_avoidance_node" args="--ros-args --log-level $(var log_level)" name="planner_sqp" output="$(var node_output)"/>
+    <node pkg="sqp_planner" exec="update_waypoints" args="--ros-args --log-level $(var log_level)" name="waypoint_updater" output="$(var node_output)"/>
   </group>
 
   <!-- ===== GP opponent-trajectory predictor =====
@@ -217,15 +225,15 @@
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
        opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="$(var node_output)">
+  <node pkg="gp_traj_predictor" exec="opponent_trajectory" args="--ros-args --log-level $(var log_level)"       name="OpponentHalflap"                output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
   </node>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1">
+  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" args="--ros-args --log-level $(var log_level)" name="GP_trajectory"                  output="$(var node_output)" launch-prefix="taskset -c 1">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
   </node>
-  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="$(var node_output)">
+  <node pkg="gp_traj_predictor" exec="opp_prediction" args="--ros-args --log-level $(var log_level)"           name="opponent_propagation_predictor" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
   </node>
@@ -234,7 +242,7 @@
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
        (-> simple_mux -> vehicle). Common controller.yaml; save_params writes back
        to the same file. -->
-  <node pkg="controller" exec="controller_manager" name="controller_manager" output="$(var node_output)">
+  <node pkg="controller" exec="controller_manager" args="--ros-args --log-level $(var log_level)" name="controller_manager" output="$(var node_output)">
     <param name="debug"       value="$(var debug_on)"/>
     <param name="viz_rate_hz" value="$(var viz_rate_hz)"/>
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
