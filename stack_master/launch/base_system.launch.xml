@@ -19,6 +19,8 @@
   <arg name="localization" default="cartographer"    description="gt (sim) | cartographer | pf (real)"/>
   <arg name="virtual"      default="$(var sim)" description="Inject virtual opponent/obstacles (scan overlay etc.); on by default in sim, off on the real car"/>
   <arg name="debug"        default="false" description="Enable verbose debug logging (KISS STAT prints etc.), off by default; forwarded to localization.launch.xml"/>
+  <arg name="speed_scale"  default="1.0"
+       description="Initial value of speed_sector_tuner's global_limit (0.0-2.0), the upper clip on every sector's scaling. Default 1.0 == what every map's speed_scaling.yaml already ships, so this is a no-op unless overridden. Live-tunable afterwards: ros2 param set /speed_sector_tuner global_limit X"/>
 
   <!-- sim -> SIM config folder, real hardware -> CAR config folder -->
   <let name="config_dir" value="$(find-pkg-share stack_master)/config/SIM" if="$(var sim)"/>
@@ -72,6 +74,10 @@
     <!-- save_params writes back to the SAME yaml it loaded; the install copy is a
          colcon symlink-install symlink to the source tree, so tuned values persist. -->
     <param name="save_yaml_path" value="$(var maps_dir)/$(var map)/speed_scaling.yaml"/>
+    <!-- Overrides the yaml's global_limit (declared after `from`, so it wins).
+         The launch-time seed of the speed cap; quali.launch.xml uses it to start a
+         run conservatively and raise it per race phase via ros2 param set. -->
+    <param name="global_limit" value="$(var speed_scale)" type="float"/>
   </node>
 
   <!-- Overtaking lines: ot_sectors.yaml -> /global_waypoints/overtaking -->
