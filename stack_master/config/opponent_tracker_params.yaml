@@ -12,6 +12,11 @@ detect:
     min_2_points_dist: 0.01
     new_cluster_threshold_m: 0.40000000000000002
     max_viewing_distance: 9
+    # Detection cone half-width [rad], independent of the lidar's own
+    # angle_min/angle_max (CAR/vehicle_config.yaml's urg_node block, now the
+    # sensor's full +-3.14 for localization's benefit). Kept at the FOV
+    # detect used to get from the driver so obstacle detection is unchanged.
+    max_angle_rad: 1.8
     # How far inside the track edge an obstacle centre must sit to be accepted [m].
     # A 0.30 m box physically cannot have its centre closer than 0.15 m to a wall, so
     # 0.25 rejects wall returns while still accepting a real obstacle placed near the edge.
