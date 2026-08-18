@@ -5,10 +5,19 @@
   <let name="launch_prefix" value="xterm -e gdb --args" if="$(var debug)" />
 
   <arg name="vesc_config" default="" />
+  <!-- Publish odom->base_link TF (dead reckoning between corrections). Default
+       false matches vesc_config's own publish_tf (CAR/vehicle_config.yaml's
+       vesc/** wildcard), i.e. a no-op unless a caller overrides it. Only
+       localization.launch.xml does, and only for localization:=pf|cartographer;
+       see ekf_pf.yaml / ekf_cartographer.yaml, which own map->odom and need
+       this node to supply the other half of the REP-105 chain. Passed as a
+       param AFTER vesc_config so it wins over the wildcard. -->
+  <arg name="publish_tf" default="false" />
 
   <!-- VESC to Odom node -->
   <node pkg="vesc_ackermann" exec="vesc_to_odom_node" name="vesc_to_odom_node" output="screen">
     <param from="$(var vesc_config)" />
+    <param name="publish_tf" value="$(var publish_tf)" />
     <!-- <param name="odom_frame" value="odom" />
     <param name="base_frame" value="base_link" />
     <param name="use_servo_cmd_to_calc_angular_velocity" value="true" /> -->

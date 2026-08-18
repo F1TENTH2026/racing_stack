@@ -16,6 +16,13 @@
        reduced speed; everything else keeps the raw pad at 4.0 m/s. -->
   <arg name="joy_topic"      default="/joy"                description="Joy topic simple_mux honours for human drive"/>
   <arg name="joy_max_speed"  default="4.0"                 description="Speed (m/s) at full throttle deflection on joy_topic"/>
+  <!-- odom->base_link TF (dead reckoning). Off by default: sim doesn't run this
+       node at all, and mapping/kiss either own map->base_link outright or fuse
+       odometry internally. localization.launch.xml turns this on for
+       localization:=pf|cartographer, where a downstream EKF owns map->odom and
+       needs this node to supply the other half of the REP-105 chain (see
+       ekf_pf.yaml / ekf_cartographer.yaml). -->
+  <arg name="odom_tf"        default="false"               description="Have vesc_to_odom_node publish odom->base_link TF"/>
 
   <!-- map paths (needed by the simulator and by virtual_perception in both sim and real) -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
@@ -34,6 +41,7 @@
       </include>
       <include file="$(find-pkg-share vesc_ackermann)/launch/vesc_to_odom_node.launch.xml">
         <arg name="vesc_config" value="$(var vehicle_config)"/>
+        <arg name="publish_tf"  value="$(var odom_tf)"/>
       </include>
     </group>
 
