@@ -22,7 +22,7 @@ controller_manager:
     static_min_standoff_m: 0.50   # hard stop distance to a static obstacle [m]
     static_resume_hysteresis_m: 0.15
     static_crawl_speed_mps: 0.20  # floor speed while approaching a static obstacle [m/s]
-    curvature_factor: 0.25 #0.145 ->0.153->0.17
+    curvature_factor: 0.22 #0.145 ->0.153->0.17 -> 0.25 -> 0.22
     speed_factor_for_lat_err: 1.0
     speed_factor_for_curvature: 1.0
     KP: 0.8
