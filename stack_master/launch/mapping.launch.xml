@@ -9,12 +9,33 @@
   Sim is intentionally NOT handled here. Generate the global raceline afterwards
   with raceline_generator.launch.xml.
 
+  While mapping the car is locked to a fixed, forward-only teleop: hold LT to roll
+  at `mapping_speed` (1.0 m/s), steer with the right stick, nothing else. Start the
+  joy driver yourself (`ros2 run joy joy_node`) - it is not launched here.
+
     ros2 launch stack_master mapping.launch.xml map:=YOURMAP
+    ros2 launch stack_master mapping.launch.xml map:=YOURMAP mapping_speed:=1.5
 -->
 <launch>
   <arg name="map"                            description="Map name (folder created under stack_master/maps/)"/>
   <arg name="vehicle_config" default="$(find-pkg-share stack_master)/config/CAR/vehicle_config.yaml"/>
   <arg name="use_estop"     default="false"  description="Use emergency stop (true) or not (false)"/>
+  <!-- Constant-speed mapping teleop. mapping_joy_node wraps the raw pad into
+       /joy_mapping (LT = drive forward, right stick = steer, nothing else), and
+       the mux's full-scale joy speed is pinned to mapping_speed so LT means
+       exactly that speed. Set mapping_teleop:=false to drive the raw pad at the
+       usual 4.0 m/s instead. The `joy` node is NOT started here - run it
+       yourself, e.g. `ros2 run joy joy_node`. -->
+  <arg name="mapping_teleop" default="true"   description="Route the pad through mapping_joy_node (fixed-speed, forward-only)"/>
+  <arg name="mapping_speed"  default="1.0"    description="Speed (m/s) commanded while LT is held"/>
+  <arg name="trigger_axis"   default="2"      description="Joy axis for LT (Xbox layout on the Linux joy node)"/>
+  <arg name="trigger_button" default="-1"     description="Joy button for LT if the pad reports it digitally; -1 = use trigger_axis"/>
+  <arg name="steer_axis"     default="3"      description="Joy axis for steering (right stick X)"/>
+
+  <let name="mux_joy_topic" value="/joy_mapping" if="$(var mapping_teleop)"/>
+  <let name="mux_joy_topic" value="/joy"     unless="$(var mapping_teleop)"/>
+  <let name="mux_joy_speed" value="$(var mapping_speed)" if="$(var mapping_teleop)"/>
+  <let name="mux_joy_speed" value="4.0"             unless="$(var mapping_teleop)"/>
 
   <let name="cartographer_config_dir" value="$(find-pkg-share stack_master)/config"/>
   <let name="maps_save_dir" value="$(find-pkg-prefix stack_master)/../../src/racing_stack/stack_master/maps/$(var map)"/>
@@ -26,7 +47,20 @@
     <arg name="vehicle_config" value="$(var vehicle_config)"/>
     <arg name="use_estop"      value="$(var use_estop)"/>
     <arg name="virtual"        value="false"/>
+    <arg name="joy_topic"      value="$(var mux_joy_topic)"/>
+    <arg name="joy_max_speed"  value="$(var mux_joy_speed)"/>
   </include>
+
+  <!-- Fixed-speed mapping teleop: hold LT to roll forward at mapping_speed, steer
+       with the right stick. Forward only, and autodrive can not be engaged. -->
+  <node pkg="stack_master" exec="mapping_joy_node.py" name="mapping_joy" output="screen"
+        if="$(var mapping_teleop)">
+    <param name="joy_in_topic"   value="/joy"/>
+    <param name="joy_out_topic"  value="$(var mux_joy_topic)"/>
+    <param name="trigger_axis"   value="$(var trigger_axis)"   type="int"/>
+    <param name="trigger_button" value="$(var trigger_button)" type="int"/>
+    <param name="steer_axis"     value="$(var steer_axis)"     type="int"/>
+  </node>
 
   <!-- Remove the measured zero-rate gyro offset before Cartographer integrates IMU data. -->
   <node pkg="stack_master" exec="imu_bias_corrector_node.py"

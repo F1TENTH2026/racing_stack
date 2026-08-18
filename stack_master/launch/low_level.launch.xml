@@ -11,6 +11,11 @@
        Defaults ON in sim (preserves prior behavior), OFF on the real car; toggle
        with virtual:=true (e.g. to overlay a virtual opponent onto the real LiDAR). -->
   <arg name="virtual"        default="$(var sim)"          description="Inject virtual opponent/obstacles into the perception stack"/>
+  <!-- Human-drive joy source + full-scale speed for it. mapping.launch.xml
+       overrides both to route the mux through mapping_joy_node at a fixed,
+       reduced speed; everything else keeps the raw pad at 4.0 m/s. -->
+  <arg name="joy_topic"      default="/joy"                description="Joy topic simple_mux honours for human drive"/>
+  <arg name="joy_max_speed"  default="4.0"                 description="Speed (m/s) at full throttle deflection on joy_topic"/>
 
   <!-- map paths (needed by the simulator and by virtual_perception in both sim and real) -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
@@ -92,7 +97,8 @@
     <param from="$(var vehicle_config)"/>
     <param name="in_topic"      value="/vesc/high_level/ackermann_cmd"/>
     <param name="out_topic"     value="/vesc/ackermann_cmd"/>
-    <param name="joy_max_speed" value="4.0"/>
+    <param name="joy_topic"     value="$(var joy_topic)"/>
+    <param name="joy_max_speed" value="$(var joy_max_speed)" type="double"/>
     <param name="use_estop" value="$(var use_estop)"/>
     <param name="sim" value="$(var sim)"/>
     <!-- use_keyboard defaults False (joy); the pitwall panel flips it at runtime via
