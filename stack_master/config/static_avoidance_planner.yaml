@@ -45,9 +45,20 @@ static_avoidance_planner:
     # (s - cur_s) % max_s comparison in this node and in the state machine, because
     # they all wrap at max_s/2 and can no longer tell ahead from behind.
     #
-    # 10.0 -> 6.0 for the same reason: on 0814test2 the cap makes it 7.44 m
-    # regardless, and 6.0 says what is actually wanted. Raise it on a longer track.
-    lookahead: 6.0
+    # 10.0 -> 6.0 -> 8.0. Raised to line up with the perception layer's own
+    # detection range (tracking.dist_infront = 8.0 m, detect.max_viewing_distance
+    # = 9.0 m in opponent_tracker_params.yaml): at 6.0 the planner was sitting on
+    # an already-detected obstacle for ~2 m before it started building a path
+    # around it. state_machine/config/planners/static_avoidance_planner.yaml's
+    # max_horizon was raised 7.0 -> 8.0 in lockstep -- otherwise the state machine
+    # keeps judging the raceline "free" past the old 7 m and OVERTAKE still only
+    # triggers once the obstacle closes inside that, defeating this change.
+    # CAVEAT: on tracks under ~24 m (track/3 < 8.0, e.g. 0814test1/2, 0815test1,
+    # 0810test1, 0805test1, 0804test*) the _TRACK_FRACTION cap below still keeps
+    # this planner's own published path shorter than 8.0 m -- but max_horizon in
+    # the state_machine yaml is NOT auto-capped the same way, so on those short
+    # maps re-check that invariant (see that file's comment) before racing on them.
+    lookahead: 8.0
 
     # [m] Keep planning for an obstacle up to this far BEHIND the car. Dropping
     # it the instant its s went past ended the manoeuvre before the return leg
