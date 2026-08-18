@@ -106,7 +106,7 @@
     <param name="in_topic"      value="/vesc/high_level/ackermann_cmd"/>
     <param name="out_topic"     value="/vesc/ackermann_cmd"/>
     <param name="joy_topic"     value="$(var joy_topic)"/>
-    <param name="joy_max_speed" value="$(var joy_max_speed)" type="double"/>
+    <param name="joy_max_speed" value="$(var joy_max_speed)" type="float"/>
     <param name="use_estop" value="$(var use_estop)"/>
     <param name="sim" value="$(var sim)"/>
     <!-- use_keyboard defaults False (joy); the pitwall panel flips it at runtime via

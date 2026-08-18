@@ -69,8 +69,12 @@
   </node>
 
   <!-- ===== Cartographer SLAM (corrected IMU, no odometry: mapping_2d.lua) =====
-       gym_bridge does NOT publish TF, but this is real-hardware only, so
-       cartographer owns the map->base_link TF via publish_to_tf. -->
+       cartographer_node broadcasts NO TF here (mapping_2d.lua: publish_to_tf =
+       false); ekf_localization below owns map->base_link outright. low_level's
+       odom_tf therefore stays false: this car has no wheel encoder, and putting
+       vesc_to_odom's ERPM dead reckoning in the middle of the chain makes the
+       car and the live /scan slide across the map in RViz. See
+       ekf_cartographer_mapping.yaml's header. -->
   <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
         args="-configuration_directory $(var cartographer_config_dir) -configuration_basename mapping_2d.lua -collect_metrics --ros-args --log-level warn">
     <param name="use_sim_time"  value="false"/>
@@ -92,7 +96,7 @@
   </node>
 
   <node pkg="robot_localization" exec="ekf_node" name="ekf_localization" output="screen">
-    <param from="$(find-pkg-share stack_master)/config/ekf_cartographer.yaml"/>
+    <param from="$(find-pkg-share stack_master)/config/ekf_cartographer_mapping.yaml"/>
     <param name="use_sim_time" value="false"/>
     <remap from="odometry/filtered" to="/car_state/odom"/>
   </node>
