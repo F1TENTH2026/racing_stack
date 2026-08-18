@@ -7,8 +7,13 @@
 
 urg_node:
   ros__parameters:
-    angle_max: 1.8
-    angle_min: -1.8
+    # Full sensor FOV -- both pf and detect read msg.angle_min/angle_max off
+    # /scan directly (no separate FOV param of their own), so widening it here
+    # widens what pf sees for localization. detect stays narrowed to the old
+    # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
+    # instead of at the driver, so raising this doesn't change what it detects.
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"

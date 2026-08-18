@@ -2,28 +2,34 @@ speed_sector_tuner:
   ros__parameters:
     save_params: false
     phase_multiplier: 1.0
-    n_sectors: 4
-    Sector0:
+    n_sectors: 5
+    Sector0: # 직선
       start: 0
-      end: 104
+      end: 100
       scaling: 1.5
       only_FTG: false
       no_FTG: false
-    Sector1:
-      start: 105
-      end: 172
-      scaling: 1.2
+    Sector1: # 코너 1 (M)
+      start: 101
+      end: 140
+      scaling: 1.0
       only_FTG: false
       no_FTG: false
-    Sector2:
-      start: 173
+    Sector2: # 코너 2 (M)
+      start: 141
+      end: 187
+      scaling: 1.15
+      only_FTG: false
+      no_FTG: false
+    Sector3: # 직선
+      start: 188
       end: 274
       scaling: 1.5
       only_FTG: false
       no_FTG: false
-    Sector3:
+    Sector4: # 코너 3
       start: 275
-      end: 347
-      scaling: 1.2
+      end: 348
+      scaling: 1.15
       only_FTG: false
       no_FTG: false

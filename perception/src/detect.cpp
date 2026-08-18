@@ -45,6 +45,11 @@ Detect::Detect() : rclcpp::Node("detect"), car_s_(0),
   min_2_points_dist_ = declareNumber("min_2_points_dist", 0.01);
 
   max_viewing_distance_ = declareNumber("max_viewing_distance", 9.0);
+  // Default matches the lidar's angle_min/angle_max as configured today
+  // (CAR/vehicle_config.yaml's urg_node block, +-1.8 rad) so widening the raw
+  // scan for localization doesn't change detect's behaviour unless this is
+  // set explicitly.
+  max_angle_rad_ = declareNumber("max_angle_rad", 1.8);
   boundaries_inflation_ = declareNumber("boundaries_inflation", 0.1);
   filter_kernel_size_ = static_cast<int>(declareNumber("filter_kernel_size", 1));
   new_cluster_threshold_m_ = declareNumber("new_cluster_threshold_m", 0.4);
@@ -166,6 +171,8 @@ rcl_interfaces::msg::SetParametersResult Detect::dynParamCb(
       max_size_m_ = asNum(param);
     } else if (name == "max_viewing_distance") {
       max_viewing_distance_ = asNum(param);
+    } else if (name == "max_angle_rad") {
+      max_angle_rad_ = asNum(param);
     } else if (name == "boundaries_inflation") {
       boundaries_inflation_ = asNum(param);
     } else if (name == "filter_kernel_size") {
@@ -237,6 +244,7 @@ void Detect::saveYaml()
     p["min_2_points_dist"] = min_2_points_dist_;
     p["new_cluster_threshold_m"] = new_cluster_threshold_m_;
     p["max_viewing_distance"] = max_viewing_distance_;
+    p["max_angle_rad"] = max_angle_rad_;
     p["boundaries_inflation"] = boundaries_inflation_;
     p["filter_kernel_size"] = filter_kernel_size_;
     p["measure"] = measuring_;
@@ -304,9 +312,16 @@ std::vector<std::vector<std::pair<double, double>>> Detect::clustering(const sen
   size_t n = msg->ranges.size();
   std::vector<Point2D> cloudPoints_list;
   cloudPoints_list.reserve(n);
+  // Per-point mask: true if within detect's cone. The raw /scan can be wider
+  // than this (e.g. widened for localization's benefit) - this keeps detect's
+  // field of view independent of that. Kept as a parallel array, rather than
+  // skipping the point outright, so indices below still line up 1:1 with
+  // msg->ranges[i].
+  std::vector<bool> in_cone(n);
 
   for (size_t i = 0; i < n; i++) {
     double angle = msg->angle_min + i * d_phi;
+    in_cone[i] = std::fabs(angle) <= max_angle_rad_;
     double r = msg->ranges[i];
     // Coordinates in the laser frame (z is adjusted using T's z in the laser frame)
     double x_lf = r * cos(angle);
@@ -331,7 +346,7 @@ std::vector<std::vector<std::pair<double, double>>> Detect::clustering(const sen
 
   for (size_t i = 0; i < n; i++) {
     Point2D curr_point = cloudPoints_list[i];
-    if (GridFilter_.isPointInside(curr_point.first, curr_point.second)) {
+    if (in_cone[i] && GridFilter_.isPointInside(curr_point.first, curr_point.second)) {
       if (measuring_) on_track_pointcloud_list.push_back(curr_point);
       if (objects_pointcloud_list.empty()) {
         objects_pointcloud_list.push_back({curr_point});

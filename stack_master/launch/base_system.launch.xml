@@ -25,6 +25,10 @@
        description="Use the map's per-sector scaling (true, the normal case) or one flat speed over the whole lap (false, see default_scaling). quali.launch.xml starts its opening laps on false."/>
   <arg name="default_scaling" default="1.0"
        description="The flat scaling (0.0-2.0) used everywhere while sector_scaling is false; sectors AND phase_multiplier are ignored then. Live: ros2 param set /speed_sector_tuner default_scaling X"/>
+  <arg name="auto_relocalize" default="true"
+       description="Run lap_analyser's relocalizer node (pf only): every relocalize_every_n_laps completed laps, re-seed the particle filter at the nearest global-waypoint pose instead of drifting unattended. No-op under cartographer/kiss/sim."/>
+  <arg name="relocalize_every_n_laps" default="3"
+       description="Completed laps (lap_analyser /lap_data) between automatic pf re-seeds. 0 would disable it, but prefer auto_relocalize:=false for that -- it skips launching the node entirely."/>
 
   <!-- sim -> SIM config folder, real hardware -> CAR config folder -->
   <let name="config_dir" value="$(find-pkg-share stack_master)/config/SIM" if="$(var sim)"/>
@@ -118,4 +122,28 @@
   <node pkg="lap_analyser" exec="lap_analyser" name="lap_analyser" output="screen">
     <param name="loc_algo" value="$(var localization)"/>
   </node>
+
+  <!-- ===== Auto relocalizer (pf only) =====
+       Standalone node, touches nothing else in the stack: every
+       relocalize_every_n_laps completed laps (from lap_analyser's /lap_data) it
+       publishes the nearest global-waypoint pose to /initialpose, which
+       particle_filter.py already listens to (same path as a manual RViz "2D Pose
+       Estimate"). Bounds pf drift over a long unattended run. Only meaningful
+       against a real map, gated to localization:=pf; a no-op under
+       cartographer/kiss and skipped entirely in sim.
+
+       Three separate conditions rather than one $(eval ... and ...): sim and
+       auto_relocalize are plain booleans (if= reads their true/false text
+       directly, as elsewhere in this file); only the localization string
+       comparison needs $(eval). Mixing lowercase true/false into a python
+       $(eval) expression is not valid python and would fail. -->
+  <group unless="$(var sim)">
+    <group if="$(eval '\'$(var localization)\' == \'pf\'')">
+      <group if="$(var auto_relocalize)">
+        <node pkg="lap_analyser" exec="relocalizer" name="auto_relocalizer" output="screen">
+          <param name="relocalize_every_n_laps" value="$(var relocalize_every_n_laps)" type="int"/>
+        </node>
+      </group>
+    </group>
+  </group>
 </launch>
