@@ -103,7 +103,8 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
     for key, value in dict(
         rate_hz=20.0, log_period_s=0.5, measure=False,
         lookahead=10.0, keep_behind_m=1.0, trajectory_threshold=0.6,
-        raceline_clearance_m=0.35, evasion_distance=0.30, resolution=0.10,
+        raceline_clearance_m=0.35, max_group_obstacles=3,
+        evasion_distance=0.30, resolution=0.10,
         pre_dist_gain=1.0, pre_dist_min=2.0, pre_dist_max=4.0,
         post_dist_gain=0.8, post_dist_min=1.5, post_dist_max=4.0,
         tail_m=4.0, min_path_end_m=11.0, min_apex_lead_m=0.5,
@@ -360,3 +361,47 @@ def test_dynamic_obstacles_are_ignored():
     dbg = {}
     assert not node._plan(dbg).wpnts
     assert dbg["reason"] == "no_static_obstacle_in_range"
+
+
+# -------------------------------------------------------- multi-obstacle group
+def test_three_visible_obstacles_shape_one_path_and_all_are_clear():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=3.0)
+    node.obstacles = [
+        obstacle(11, 25.0, 0.05),
+        obstacle(12, 27.0, 0.10),
+        obstacle(13, 29.0, 0.00),
+    ]
+    dbg = {}
+    path = node._plan(dbg)
+
+    assert path.wpnts, dbg.get("reason")
+    assert dbg["group_size"] == 3
+    assert dbg["group_ids"] == [11, 12, 13]
+    s = np.array([w.s_m for w in path.wpnts])
+    d = np.array([w.d_m for w in path.wpnts])
+    for obs in node.obstacles:
+        j = int(np.argmin(np.abs(s - obs.s_center)))
+        free = abs(d[j] - obs.d_center) - obs.size / 2 - EGO_WIDTH / 2
+        assert free >= MIN_FREE_DIST - 1e-3
+
+
+def test_group_does_not_return_to_raceline_between_obstacles():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=3.0)
+    node.obstacles = [obstacle(21, 25.0, 0.0), obstacle(22, 28.0, 0.0)]
+    path = node._plan({})
+    assert path.wpnts
+
+    between = [abs(w.d_m) for w in path.wpnts if 25.2 <= w.s_m <= 27.8]
+    assert between
+    assert min(between) >= node.min_evasion_m - 1e-3
+
+
+def test_group_returns_only_after_last_obstacle():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=3.0)
+    node.obstacles = [obstacle(31, 25.0, 0.0), obstacle(32, 28.0, 0.0)]
+    path = node._plan({})
+    assert path.wpnts
+
+    after_last = [w for w in path.wpnts if w.s_m >= 30.0]
+    assert after_last
+    assert abs(path.wpnts[-1].d_m) < 1e-9

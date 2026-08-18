@@ -79,6 +79,11 @@ private:
   double max_size_m_;
   double max_viewing_distance_;
   double boundaries_inflation_;
+  // Detection cone half-width [rad]. The raw /scan can be wider (e.g. the
+  // lidar driver's own angle_min/angle_max) - this narrows only what detect
+  // clusters into obstacles, independent of what localization or anyone else
+  // consuming /scan sees.
+  double max_angle_rad_;
 
   // Variables
   rclcpp::Time current_stamp_;

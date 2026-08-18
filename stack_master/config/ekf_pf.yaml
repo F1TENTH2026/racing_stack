@@ -3,7 +3,7 @@ ekf_localization:
     frequency: 100.0
     sensor_timeout: 0.1
     two_d_mode: true
-    publish_tf: true          # PF already publishes map→laser TF
+    publish_tf: true          # this node owns map→base_link; pf.yaml's publish_tf stays false
 
     odom_frame:      base_link
     base_link_frame: base_link

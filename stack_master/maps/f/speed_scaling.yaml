@@ -1,7 +1,7 @@
 speed_sector_tuner:
   ros__parameters:
     save_params: false
-    global_limit: 1.0
+    phase_multiplier: 1.0
     n_sectors: 2
     Sector0:
       start: 0

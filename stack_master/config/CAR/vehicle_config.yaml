@@ -7,8 +7,13 @@
 
 urg_node:
   ros__parameters:
-    angle_max: 1.8
-    angle_min: -1.8
+    # Full sensor FOV -- both pf and detect read msg.angle_min/angle_max off
+    # /scan directly (no separate FOV param of their own), so widening it here
+    # widens what pf sees for localization. detect stays narrowed to the old
+    # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
+    # instead of at the driver, so raising this doesn't change what it detects.
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"
@@ -29,7 +34,7 @@ vesc/**:
     publish_tf: false
     # /vesc/commands/motor/brake is a positive motor-phase current command.
     # Keep an independent driver-side hard limit even if the bridge is retuned.
-    brake_max: 10.0
+    brake_max: 30.0
     brake_min: 0.0
     current_max: 100.0
     current_min: 0.0
@@ -44,10 +49,14 @@ vesc/**:
     speed_to_erpm_gain: 4614.0 # 초기값 4614.0
     speed_to_erpm_offset: 0.0
     brake_control_enabled: true
-    brake_current_max: 10.0
-    brake_current_start: 5.0
-    brake_current_gain: 10.0        # A per (m/s) of speed error
-    brake_current_ramp_rate: 100.0  # A/s; reaches 10 A in about 0.1 s
+    brake_current_max: 30.0         # 이전 값 10.0 (kHardBrakeCurrentLimit도 30으로 상향)
+    # 제동이 풀리면 brake_current_는 0으로 리셋되므로, 매 제동은 0 A에서 다시
+    # 램프를 타고 올라간다. 명령 주기가 ~50 Hz(dt≈0.02 s)라 램프 레이트가
+    # 정지 시간을 지배한다: 100 A/s면 틱당 2 A로 30 A까지 0.3 s가 걸렸다.
+    brake_current_start: 8.0        # 이전 값 5.0; 물리는 첫 순간의 목표 전류
+    brake_current_gain: 15.0        # A per (m/s) of speed error; 이전 값 10.0
+                                    # start+gain*err 이므로 오차 1.5 m/s에서 상한 포화 (이전 2.5)
+    brake_current_ramp_rate: 300.0  # A/s; 이전 값 100.0. 30 A 도달 0.3 s -> 0.1 s
     brake_engage_speed_error: 0.15
     brake_release_speed_error: 0.05
     brake_release_speed: 0.15

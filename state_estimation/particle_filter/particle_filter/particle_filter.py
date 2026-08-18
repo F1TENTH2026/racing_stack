@@ -23,6 +23,7 @@
 # ros2 python
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor
 
 # libraries
 import numpy as np
@@ -40,7 +41,7 @@ import tf_transformations
 # messages
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String, Header, Float32MultiArray
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import Imu, LaserScan
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point, Pose, PoseStamped, PoseArray, Quaternion, PolygonStamped, Polygon, Point32, PoseWithCovarianceStamped, PointStamped, TransformStamped
 from nav_msgs.msg import Odometry
@@ -65,28 +66,48 @@ class ParticleFiler(Node):
         super().__init__('particle_filter')
 
         # declare parameters
-        self.declare_parameter('angle_step')
-        self.declare_parameter('max_particles')
-        self.declare_parameter('max_viz_particles')
-        self.declare_parameter('squash_factor')
-        self.declare_parameter('max_range')
-        self.declare_parameter('theta_discretization')
-        self.declare_parameter('range_method')
-        self.declare_parameter('rangelib_variant')
-        self.declare_parameter('fine_timing')
-        self.declare_parameter('publish_odom')
-        self.declare_parameter('publish_tf')
-        self.declare_parameter('viz')
-        self.declare_parameter('z_short')
-        self.declare_parameter('z_max')
-        self.declare_parameter('z_rand')
-        self.declare_parameter('z_hit')
-        self.declare_parameter('sigma_hit')
-        self.declare_parameter('motion_dispersion_x')
-        self.declare_parameter('motion_dispersion_y')
-        self.declare_parameter('motion_dispersion_theta')
-        self.declare_parameter('scan_topic')
-        self.declare_parameter('odometry_topic')
+        #
+        # dynamic_typing because every one of these gets its value and its type
+        # from pf.yaml. Declaring a bare name means the same thing, but Humble
+        # deprecated it and prints a six-line warning for each - twenty-two of
+        # them, which buried the startup lines worth reading.
+        dyn = ParameterDescriptor(dynamic_typing=True)
+        self.declare_parameter('angle_step', descriptor=dyn)
+        self.declare_parameter('max_particles', descriptor=dyn)
+        self.declare_parameter('max_viz_particles', descriptor=dyn)
+        self.declare_parameter('squash_factor', descriptor=dyn)
+        self.declare_parameter('max_range', descriptor=dyn)
+        self.declare_parameter('theta_discretization', descriptor=dyn)
+        self.declare_parameter('range_method', descriptor=dyn)
+        self.declare_parameter('rangelib_variant', descriptor=dyn)
+        self.declare_parameter('fine_timing', descriptor=dyn)
+        self.declare_parameter('publish_odom', descriptor=dyn)
+        # Default matters: the parameter must not be required. False is also the
+        # right default here - the EKF downstream owns map -> base_link, and if
+        # the filter published map -> laser as well, laser would have two parents
+        # (the URDF already gives base_link -> laser) and TF would reject it.
+        self.declare_parameter('publish_tf', False)
+        # Frame names come from the racecar description, not from upstream's defaults.
+        self.declare_parameter('map_frame', 'map')
+        self.declare_parameter('base_frame', 'ego_racecar/base_link')
+        self.declare_parameter('laser_frame', 'ego_racecar/laser')
+        self.declare_parameter('viz', descriptor=dyn)
+        self.declare_parameter('z_short', descriptor=dyn)
+        self.declare_parameter('z_max', descriptor=dyn)
+        self.declare_parameter('z_rand', descriptor=dyn)
+        self.declare_parameter('z_hit', descriptor=dyn)
+        self.declare_parameter('sigma_hit', descriptor=dyn)
+        self.declare_parameter('motion_dispersion_x', descriptor=dyn)
+        self.declare_parameter('motion_dispersion_y', descriptor=dyn)
+        self.declare_parameter('motion_dispersion_theta', descriptor=dyn)
+        self.declare_parameter('scan_topic', descriptor=dyn)
+        self.declare_parameter('odometry_topic', descriptor=dyn)
+        # Where the motion model's YAW RATE comes from. Empty keeps it on the
+        # odometry topic; see imuCB for why that is the wrong source on this car.
+        self.declare_parameter('imu_topic', '')
+        # [Hz] How often the viz topics are drawn, independent of the scan
+        # rate. 0 draws on every iteration, the old behaviour.
+        self.declare_parameter('viz_rate_hz', 10.0)
 
         # parameters
         self.ANGLE_STEP           = self.get_parameter('angle_step').value
@@ -100,7 +121,11 @@ class ParticleFiler(Node):
         self.SHOW_FINE_TIMING     = self.get_parameter('fine_timing').value
         self.PUBLISH_ODOM         = self.get_parameter('publish_odom').value
         self.PUBLISH_TF           = self.get_parameter('publish_tf').value
+        self.MAP_FRAME            = self.get_parameter('map_frame').value
+        self.BASE_FRAME           = self.get_parameter('base_frame').value
+        self.LASER_FRAME          = self.get_parameter('laser_frame').value
         self.DO_VIZ               = self.get_parameter('viz').value
+        self.VIZ_RATE_HZ          = float(self.get_parameter('viz_rate_hz').value)
 
         # sensor model constants
         self.Z_SHORT   = self.get_parameter('z_short').value
@@ -132,6 +157,7 @@ class ParticleFiler(Node):
         self.last_time = None
         self.last_stamp = None
         self.first_sensor_update = True
+        self.last_viz_sec = 0.0
         self.state_lock = Lock()
 
         # cache this to avoid memory allocation in motion model
@@ -191,11 +217,18 @@ class ParticleFiler(Node):
             self.get_parameter('scan_topic').value,
             self.lidarCB,
             qos_profile_sensor_data)
+        # Before odom_sub: odomCB reads it to decide whether it owns the yaw rate.
+        self.imu_sub = None
         self.odom_sub = self.create_subscription(
             Odometry,
             self.get_parameter('odometry_topic').value,
             self.odomCB,
             1)
+        imu_topic = self.get_parameter('imu_topic').value
+        if imu_topic:
+            self.imu_sub = self.create_subscription(
+                Imu, imu_topic, self.imuCB, qos_profile_sensor_data)
+            self.get_logger().info(f'yaw rate from {imu_topic}, not the odometry twist')
         self.pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
             '/initialpose',
@@ -257,7 +290,7 @@ class ParticleFiler(Node):
         if self.bl2laser is not None:
             return True
         try:
-            tf = self.tf_buffer.lookup_transform('base_link', 'laser', rclpy.time.Time())
+            tf = self.tf_buffer.lookup_transform(self.BASE_FRAME, self.LASER_FRAME, rclpy.time.Time())
             t = tf.transform.translation
             q = tf.transform.rotation
             yaw = tf_transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
@@ -297,8 +330,8 @@ class ParticleFiler(Node):
             t = TransformStamped()
             # header
             t.header.stamp = stamp
-            t.header.frame_id = 'map'
-            t.child_frame_id = 'laser'
+            t.header.frame_id = self.MAP_FRAME
+            t.child_frame_id = self.LASER_FRAME
             # translation
             t.transform.translation.x = pose[0]
             t.transform.translation.y = pose[1]
@@ -321,13 +354,26 @@ class ParticleFiler(Node):
                 bx, by, byaw = pose[0], pose[1], pose[2]
             odom = Odometry()
             odom.header.stamp = self.get_clock().now().to_msg()
-            odom.header.frame_id = 'map'
-            odom.child_frame_id = 'base_link'
+            odom.header.frame_id = self.MAP_FRAME
+            odom.child_frame_id = self.BASE_FRAME
             odom.pose.pose.position.x = bx
             odom.pose.pose.position.y = by
             odom.pose.pose.orientation = Utils.angle_to_quaternion(byaw)
-            cov_mat = np.cov(self.particles, rowvar=False, ddof=0, aweights=self.weights).flatten()
-            odom.pose.covariance[:cov_mat.shape[0]] = cov_mat
+            # The particle spread is 3x3 over (x, y, yaw); pose.covariance is a
+            # 6x6 over (x, y, z, roll, pitch, yaw) flattened row-major. Writing
+            # the 3x3 into the first nine slots scatters it - yaw variance lands
+            # in the x-z slot and index 35, the one robot_localization reads for
+            # heading, stays zero. A zero variance claims the heading is known
+            # exactly, which is why the filter appeared to lock and stop moving.
+            cov = np.cov(self.particles, rowvar=False, ddof=0, aweights=self.weights)
+            idx = (0, 1, 5)  # x, y, yaw within the 6x6
+            for r in range(3):
+                for c in range(3):
+                    odom.pose.covariance[idx[r] * 6 + idx[c]] = float(cov[r, c])
+            # z, roll and pitch are not observed in 2D. Large rather than zero,
+            # so nothing downstream mistakes them for certainty.
+            for i in (2, 3, 4):
+                odom.pose.covariance[i * 6 + i] = 1e6
             odom.twist.twist.linear.x = self.current_speed
             self.odom_pub.publish(odom)
         
@@ -340,23 +386,41 @@ class ParticleFiler(Node):
         if not self.DO_VIZ:
             return
 
+        # Drawing is not free and it is charged to this node. Every particle is
+        # a Pose and a Quaternion built in python, and the fake scan below is a
+        # whole extra calc_range_many pass - all of it at the scan rate, all of
+        # it inside the loop whose duration is reported as `possible`. Turning
+        # the full cloud on at 40 Hz would visibly depress the number being
+        # measured. Ten a second is plenty to watch a cloud with.
+        if self.VIZ_RATE_HZ > 0.0:
+            now = time.time()
+            if now - self.last_viz_sec < 1.0 / self.VIZ_RATE_HZ:
+                return
+            self.last_viz_sec = now
+
         if self.pose_pub.get_subscription_count() > 0 and isinstance(self.inferred_pose, np.ndarray):
             # Publish the inferred pose for visualization
             ps = PoseStamped()
             ps.header.stamp = self.get_clock().now().to_msg()
-            ps.header.frame_id = '/map'
+            ps.header.frame_id = self.MAP_FRAME
             ps.pose.position.x = self.inferred_pose[0]
             ps.pose.position.y = self.inferred_pose[1]
             ps.pose.orientation = Utils.angle_to_quaternion(self.inferred_pose[2])
             self.pose_pub.publish(ps)
 
         if self.particle_pub.get_subscription_count() > 0:
-            # publish a downsampled version of the particle distribution to avoid a lot of latency
-            if self.MAX_PARTICLES > self.MAX_VIZ_PARTICLES:
-                # randomly downsample particles
-                proposal_indices = np.random.choice(self.particle_indices, self.MAX_VIZ_PARTICLES, p=self.weights)
-                # proposal_indices = np.random.choice(self.particle_indices, self.MAX_VIZ_PARTICLES)
-                self.publish_particles(self.particles[proposal_indices,:])
+            # UNIFORM downsampling, and max_viz_particles: 0 draws every one.
+            #
+            # This used to sample with p=self.weights, which draws the sixty
+            # BEST particles and therefore always looks tight - it showed a
+            # converged cloud through an entire run that ended in a wall with
+            # the cloud actually falling apart. The inferred pose is already
+            # published separately, so a weighted sample showed nothing that
+            # was not already on screen and hid the one thing worth seeing.
+            if 0 < self.MAX_VIZ_PARTICLES < self.MAX_PARTICLES:
+                indices = np.random.choice(
+                    self.particle_indices, self.MAX_VIZ_PARTICLES, replace=False)
+                self.publish_particles(self.particles[indices, :])
             else:
                 self.publish_particles(self.particles)
 
@@ -372,7 +436,7 @@ class ParticleFiler(Node):
         # publish the given particles as a PoseArray object
         pa = PoseArray()
         pa.header.stamp = self.get_clock().now().to_msg()
-        pa.header.frame_id = '/map'
+        pa.header.frame_id = self.MAP_FRAME
         pa.poses = Utils.particles_to_poses(particles)
         self.particle_pub.publish(pa)
 
@@ -380,7 +444,7 @@ class ParticleFiler(Node):
         # publish the given angels and ranges as a laser scan message
         ls = LaserScan()
         ls.header.stamp = self.last_stamp
-        ls.header.frame_id = '/laser'
+        ls.header.frame_id = self.LASER_FRAME
         ls.angle_min = float(np.min(angles))
         ls.angle_max = float(np.max(angles))
         ls.angle_increment = float(np.abs(angles[0] - angles[1]))
@@ -426,9 +490,33 @@ class ParticleFiler(Node):
         twist. The motion is integrated over the scan interval in lidarCB, so this
         callback no longer computes position deltas or triggers an MCL update.
         '''
-        self.current_speed   = msg.twist.twist.linear.x
-        self.current_angular = msg.twist.twist.angular.z
+        self.current_speed = msg.twist.twist.linear.x
+        if self.imu_sub is None:
+            self.current_angular = msg.twist.twist.angular.z
         self.odom_initialized = True
+
+    def imuCB(self, msg):
+        '''
+        Take the yaw rate from the gyro instead of the odometry twist.
+
+        /vesc/odom's angular.z is not measured. vesc_to_odom takes the servo
+        COMMAND and puts it through a bicycle model, so it reports how fast the
+        car would be turning if the tyres never slipped. The error is
+        systematic, not noise, and the motion model injects it on every scan.
+
+        That is what runs the filter down over a lap. Each step starts the
+        cloud off in the wrong direction, the sensor model has to drag it back,
+        and when it cannot keep up the cloud spreads. A spread cloud makes
+        every ray cast slower - the whole point of `possible` - which lengthens
+        the interval, which makes the next motion step wronger still. Resetting
+        the pose from RViz breaks the loop and `possible` jumps straight back
+        up, which is how this was found.
+
+        The gyro measures the rate the car ACTUALLY turns. Its z axis is the
+        car's yaw axis whatever the mounting yaw is - a rotation about z cannot
+        move z - so no transform is needed here.
+        '''
+        self.current_angular = msg.angular_velocity.z
 
     def clicked_pose(self, msg):
         '''
@@ -586,8 +674,11 @@ class ParticleFiler(Node):
 
                 # evaluate the sensor model
                 self.range_method.eval_sensor_model(obs, self.ranges, self.weights, num_rays, self.MAX_PARTICLES)
-                # apply the squash factor
-                self.weights = np.power(self.weights, self.INV_SQUASH_FACTOR)
+                # apply the squash factor. In place, like the other variants
+                # below: rebinding self.weights allocated a fresh array every
+                # scan for no reason - nothing else holds the old one, and the
+                # `weights` argument above is only read by variant 0.
+                np.power(self.weights, self.INV_SQUASH_FACTOR, self.weights)
             else:
                 self.get_logger().info('Cannot use radial optimizations with non-CDDT based methods, use rangelib_variant 2')
         elif self.RANGELIB_VAR == VAR_REPEAT_ANGLES_EVAL_SENSOR_ONE_SHOT:
