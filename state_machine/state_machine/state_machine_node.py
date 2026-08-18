@@ -15,6 +15,7 @@ ament/rclpy structural idioms.
 import os
 import time
 import json
+import copy
 import datetime
 import configparser
 from pathlib import Path
@@ -305,6 +306,8 @@ class StateMachine(Node):
         self.splini_hyst_timer_sec = self.params.splini_hyst_timer_sec
         self.emergency_break_horizon = self.params.emergency_break_horizon
         self.emergency_break_d = 0.12  # [m]
+        self.trailing_speed_scale = self.params.trailing_speed_scale
+        self.trailing_min_speed_mps = self.params.trailing_min_speed_mps
 
         # Graph based variables
         self.graph_based_wpts = None
@@ -1259,10 +1262,22 @@ class StateMachine(Node):
     ################
     # HELPER FUNCS #
     ################
-    def update_velocity(self, wpnts_msg, safety_factor=1.0):
+    def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None):
+        """Recompute a physically-consistent velocity profile for `wpnts_msg`.
+
+        `wpnts_msg` is either an object with a `.wpnts` list (OTWpntArray/WpntArray)
+        or a plain `List[Wpnt]` (e.g. local_wpnts) -- both are mutated in place.
+
+        `speed_cap`, if given, caps both the profile's ceiling (v_max) and its far
+        end (v_end) at that value -- used by `_apply_trailing_speed_cap` to bring the
+        cruise speed DOWN while TRAILING near an unavoidable-yet obstacle, without
+        touching the braking curve (ax_max_machines/b_ax_max_machines) itself. That
+        keeps this a normal, physically-smooth slow-down to a lower cruise speed --
+        not an emergency stop (v_end still floors at 0 only if speed_cap does).
+        """
         if self.ggv is None or self.gb_wpnts is None:
             return  # velocity replanning unavailable (no veh dyn info / no gb wpnts yet)
-        wpnts = wpnts_msg.wpnts
+        wpnts = wpnts_msg.wpnts if hasattr(wpnts_msg, "wpnts") else wpnts_msg
         if len(wpnts) < 3:
             return
         kappa = np.array([wp.kappa_radpm for wp in wpnts])
@@ -1284,8 +1299,12 @@ class StateMachine(Node):
             )
             return
 
-        glb_start_idx = int(wpnts_msg.wpnts[-1].s_m / self.wpnt_dist)
+        glb_start_idx = int(wpnts[-1].s_m / self.wpnt_dist)
         v_end = self.gb_wpnts.wpnts[glb_start_idx % len(self.gb_wpnts.wpnts)].vx_mps
+        v_max = self.pars["veh_params"]["v_max"]
+        if speed_cap is not None:
+            v_end = min(v_end, speed_cap)
+            v_max = min(v_max, speed_cap)
 
         ax_max_machines_sf = self.ax_max_machines.copy()
         b_ax_max_machines_sf = self.b_ax_max_machines.copy()
@@ -1301,7 +1320,7 @@ class StateMachine(Node):
             m_veh=self.pars["veh_params"]["mass"],
             b_ax_max_machines=b_ax_max_machines_sf,
             ggv=self.ggv,
-            v_max=self.pars["veh_params"]["v_max"],
+            v_max=v_max,
             filt_window=self.pars["vel_calc_opts"]["vel_profile_conv_filt_window"],
             dyn_model_exp=self.pars["vel_calc_opts"]["dyn_model_exp"],
             v_start=self.cur_vs,
@@ -1309,14 +1328,54 @@ class StateMachine(Node):
         )
 
         for i in range(len(vx_profile)):
-            wpnts_msg.wpnts[i].vx_mps = vx_profile[i]
+            wpnts[i].vx_mps = vx_profile[i]
 
         ax_profile = tph.calc_ax_profile.calc_ax_profile(
             vx_profile=vx_profile, el_lengths=el_lengths, eq_length_output=False
         )
         for i in range(len(ax_profile)):
-            wpnts_msg.wpnts[i].ax_mps2 = ax_profile[i]
+            wpnts[i].ax_mps2 = ax_profile[i]
         wpnts[len(ax_profile)].ax_mps2 = ax_profile[-1]
+
+    def _apply_trailing_speed_cap(self, local_wpnts):
+        """While TRAILING (obstacle recognised, no avoidance path committed yet),
+        cut the cruise speed once the blocking obstacle is within
+        emergency_break_horizon -- filling the gap between "obstacle detected" and
+        "OVERTAKE/RECOVERY has a valid path", which otherwise runs GB_TRACK/RECOVERY
+        at full raceline speed the whole time (states.GlobalTracking/get_recovery_wpts
+        don't replan velocity). NOT an emergency stop: a lower cruise ceiling
+        (trailing_speed_scale * raceline speed, floored at trailing_min_speed_mps)
+        that calc_vel_profile still reaches via its normal decel curve.
+
+        Returns local_wpnts unchanged if the cap does not apply. Otherwise returns a
+        COPY with the reduced profile applied -- local_wpnts's Wpnt objects, for the
+        GB_TRACK source, are the very same objects as self.gb_wpnts.wpnts (see
+        update_waypoints: cur_gb_wpnts.list = self.gb_wpnts.wpnts, no copy), so
+        mutating them in place would leak the trailing-reduced speed back into the
+        shared global-waypoints message.
+        """
+        if self.cur_state != StateType.TRAILING or not local_wpnts:
+            return local_wpnts
+
+        if self.local_wpnts_src == StateType.GB_TRACK:
+            gap = self.cur_gb_wpnts.closest_gap
+        elif self.local_wpnts_src == StateType.RECOVERY:
+            gap = self.cur_recovery_wpnts.closest_gap
+        else:
+            return local_wpnts
+
+        if gap is None or gap > self.emergency_break_horizon:
+            return local_wpnts
+        if not self.num_glb_wpnts or self.gb_wpnts is None:
+            return local_wpnts  # not initialised yet -- shouldn't be reachable in TRAILING, but don't /0
+
+        idx = int(self.cur_s / self.wpnt_dist + 0.5) % self.num_glb_wpnts
+        raceline_v = self.gb_wpnts.wpnts[idx].vx_mps
+        cap = max(self.trailing_min_speed_mps, raceline_v * self.trailing_speed_scale)
+
+        capped_wpnts = [copy.deepcopy(wp) for wp in local_wpnts]
+        self.update_velocity(capped_wpnts, speed_cap=cap)
+        return capped_wpnts
 
     def mincurv_splinification(self):
         coords = np.empty((len(self.cur_gb_wpnts.list), 4))
@@ -1731,7 +1790,8 @@ class StateMachine(Node):
             return
         keys = ["lateral_width_gb_m", "lateral_width_ot_m", "overtaking_ttl_sec",
                 "splini_hyst_timer_sec", "splini_ttl", "pred_splini_ttl",
-                "emergency_break_horizon", "ftg_speed_mps", "ftg_timer_sec",
+                "emergency_break_horizon", "trailing_speed_scale", "trailing_min_speed_mps",
+                "ftg_speed_mps", "ftg_timer_sec",
                 "ftg_active", "force_GBTRACK"]
         try:
             with open(path, "r") as f:
@@ -1879,6 +1939,8 @@ class StateMachine(Node):
         if not local_wpnts:
             self.local_wpnts_src = StateType.GB_TRACK
             local_wpnts = self.states[StateType.GB_TRACK](self)
+
+        local_wpnts = self._apply_trailing_speed_cap(local_wpnts)
 
         self._publish_debug(local_wpnts)
 

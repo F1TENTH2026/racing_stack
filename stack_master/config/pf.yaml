@@ -1,29 +1,80 @@
+# Particle filter localisation.
+#
+# It localises the LASER and converts to base_link through the static URDF /
+# static_tf_publisher transform, so the frames below have to name links that
+# actually exist on this car (base_link, laser - see CAR/static_transforms.yaml).
+#
+# publish_tf is false on purpose. The EKF downstream (ekf_pf.yaml) owns
+# map -> base_link; if the filter also published map -> laser, laser would
+# have two parents (base_link -> laser already exists via static_tf_publisher)
+# and TF would reject the tree.
+#
+# scan_topic / odometry_topic are left unset here: the /** wildcard section in
+# CAR/vehicle_config.yaml sets them for every node and vehicle_config.yaml is
+# loaded AFTER this file in localization.launch.xml, so it wins anyway. Ported
+# from roboracer_unita_ws.
+
 particle_filter:
   ros__parameters:
-    # topic names
     # scan_topic: '/scan'
     # odometry_topic: '/vesc/odom'
-    # range data downsampling
-    publis_tf: false
+
+    # Yaw rate for the motion model. Empty falls back to the odometry twist,
+    # which on this car is the servo COMMAND run through a bicycle model
+    # rather than a measurement - see imuCB in particle_filter.py. Set back to
+    # '' to A/B against the odom twist.
+    imu_topic: '/vesc/sensors/imu'
+
+    publish_tf: false
+    map_frame: 'map'
+    base_frame: 'base_link'
+    laser_frame: 'laser'
+
+    # Every 18th beam. The UST-10LX returns 1081, so the filter weighs ~60 per
+    # particle - enough to localise, cheap enough to run at max_particles.
     angle_step: 18
-    max_particles: 2000
+    max_particles: 1000
     squash_factor: 2.2
-    # visualization
+
     viz: 1
-    max_viz_particles: 60
-    # ray marching method
-    range_method: 'rm' # rm, pcddt, glt, rmgpu(for cuda)
+    # How many particles RViz/Foxglove gets, sampled UNIFORMLY. 0 draws all of
+    # them, which is what you want when the question is "has the cloud spread"
+    # - see visualize(). Costs a Pose per particle per frame, so it is
+    # throttled by viz_rate_hz rather than running at the scan rate.
+    max_viz_particles: 0
+
+    # [Hz] Drawing rate for every /pf/viz topic, the fake scan included. That
+    # one is a whole extra ray-cast pass, and at 0 (unthrottled) it ran at the
+    # scan rate.
+    viz_rate_hz: 10.0
+
+    # Ray casting, and the filter's whole cost: 1081/angle_step beams times
+    # max_particles times the scan rate.
+    #
+    # 'rm' marches each ray a cell at a time and is the slowest of these.
+    # 'pcddt' precomputes a compressed directional distance transform at
+    # startup and then answers each query in near-constant time - the
+    # precompute scales with the map, and ours are small enough that it costs
+    # a moment at startup and is repaid every scan after.
+    # 'glt' is faster still and trades memory for it (theta_discretization
+    # times cell count). 'rmgpu' needs range_libc rebuilt WITH_CUDA=ON.
+    #
+    # Check the rate it achieves with: ros2 topic hz /pf/pose/odom
+    range_method: 'pcddt' # rm, pcddt, glt, rmgpu(for cuda)
     theta_discretization: 112
-    # range data filtering
+
+    # Matches the UST-10LX's guaranteed range.
     max_range: 10
-    fine_timing: 0
+    fine_timing: 1
     publish_odom: 1
+
     # sensor model constants
     z_short: 0.01
     z_max: 0.07
     z_rand: 0.12
     z_hit: 0.75
     sigma_hit: 8.0
+
     # motion model dispersion constants
     # x == y (isotropic): noise is added in the world/map frame, so unequal x/y
     # would tie position uncertainty to the map axes (not the vehicle) and make
@@ -32,7 +83,15 @@ particle_filter:
     motion_dispersion_x: 0.05
     motion_dispersion_y: 0.05
     motion_dispersion_theta: 0.25
-    # sensor model variant, variant 2 good for rmgpu, 3 doesn't work for rmgpu
+
+    # Leave this at 2 - calc_range_repeat_angles.
+    #
+    # Variant 4, the CDDT radial optimisation, looks like free speed and is
+    # not: calc_range_many_radial_optimized has no bounds check on the query
+    # x, and a particle just past the map's edge segfaults the process. The
+    # motion model's per-scan dispersion walks particles over map edges
+    # routinely, so this only becomes safe if particles are clamped to the map
+    # bounds before the sensor model (a code change, not a config change).
     rangelib_variant: 2 # VAR_REPEAT_ANGLES_EVAL_SENSOR (most stable)
 
 # map_server:

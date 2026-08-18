@@ -2,8 +2,8 @@
 """
 Static-obstacle avoidance planner.
 
-Plans an evasion path around the nearest STATIC obstacle ahead, in Frenet space,
-anchored at the car's current pose.
+Plans an evasion path around up to three visible STATIC obstacles at once, in
+Frenet space, anchored at the car's current pose.
 
 Two properties matter and both are deliberate:
 
@@ -102,7 +102,7 @@ def _default_debug_log_dir() -> Path:
 
 
 class StaticObstacleSpliner(Node):
-    """Plans an evasion path around the nearest static obstacle ahead."""
+    """Plans one same-side evasion path around visible static obstacles."""
 
     def __init__(self):
         super().__init__("static_avoidance_planner")
@@ -189,6 +189,7 @@ class StaticObstacleSpliner(Node):
             "keep_behind_m": 1.0,
             "trajectory_threshold": 0.6,
             "raceline_clearance_m": 0.35,
+            "max_group_obstacles": 3,
             # --- path shape ---
             "evasion_distance": 0.30,
             "spline_resolution": 0.10,
@@ -224,6 +225,7 @@ class StaticObstacleSpliner(Node):
         "keep_behind_m": "keep_behind_m",
         "trajectory_threshold": "trajectory_threshold",
         "raceline_clearance_m": "raceline_clearance_m",
+        "max_group_obstacles": "max_group_obstacles",
         "evasion_distance": "evasion_distance",
         "spline_resolution": "resolution",
         "pre_dist_gain": "pre_dist_gain",
@@ -261,7 +263,8 @@ class StaticObstacleSpliner(Node):
         self.get_logger().info(
             f"[{self.name}] lookahead {self.lookahead:.1f} m, evasion {self.evasion_distance:.2f} m "
             f"(floor {self.min_evasion_m:.3f} m), boundary margin {self.boundary_margin:.2f} m, "
-            f"path_hold {self.path_hold_s:.2f} s, side hysteresis {self.side_hysteresis_m:.2f} m"
+            f"path_hold {self.path_hold_s:.2f} s, side hysteresis {self.side_hysteresis_m:.2f} m, "
+            f"group max {int(self.max_group_obstacles)}"
         )
         return SetParametersResult(successful=True)
 
@@ -470,10 +473,15 @@ class StaticObstacleSpliner(Node):
             dbg["reason"] = "no_static_obstacle_in_range"
             return out
 
-        obs = self._pick_target(candidates)
-        gap = self._signed_gap(obs.s_center)
-        dbg.update({"obs_present": True, "obs_id": int(obs.id), "obs_dist": gap,
-                    "obs_s": obs.s_center, "obs_d": obs.d_center})
+        group = self._pick_target_group(candidates)
+        group_key = tuple(sorted(int(o.id) for o in group))
+        first = group[0]
+        first_gap = self._signed_gap(first.s_center)
+        last_gap = max(self._signed_gap(o.s_center) for o in group)
+        dbg.update({"obs_present": True, "obs_id": int(first.id), "obs_dist": first_gap,
+                    "obs_s": first.s_center, "obs_d": first.d_center,
+                    "group_ids": list(group_key), "group_size": len(group),
+                    "group_span": max(0.0, last_gap - first_gap)})
 
         # Nothing to avoid: the raceline itself already passes the obstacle with
         # room to spare. Publishing the raceline as an "avoidance path" would make
@@ -482,8 +490,12 @@ class StaticObstacleSpliner(Node):
         # machine's own "raceline is blocked" test
         # (gb_ego_width_m/2 + global_tracking.lateral_width_m) or the car trails an
         # obstacle the state machine thinks needs avoiding and this planner does not.
-        near_edge = obs.d_right if obs.d_center >= 0.0 else -obs.d_left
-        if near_edge >= self.raceline_clearance_m:
+        blockers = []
+        for obstacle in group:
+            near_edge = obstacle.d_right if obstacle.d_center >= 0.0 else -obstacle.d_left
+            if near_edge < self.raceline_clearance_m:
+                blockers.append(obstacle)
+        if not blockers:
             dbg["reason"] = "raceline_already_clear"
             return out
 
@@ -491,18 +503,21 @@ class StaticObstacleSpliner(Node):
         # instead of dropping the path: an empty array here makes the state machine
         # leave OVERTAKE mid-manoeuvre and snap back onto the raceline, straight
         # into the obstacle it was avoiding.
-        apex_u = self.cur_s + max(gap, self.min_apex_lead_m)
+        first_u = self.cur_s + max(min(self._signed_gap(o.s_center) for o in blockers),
+                                   self.min_apex_lead_m)
+        last_u = self.cur_s + max(max(self._signed_gap(o.s_center) for o in blockers),
+                                  self.min_apex_lead_m)
 
         speed = max(abs(self.cur_vs), 1.0)
         pre_dist = float(np.clip(self.pre_dist_gain * speed, self.pre_dist_min, self.pre_dist_max))
         base_post = float(np.clip(self.post_dist_gain * speed, self.post_dist_min, self.post_dist_max))
 
-        left_room, right_room, left_taken, right_taken = self._side_rooms(
-            obs, candidates, apex_u, pre_dist, base_post)
+        left_room, right_room = self._group_side_rooms(
+            blockers, first_u, last_u, pre_dist, base_post, self.evasion_distance)
         dbg["left_clearance"] = left_room
         dbg["right_clearance"] = right_room
 
-        preferred = self._preferred_side(obs, left_room, right_room, left_taken, right_taken)
+        preferred = self._preferred_group_side(group_key, left_room, right_room)
         wider = "left" if left_room >= right_room else "right"
         sides = {"preferred": preferred, "opposite": _opposite(preferred), "wider": wider}
 
@@ -516,15 +531,10 @@ class StaticObstacleSpliner(Node):
             if key in tried:
                 continue
             tried.add(key)
-            if side == "left" and left_taken is not None:
-                last_reason = "left_side_occupied"
-                continue
-            if side == "right" and right_taken is not None:
-                last_reason = "right_side_occupied"
-                continue
-
-            apex_d = (obs.d_left + evasion) if side == "left" else (obs.d_right - evasion)
-            built, reason = self._build_path(obs, candidates, apex_u, apex_d, pre_dist, post_dist)
+            apex_d = (max(o.d_left for o in blockers) + evasion) if side == "left" \
+                else (min(o.d_right for o in blockers) - evasion)
+            built, reason = self._build_group_path(
+                blockers, candidates, first_u, last_u, apex_d, pre_dist, post_dist)
             if built is None:
                 last_reason = reason
                 continue
@@ -539,7 +549,7 @@ class StaticObstacleSpliner(Node):
                     throttle_duration_sec=2.0,
                 )
             self.last_side = side
-            self.last_side_obs_id = int(obs.id)
+            self.last_side_obs_id = group_key
             dbg.update({"side": side.upper(), "candidate_valid": True,
                         "apex_d": apex_d, "rung": rung})
             self._fill_msg(out, sample_s, sample_d, xy, psi, kappa, side)
@@ -570,14 +580,16 @@ class StaticObstacleSpliner(Node):
         """Longitudinal distance to `s`, negative when it is behind the car."""
         return (s - self.cur_s + self.max_s / 2) % self.max_s - self.max_s / 2
 
-    def _pick_target(self, candidates: List[Obstacle]) -> Obstacle:
-        # Prefer the obstacle the state machine is blaming, when it is one of ours,
-        # so both ends of the pipeline reason about the same object.
-        if self.hint_obs is not None:
-            for obs in candidates:
-                if obs.id == self.hint_obs.id:
-                    return obs
-        return min(candidates, key=lambda o: self._signed_gap(o.s_center))
+    def _pick_target_group(self, candidates: List[Obstacle]) -> List[Obstacle]:
+        """Return up to three visible obstacles in travel order.
+
+        A state-machine hint no longer switches planning from A to B: if the
+        hinted obstacle is visible it is included with the other visible
+        obstacles, and one path is built for the complete group.
+        """
+        ordered = sorted(candidates, key=lambda o: self._signed_gap(o.s_center))
+        limit = max(1, min(3, int(self.max_group_obstacles)))
+        return ordered[:limit]
 
     def _gb_idx(self, s):
         """Index into the scaled global line for one or more (wrapped) s values.
@@ -627,6 +639,22 @@ class StaticObstacleSpliner(Node):
             return None
 
         return left_room, right_room, occupied_by(left_apex), occupied_by(right_apex)
+
+    def _group_side_rooms(self, group, first_u, last_u, pre_dist, post_dist, evasion):
+        """Track room remaining after holding one side around the whole group."""
+        span = np.arange(first_u - pre_dist, last_u + post_dist, self.wpnt_dist) % self.max_s
+        idx = self._gb_idx(span)
+        left_apex = max(o.d_left for o in group) + evasion
+        right_apex = min(o.d_right for o in group) - evasion
+        return (float(np.min(self.gb_d_left[idx])) - left_apex,
+                float(np.min(self.gb_d_right[idx])) + right_apex)
+
+    def _preferred_group_side(self, group_key, left_room, right_room) -> str:
+        """Sticky same-side choice for a complete obstacle group."""
+        bias = 0.0
+        if self.last_side_obs_id == group_key:
+            bias = self.side_hysteresis_m if self.last_side == "left" else -self.side_hysteresis_m
+        return "left" if left_room + bias >= right_room else "right"
 
     def _preferred_side(self, obs, left_room, right_room, left_taken, right_taken) -> str:
         """Which side to try first, with hysteresis.
@@ -761,6 +789,81 @@ class StaticObstacleSpliner(Node):
         # controller sets its lookahead and cuts speed from kappa, and the state
         # machine replans the velocity profile from it. psi = atan2(dy, dx) is the
         # convention the global waypoints already carry (gb_optimizer.conv_psi).
+        dx, dy = np.gradient(px), np.gradient(py)
+        ddx, ddy = np.gradient(dx), np.gradient(dy)
+        psi = np.arctan2(dy, dx)
+        denom = np.power(dx * dx + dy * dy, 1.5)
+        kappa = np.divide(dx * ddy - dy * ddx, denom,
+                          out=np.zeros_like(denom), where=denom > 1e-9)
+        return (sample_s, sample_d, np.vstack([px, py]), psi, kappa, generated_count,
+                float(sample_u[-1] - self.cur_s)), ""
+
+    def _build_group_path(self, group, candidates, first_u, last_u,
+                          apex_d, pre_dist, post_dist):
+        """Build one continuous same-side path around every obstacle in group."""
+        # Reuse the proven single-path implementation for a one-obstacle group.
+        if len(group) == 1:
+            return self._build_path(
+                group[0], candidates, first_u, apex_d, pre_dist, post_dist)
+
+        control_s = [self.cur_s]
+        control_d = [self.cur_d]
+        move_start = first_u - pre_dist
+        if move_start > self.cur_s + max(0.5, self.wpnt_dist * 2):
+            control_s.append(move_start)
+            control_d.append(self.cur_d)
+        control_s.append(first_u)
+        control_d.append(apex_d)
+        if last_u > first_u + max(1e-3, self.resolution):
+            control_s.append(last_u)
+            control_d.append(apex_d)
+        control_s.append(last_u + post_dist)
+        control_d.append(0.0)
+
+        control_s = np.asarray(control_s, dtype=float)
+        control_d = np.asarray(control_d, dtype=float)
+        if np.any(np.diff(control_s) <= 1e-3):
+            return None, "degenerate_group_control_points"
+
+        psi_ref = float(self.gb_psi[self._gb_idx(self.cur_s % self.max_s)])
+        heading_err = np.arctan2(np.sin(self.cur_yaw - psi_ref), np.cos(self.cur_yaw - psi_ref))
+        slope0 = float(np.clip(np.tan(np.clip(heading_err, -1.2, 1.2)),
+                               -MAX_ENTRY_SLOPE, MAX_ENTRY_SLOPE))
+        try:
+            spline = CubicSpline(control_s, control_d, bc_type=((1, slope0), (1, 0.0)))
+        except ValueError:
+            return None, "group_spline_fit_failed"
+
+        sample_u = np.arange(control_s[0], control_s[-1], self.resolution)
+        if len(sample_u) < MIN_SAMPLES:
+            return None, "path_too_short"
+        lo = min(0.0, apex_d, self.cur_d)
+        hi = max(0.0, apex_d, self.cur_d)
+        sample_d = np.clip(spline(sample_u), lo, hi)
+
+        end_u = max(sample_u[-1] + self.tail_m, self.cur_s + self._path_end_eff)
+        tail_u = np.arange(sample_u[-1] + self.resolution,
+                           end_u + self.resolution / 2, self.resolution)
+        generated_count = len(sample_u)
+        sample_u = np.concatenate([sample_u, tail_u])
+        sample_d = np.concatenate([sample_d, np.zeros(len(tail_u))])
+        sample_s = sample_u % self.max_s
+        s_along = sample_u - self.cur_s
+
+        clamped = self._clamp_to_track(sample_s, sample_d, s_along)
+        was_clamped = bool(np.any(np.abs(clamped - sample_d) > 1e-6))
+        sample_d = clamped
+        if not self._path_clear_of(sample_u[:generated_count], sample_d[:generated_count],
+                                   candidates):
+            return None, "group_track_too_narrow" if was_clamped else "group_obstacle_clearance"
+
+        xy = self.converter.get_cartesian(sample_s, sample_d)
+        px, py = np.asarray(xy[0], dtype=float), np.asarray(xy[1], dtype=float)
+        if self.use_map_filter and self.map_filter.eroded_image is not None:
+            for i in range(generated_count):
+                if not self.map_filter.is_point_inside(px[i], py[i]):
+                    return None, "group_map_occupied"
+
         dx, dy = np.gradient(px), np.gradient(py)
         ddx, ddy = np.gradient(dx), np.gradient(dy)
         psi = np.arctan2(dy, dx)

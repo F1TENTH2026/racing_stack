@@ -31,23 +31,39 @@
   /planner/avoidance/static_otwpnts 구독이 ot_planner in {sqp, lane_change}
   조건 안에 들어 있어서, 다른 값으로 두면 정적 회피 경로 자체가 도달하지 않는다.
 
-  페이즈 전환 (속도 상한) — 기본은 바퀴 수 기반 자동:
-    speed_scale (0.7) 로 시작해서, fast_after_laps (10) 바퀴를 완주하면
-    race_phase_speed 노드가 speed_scale_fast (1.0) 로 한 번 올린다. 즉 1)+2)
-    구간과 3)의 첫 2-3바퀴까지는 0.7 로 달리고, 그 뒤 어택 구간만 1.0 이 된다.
-    세 값 모두 아래 런치 인자로 바꾼다:
+  페이즈 전환 (섹터 on/off) — 기본은 바퀴 수 기반 자동, 딱 두 구간이다:
+
+    초반 fast_after_laps (10) 바퀴 : 섹터를 아예 안 쓴다. 맵의 speed_scaling.yaml
+      에 섹터가 몇 개로 잘려 있든 무시하고, 트랙 전체를 speed_scale (0.7) 한 값
+      으로만 달린다 (speed_sector_tuner 의 use_sector_scaling:=false +
+      default_scaling:=speed_scale).
+
+    10바퀴 완주 이후 (끝까지)     : race_phase_speed 노드가 use_sector_scaling 을
+      true 로 한 번 돌리고 끝. 그때부터는 맵의 speed_scaling.yaml 에 적힌 섹터별
+      scaling 이 "적힌 그대로" 적용된다 — 여기에 곱해지는 배율 같은 건 없다.
+      한 번 전환되면 되돌아오지 않는다(세션 끝까지 유지).
+
+    두 값 모두 아래 런치 인자로 바꾼다:
 
       ros2 launch stack_master quali.launch.xml map:=f \
-           speed_scale:=0.6 speed_scale_fast:=1.0 fast_after_laps:=8
+           speed_scale:=0.6 fast_after_laps:=8
 
     바퀴 수는 lap_analyser 의 /lap_data 를 쓰고, 완주한 바퀴만 센다(첫 결승선
-    통과부터 카운트 시작). 자동 전환이 싫으면 auto_speed_up:=false 로 끄면
-    세션 내내 speed_scale 로 달린다.
+    통과부터 카운트 시작). auto_speed_up:=false 로 끄면 이 노드를 아예 안 띄우고,
+    처음부터 speed_scaling.yaml 로 달린다 — 전환은 직접 한다.
 
-  수동 전환 (언제든, 재실행 없이 live):
-    ros2 param set /speed_sector_tuner global_limit 0.5
-  global_limit 은 각 섹터 scaling 의 상한(clip)이라, 맵의 speed_scaling.yaml 에
-  적힌 값을 넘어서지는 않는다.
+  즉 어택 구간 속도는 맵의 speed_scaling.yaml 하나로만 정한다. 더 빠르게/느리게
+  가고 싶으면 런치 인자가 아니라 그 yaml 의 섹터 scaling 을 고치면 된다.
+
+  수동 조작 (언제든, 재실행 없이 live):
+    ros2 param set /speed_sector_tuner default_scaling 0.5      # 균일 구간 속도
+    ros2 param set /speed_sector_tuner use_sector_scaling true  # 섹터 조기 투입
+    ros2 param set /speed_sector_tuner phase_multiplier 0.9     # 섹터 전체 트림
+  phase_multiplier 는 각 섹터 scaling 에 곱해지는 배율이다(상한 clip 이 아님).
+  이 런치는 건드리지 않으므로 yaml 값(보통 1.0) 그대로 남고, 그래서 전환 후
+  yaml 이 그대로 나온다. 위처럼 직접 넣으면 주행 중 전 섹터를 한 번에 트림할 수
+  있다. 균일 구간(use_sector_scaling false) 에서는 섹터 scaling 도
+  phase_multiplier 도 전부 무시되고 default_scaling 하나만 쓴다.
 
   SIM : ros2 launch stack_master quali.launch.xml map:=f sim:=true
   REAL: ros2 launch stack_master quali.launch.xml map:=f sim:=false
@@ -55,16 +71,20 @@
 <launch>
   <arg name="map"        description="Map name (folder in stack_master/maps/)"/>
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
-  <arg name="localization" default="kiss" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
+  <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
   <arg name="speed_scale" default="0.7"
-       description="Speed cap (speed_sector_tuner global_limit, 0.0-2.0) the session STARTS on: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용."/>
-  <arg name="speed_scale_fast" default="1.0"
-       description="Speed cap switched to after fast_after_laps completed laps: 2분 어택 구간용."/>
+       description="Flat scaling (0.0-2.0) used over the WHOLE lap for the first fast_after_laps laps, sectors ignored: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. After the switch it is gone -- the map's speed_scaling.yaml drives on its own."/>
   <arg name="fast_after_laps" default="10"
-       description="Completed laps (lap_analyser /lap_data) after which speed_scale -> speed_scale_fast. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
+       description="Completed laps (lap_analyser /lap_data) after which the flat speed_scale gives way to the map's speed_scaling.yaml. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
   <arg name="auto_speed_up" default="true"
-       description="Run the lap-counting speed_scale -> speed_scale_fast switch. false 면 세션 내내 speed_scale 로 달리고 전환은 ros2 param set 으로 직접 한다."/>
+       description="Run the lap-counting flat -> sector switch. false 면 처음부터 맵의 speed_scaling.yaml 로 달리고 전환은 ros2 param set 으로 직접 한다."/>
+
+  <!-- Opening laps run sector-less only when the lap-counting node is there to end
+       them; without it, falling back to the map's sectors from the start beats
+       being stuck on one flat speed for the whole session. -->
+  <let name="start_sector_scaling" value="false" if="$(var auto_speed_up)"/>
+  <let name="start_sector_scaling" value="true"  unless="$(var auto_speed_up)"/>
   <arg name="debug" default="false"
        description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
@@ -79,22 +99,27 @@
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>
     <arg name="virtual"      value="$(var virtual)"/>
-    <arg name="speed_scale"  value="$(var speed_scale)"/>
+    <!-- Only the flat opening speed is seeded here. base_system's own speed_scale
+         (-> phase_multiplier) is deliberately NOT passed: leaving it at the yaml's
+         1.0 is what makes the map's speed_scaling.yaml apply exactly as written
+         once the sectors come on. -->
+    <arg name="default_scaling" value="$(var speed_scale)"/>
+    <arg name="sector_scaling"  value="$(var start_sector_scaling)"/>
     <arg name="debug"        value="$(var debug)"/>
   </include>
 
-  <!-- ===== Race-phase speed cap =====
-       base_system seeds global_limit with speed_scale at launch; this node makes
-       the single upgrade to speed_scale_fast once fast_after_laps laps are done.
-       It only ever writes the parameter once, so a manual `ros2 param set` at any
-       point (before or after) still wins. -->
+  <!-- ===== Race-phase speed switch =====
+       base_system starts the tuner sector-less on speed_scale; this node flips
+       use_sector_scaling once fast_after_laps laps are done, handing the car to the
+       map's speed_scaling.yaml as written. It only ever writes that one parameter
+       once, so a manual `ros2 param set` at any point (before or after) still wins. -->
   <group if="$(var auto_speed_up)">
     <node pkg="stack_master" exec="race_phase_speed_node.py" name="race_phase_speed" output="screen">
-      <!-- Explicit types: `speed_scale:=1` on the command line would otherwise be
+      <!-- default_scale is logged only (base_system seeds the real value); explicit
+           type because `speed_scale:=1` on the command line would otherwise be
            inferred as an int and clash with the node's double declaration. -->
-      <param name="slow_scale"      value="$(var speed_scale)"      type="float"/>
-      <param name="fast_scale"      value="$(var speed_scale_fast)" type="float"/>
-      <param name="fast_after_laps" value="$(var fast_after_laps)"  type="int"/>
+      <param name="default_scale"   value="$(var speed_scale)"     type="float"/>
+      <param name="fast_after_laps" value="$(var fast_after_laps)" type="int"/>
     </node>
   </group>
 

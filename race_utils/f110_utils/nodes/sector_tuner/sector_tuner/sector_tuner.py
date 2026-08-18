@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+from copy import deepcopy
 import yaml
 import rclpy
 from rcl_interfaces.msg import ParameterType, ParameterDescriptor, FloatingPointRange
@@ -28,6 +29,12 @@ class SectorTuner(Node):
     (loaded as launch parameter overrides). When the `save_params` parameter is
     set True, the current sector configuration is written back to the map's
     speed_scaling.yaml (unicorn-specific behaviour).
+
+    Two scaling modes, switched live by `use_sector_scaling`:
+        True  -- per-sector scaling from the yaml, times `phase_multiplier`.
+        False -- one flat `default_scaling` for the whole lap; sectors and
+                 phase_multiplier are ignored. quali.launch.xml starts here for
+                 its first laps and flips the flag once they are done.
     """
 
     def __init__(self):
@@ -46,14 +53,20 @@ class SectorTuner(Node):
         self.glb_wpnts_sp_scaled = None
         self.update_map = False
 
+        # Uniform-phase knobs. Declared here rather than read from the map yaml so
+        # that every map has them and save_yaml() never writes a transient race
+        # phase back to disk. The launch files override them like any other param.
+        if not self.has_parameter('use_sector_scaling'):
+            self.declare_parameter('use_sector_scaling', True)
+        if not self.has_parameter('default_scaling'):
+            self.declare_parameter('default_scaling', 1.0)
+
         # get initial scaling
         self.sectors_params = self.parameters_to_dict()
         self.n_sectors = self.sectors_params['n_sectors']
-        # apply the same clip the dyn callback does, so the yaml is in effect at
-        # startup (otherwise scaling stays raw until the first param change).
-        for i in range(self.n_sectors):
-            self.sectors_params[f"Sector{i}"]['scaling'] = np.clip(
-                self.sectors_params[f"Sector{i}"]['scaling'], 0, self.sectors_params['global_limit'])
+        # apply the phase_multiplier at startup too, so the yaml is in effect right
+        # away (otherwise scaling stays raw until the first param change).
+        self.apply_phase_multiplier()
 
         # unicorn-specific: path to the yaml that can be written back to disk
         # (the map's speed_scaling.yaml). Empty -> save-back disabled.
@@ -65,7 +78,8 @@ class SectorTuner(Node):
         desc = ParameterDescriptor(
             type=ParameterType.PARAMETER_DOUBLE,
             floating_point_range=[FloatingPointRange(from_value=0.0, to_value=2.0, step=0.01)])
-        self.set_descriptor('global_limit', descriptor=desc)
+        self.set_descriptor('phase_multiplier', descriptor=desc)
+        self.set_descriptor('default_scaling', descriptor=desc)
         for i in range(self.n_sectors):
             self.set_descriptor('Sector' + str(i) + '.scaling', descriptor=desc)
 
@@ -127,12 +141,23 @@ class SectorTuner(Node):
             self.set_parameters(
                 [rclpy.parameter.Parameter('save_params', rclpy.Parameter.Type.BOOL, False)])
 
-        # update params
-        for i in range(self.n_sectors):
-            self.sectors_params[f"Sector{i}"]['scaling'] = np.clip(
-                self.sectors_params[f"Sector{i}"]['scaling'], 0, self.sectors_params['global_limit'])
+        self.apply_phase_multiplier()
 
         self.get_logger().info(str(self.sectors_params))
+
+    def apply_phase_multiplier(self):
+        """
+        Folds phase_multiplier into every sector's scaling, in place.
+
+        phase_multiplier SCALES each sector's configured scaling rather than
+        clipping it -- a map's speed_scaling.yaml scaling: 1.5 always reaches 1.5x
+        at phase_multiplier 1.0 (its default) instead of being silently capped by
+        it. Irrelevant while use_sector_scaling is False: the uniform phase runs
+        off default_scaling alone (see get_vel_scaling).
+        """
+        for i in range(self.n_sectors):
+            self.sectors_params[f"Sector{i}"]['scaling'] = max(
+                0.0, self.sectors_params[f"Sector{i}"]['scaling'] * self.sectors_params['phase_multiplier'])
 
     def save_yaml(self):
         """unicorn-specific: dump the current sector configuration to the map yaml."""
@@ -142,7 +167,7 @@ class SectorTuner(Node):
         try:
             yaml_data = {
                 'save_params': False,
-                'global_limit': float(self.sectors_params['global_limit']),
+                'phase_multiplier': float(self.sectors_params['phase_multiplier']),
                 'n_sectors': int(self.n_sectors),
             }
             for i in range(self.n_sectors):
@@ -172,6 +197,13 @@ class SectorTuner(Node):
         s
             s parameter whose sector we want to find
         """
+        # Uniform phase: one flat scaling for the whole lap, no sector boundaries
+        # and no interpolation between them. quali's opening laps run here so the
+        # car drives the plain launch-arg value everywhere; race_phase_speed_node
+        # flips use_sector_scaling once those laps are done.
+        if not self.sectors_params.get('use_sector_scaling', True):
+            return max(0.0, self.sectors_params.get('default_scaling', 1.0))
+
         hl_change = 10
 
         if self.n_sectors > 1:
@@ -229,8 +261,12 @@ class SectorTuner(Node):
     def scale_points(self):
         """Scales the global waypoints' velocities."""
         if self.glb_wpnts_scaled is None or self.update_map:
-            self.glb_wpnts_scaled = self.glb_wpnts_og
-            self.glb_wpnts_sp_scaled = self.glb_wpnts_sp_og
+            # deepcopy, not a reference: the scaled array is written in place below,
+            # so aliasing the original would scale the already-scaled velocities
+            # again on every timer tick (until the republisher happens to hand us a
+            # fresh message).
+            self.glb_wpnts_scaled = deepcopy(self.glb_wpnts_og)
+            self.glb_wpnts_sp_scaled = deepcopy(self.glb_wpnts_sp_og)
             self.update_map = False
 
         for i, wpnt in enumerate(self.glb_wpnts_og.wpnts):
