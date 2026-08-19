@@ -7,9 +7,9 @@ ot_sector_tuner:
     ot_sector_begin: 0.5
     Overtaking_sector0:
       start: 0
-      end: 252
+      end: 254
       ot_flag: false
-    Overtaking_sector1: #ot
-      start: 253
-      end: 366
+    Overtaking_sector1:
+      start: 255
+      end: 369
       ot_flag: false
