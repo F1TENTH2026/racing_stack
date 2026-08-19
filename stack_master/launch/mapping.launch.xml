@@ -49,6 +49,13 @@
     <arg name="virtual"        value="false"/>
     <arg name="joy_topic"      value="$(var mux_joy_topic)"/>
     <arg name="joy_max_speed"  value="$(var mux_joy_speed)"/>
+    <!-- PF never runs while mapping (this launch file doesn't bring up
+         base_system.launch.xml), so the wide +-3.14 rad FOV that vehicle_config
+         sets for pf is not needed here and risks self-hit noise on the chassis
+         at the scan's edges degrading cartographer's scan matching. Narrow
+         back to the pre-PF +-1.8 rad range for this launch only, see
+         low_level.launch.xml's mapping_lidar_fov. -->
+    <arg name="mapping_lidar_fov" value="true"/>
   </include>
 
   <!-- Fixed-speed mapping teleop: hold LT to roll forward at mapping_speed, steer
