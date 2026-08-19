@@ -25,7 +25,7 @@
   <!-- ===== interactive trajectory tuner: reads global_waypoints.json, publishes
        /global_waypoints, /global_waypoints/markers, /trackbounds/markers ===== -->
   <node pkg="gb_optimizer" exec="global_trajectory_tuner" name="global_traj_tuner_node" output="screen" emulate_tty="true">
-    <param name="map"     value="$(var map)"/>
+    <param name="map"     value="$(var map)" type="str"/>
     <param name="map_dir" value="$(var maps_dir)/$(var map)/"/>
   </node>
 

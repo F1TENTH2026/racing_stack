@@ -57,7 +57,7 @@
        (sim virtual_perception) owns /tracking/obstacles. -->
   <node pkg="perception" exec="detect" name="detect" output="screen">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
-    <param name="map" value="$(var map)"/>
+    <param name="map" value="$(var map)" type="str"/>
   </node>
   <!-- with virtual:=true tracking_merger owns /tracking/obstacles, so tracking feeds it
        on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
@@ -75,7 +75,7 @@
     <param name="racecar_version" value="$(var racecar_version)"/>
     <param name="timetrials_only" value="false"/>
     <param name="ot_planner"      value="$(var ot_planner)"/>
-    <param name="map"             value="$(var map)"/>
+    <param name="map"             value="$(var map)" type="str"/>
     <param name="debug_log_enabled" value="$(var debug)"/>
   </node>
 

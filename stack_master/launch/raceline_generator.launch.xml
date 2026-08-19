@@ -35,7 +35,7 @@
     <param name="racecar_version"    value="$(var racecar_version)"/>
     <param name="create_map"         value="false"/>
     <param name="create_global_path" value="true"/>
-    <param name="map"                value="$(var map)"/>
+    <param name="map"                value="$(var map)" type="str"/>
     <param name="map_dir"            value="$(var maps_dir)/$(var map)/"/>
     <param name="reverse_mapping"    value="$(var reverse)"/>
     <param name="show_plots"         value="$(var show_plots)"/>

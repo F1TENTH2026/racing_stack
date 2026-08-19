@@ -110,7 +110,7 @@
 
   <!-- Save the map: click RViz "2D Goal Pose" to finish SLAM + write the files. -->
   <node pkg="stack_master" exec="finish_map.py" name="finish_map_node" output="screen">
-    <param name="map_name" value="$(var map)"/>
+    <param name="map_name" value="$(var map)" type="str"/>
     <param name="maps_dir" value="$(var maps_save_dir)"/>
   </node>
 </launch>

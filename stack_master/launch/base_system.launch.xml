@@ -71,7 +71,7 @@
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
 
   <node pkg="gb_optimizer" exec="global_trajectory_publisher" name="global_republisher" output="screen">
-    <param name="map" value="$(var map)"/>
+    <param name="map" value="$(var map)" type="str"/>
   </node>
 
   <!-- speed_scaling.yaml -> /global_waypoints_scaled + /sector_markers.
