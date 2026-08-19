@@ -5,37 +5,37 @@ speed_sector_tuner:
     n_sectors: 6
     Sector0: # 코너 (헤어핀 in)
       start: 0
-      end: 27
+      end: 29
       scaling: 1.1
       only_FTG: false
       no_FTG: false
     Sector1: # 코너 (헤어핀 out)
-      start: 28
-      end: 66
+      start: 30
+      end: 73
       scaling: 1.15
       only_FTG: false
       no_FTG: false
     Sector2: # 꼬불 직선
-      start: 67
-      end: 165
+      start: 74
+      end: 164
       scaling: 1.3
       only_FTG: false
       no_FTG: false
     Sector3: # 코너 (M in)
-      start: 166
-      end: 204
-      scaling: 1.1
+      start: 165
+      end: 203
+      scaling: 1.0
       only_FTG: false
       no_FTG: false
     Sector4: # 코너 (M out)
-      start: 205
-      end: 246
+      start: 204
+      end: 245
       scaling: 1.15
       only_FTG: false
       no_FTG: false
     Sector5: # 직선
-      start: 247
-      end: 366
+      start: 246
+      end: 369
       scaling: 1.5
       only_FTG: false
       no_FTG: false
