@@ -1,11 +1,23 @@
 min_horizon: 0.0
 # [m] How far ahead this planner is held responsible. MUST stay under the length of
 # the path it publishes (stack_master/config/static_avoidance_planner.yaml
-# min_path_end_m, capped at a third of the lap = 7.44 m on 0814test2), or a static
-# obstacle between the path's end and this horizon reads as "beyond the path" and
-# blocks the avoidance for as long as it is in view.
-# 10.0 -> 7.0: 10 m is 45% of this 22.31 m lap, which no publishable path can cover.
-max_horizon: 7.0
+# min_path_end_m, capped at a third of the lap), or a static obstacle between the
+# path's end and this horizon reads as "beyond the path" and blocks the avoidance
+# for as long as it is in view.
+# 10.0 -> 7.0 -> 8.0: raised to match stack_master/config/static_avoidance_planner
+# .yaml's lookahead going 6.0 -> 8.0 (so the state machine starts treating a static
+# obstacle as blocking as soon as the planner starts building a path around it,
+# instead of still calling the raceline "free" out to the old 7 m). Matches
+# min_path_end_m (8.0) exactly, same as the previous 7.0 <= 8.0 relationship.
+# CAVEAT: unlike the planner's own lookahead/min_path_end_m, THIS value is not
+# auto-capped at track_length/3 at runtime. It is safe on the currently tuned map
+# (0815test3, 37.8 m) and on 'f' (86.3 m), but tracks under ~24 m -- 0814test1
+# (22.9 m), 0814test2 (24.2 m), 0815test1 (23.5 m), 0810test1 (23.6 m),
+# 0805test1 (23.9 m), 0804test/testt2 (19.7/23.5 m) -- fall under track/3 < 8.0,
+# so on those maps this can reintroduce the "stuck in TRAILING/GB_TRACK on a
+# static obstacle beyond path end" bug that dropping it to 7.0 was fixing. Lower
+# it back toward 7.0 (or track_length/3) before testing on those maps.
+max_horizon: 8.0
 lateral_width_m: 0.1 
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the

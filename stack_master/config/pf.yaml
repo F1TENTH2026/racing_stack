@@ -5,9 +5,10 @@
 # actually exist on this car (base_link, laser - see CAR/static_transforms.yaml).
 #
 # publish_tf is false on purpose. The EKF downstream (ekf_pf.yaml) owns
-# map -> base_link; if the filter also published map -> laser, laser would
-# have two parents (base_link -> laser already exists via static_tf_publisher)
-# and TF would reject the tree.
+# map -> odom (vesc_to_odom fills in odom -> base_link -- see ekf_pf.yaml's
+# header); if the filter also published map -> laser, laser would have two
+# parents (base_link -> laser already exists via static_tf_publisher) and TF
+# would reject the tree.
 #
 # scan_topic / odometry_topic are left unset here: the /** wildcard section in
 # CAR/vehicle_config.yaml sets them for every node and vehicle_config.yaml is

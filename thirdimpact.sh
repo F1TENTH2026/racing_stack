@@ -120,6 +120,27 @@ fi
 [ -f "$_URS_WS/install/$_urs_local_setup" ] && source "$_URS_WS/install/$_urs_local_setup"
 export RAYCASTER_DIR="$_URS_REPO/race_utils/raycaster"
 
+# --- 3.5) shell tab-completion for `ros2` / `colcon` ---
+# RoboStack's conda activation sources $CONDA_PREFIX/setup.sh -- the POSIX-sh
+# flavour, which never pulls in the bash/zsh argcomplete registration that
+# /opt/ros/*/setup.bash would. Without it `ros2 <TAB>` just rings the bell and
+# falls back to filename completion. Register the hooks explicitly; interactive
+# shells only, since `complete` is meaningless in a script.
+case "$-" in
+    *i*)
+        if [ -n "${ZSH_VERSION:-}" ]; then
+            _urs_ac_ext=zsh
+        else
+            _urs_ac_ext=bash
+        fi
+        for _urs_ac_hook in "$CONDA_PREFIX/share/ros2cli/environment/ros2-argcomplete.$_urs_ac_ext" \
+                            "$CONDA_PREFIX/share/colcon_argcomplete/hook/colcon-argcomplete.$_urs_ac_ext"; do
+            [ -f "$_urs_ac_hook" ] && source "$_urs_ac_hook"
+        done
+        unset _urs_ac_ext _urs_ac_hook
+        ;;
+esac
+
 # --- macOS portability (no-op on Linux) ---
 # (1) Linux-only CLIs (taskset, ...) some launch files use via launch-prefix:
 #     put repo-tracked shims on PATH so they don't crash on macOS.
