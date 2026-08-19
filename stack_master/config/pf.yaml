@@ -31,8 +31,10 @@ particle_filter:
     base_frame: 'base_link'
     laser_frame: 'laser'
 
-    # Every 18th beam. The UST-10LX returns 1081, so the filter weighs ~60 per
-    # particle - enough to localise, cheap enough to run at max_particles.
+    # Every 18th beam. urg_node's +-1.8 rad window (CAR/vehicle_config.yaml,
+    # shared with mapping/detect) returns ~825 of the UST-10LX's 1081 steps,
+    # so the filter weighs ~45 per particle - enough to localise, cheap enough
+    # to run at max_particles.
     angle_step: 18
     max_particles: 1000
     squash_factor: 2.2
