@@ -30,12 +30,12 @@ speed_sector_tuner:
     Sector4: # 코너 (M out)
       start: 240
       end: 283
-      scaling: 1.1 #1.1
+      scaling: 1.15 #1.1
       only_FTG: false
       no_FTG: false
     Sector5: # 직선
       start: 284
       end: 368
-      scaling: 1.4 #1.5
+      scaling: 1.5 #1.5
       only_FTG: false
       no_FTG: false
