@@ -72,7 +72,20 @@ tracking:
     publish_static: true
     ratio_to_glob_path: 0.6
     ttl_dynamic: 40
-    ttl_static: 12
+    # 12 -> 40 frames. With noMemoryMode: true, ttl is decremented on EVERY frame a
+    # static track goes unmatched (multi_tracking.py update()), so 12 @ 40 Hz meant
+    # 0.3 s of missed detections deleted the track. logfile/
+    # latest_static_avoidance.log shows one obstacle at a fixed obs_s=11.4 cycling
+    # through id 1 -> 4 -> 5 -> 7 -> 8 -> 9 -> 14 with
+    # reason=no_static_obstacle_in_range in between: each new id costs min_nb_meas
+    # frames to re-confirm as static, drops the obstacle out of /tracking/obstacles
+    # meanwhile, and makes the planner's _usable_cache discard its path as
+    # "different_obstacle". 40 frames = 1.0 s tolerates that without holding a
+    # genuinely departed obstacle long (an obstacle that really left also leaves
+    # the 8 m dist_infront window). This matters more now that the avoidance shape
+    # is latched per obstacle-id group (_latch_move_start): an id change resets the
+    # latch and the long approach starts over.
+    ttl_static: 40
     # 0.1 -> 0.2: dynamic obstacles revert to static once avg_vs (Kalman-estimated
     # s-velocity) drops below this (StaticDynamic.update()). A static obstacle
     # that got misclassified as dynamic was estimating small nonzero vs from pure

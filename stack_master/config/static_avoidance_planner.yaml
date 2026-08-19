@@ -13,6 +13,7 @@
 #   min_free_dist_m      >= static_avoidance_planner.lateral_width_m   (0.10)
 #   raceline_clearance_m >= gb_ego_width_m/2 + global_tracking.lateral_width_m
 #   min_path_end_m       >= static_avoidance_planner.max_horizon       (10.0)
+#                            ... and mind the short-track caveat on min_path_end_m
 #
 # Break the first and this planner publishes paths the state machine refuses.
 # Break the second and the state machine asks for an avoidance this planner
@@ -45,20 +46,24 @@ static_avoidance_planner:
     # (s - cur_s) % max_s comparison in this node and in the state machine, because
     # they all wrap at max_s/2 and can no longer tell ahead from behind.
     #
-    # 10.0 -> 6.0 -> 8.0. Raised to line up with the perception layer's own
-    # detection range (tracking.dist_infront = 8.0 m, detect.max_viewing_distance
-    # = 9.0 m in opponent_tracker_params.yaml): at 6.0 the planner was sitting on
-    # an already-detected obstacle for ~2 m before it started building a path
-    # around it. state_machine/config/planners/static_avoidance_planner.yaml's
-    # max_horizon was raised 7.0 -> 8.0 in lockstep -- otherwise the state machine
-    # keeps judging the raceline "free" past the old 7 m and OVERTAKE still only
-    # triggers once the obstacle closes inside that, defeating this change.
-    # CAVEAT: on tracks under ~24 m (track/3 < 8.0, e.g. 0814test1/2, 0815test1,
-    # 0810test1, 0805test1, 0804test*) the _TRACK_FRACTION cap below still keeps
-    # this planner's own published path shorter than 8.0 m -- but max_horizon in
-    # the state_machine yaml is NOT auto-capped the same way, so on those short
-    # maps re-check that invariant (see that file's comment) before racing on them.
-    lookahead: 8.0
+    # 10.0 -> 6.0 -> 8.0 -> 10.0. At 6.0 the planner literally could not see what
+    # the tracker had already published: state_machine's [OBSTACLES] log shows
+    # static obstacles confirmed at 11-15 m, while the largest obs_dist in ANY
+    # logfile/static_avoidance_*.log is 5.97 m. Everything past 6 m read as
+    # `no_static_obstacle_in_range`, so the car trailed the raceline until the
+    # obstacle closed inside 6 m and then made the whole lateral move in the last
+    # four (pre_dist_max). 8.0 lined this up with the perception layer's own range
+    # (tracking.dist_infront 8.0, detect.max_viewing_distance 9.0); 10.0 gives
+    # pre_dist_max = 8.0 the room it now consumes.
+    # ON ITS OWN THIS CHANGES NOTHING -- move_start is anchored to the obstacle,
+    # not to the car, so a longer lookahead only lengthens the flat hold in front
+    # of it. It is here for pre_dist_gain/pre_dist_max; the two go together.
+    # Capped at a third of the lap at runtime: 12.23 m on 0818test (36.70 m) and
+    # 11.54 m on 0815test3 (34.62 m), so 10.0 is the effective value on both. On
+    # the short maps here (0804test 17.79 ... 0810test1 22.84 m) the cap bites at
+    # 5.9-7.6 m, which is harmless HERE but not for the state machine's
+    # max_horizon -- see the note on min_path_end_m below.
+    lookahead: 10.0
 
     # [m] Keep planning for an obstacle up to this far BEHIND the car. Dropping
     # it the instant its s went past ended the manoeuvre before the return leg
@@ -92,13 +97,52 @@ static_avoidance_planner:
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
     spline_resolution: 0.10
 
-    # [m] Length of the lateral transition BEFORE the apex, as
-    # clip(gain * speed, min, max). Long enough that the move is gentle at
-    # speed, short enough that the car does not give up track width for the
-    # whole approach to a distant obstacle.
-    pre_dist_gain: 1.0
+    # [m] Length of the lateral transition BEFORE the apex. THIS is the knob that
+    # decides when the steering actually starts -- lookahead only decides when the
+    # planner starts thinking. Now
+    #   clip(min(room to the apex, gain * speed), min, max)
+    # scaled by the raceline curvature over the span (_approach_dist /
+    # _corner_scale in static_avoidance_node.py), instead of clip(gain*speed,..).
+    #
+    # Why the ceiling moved 4.0 -> 8.0: the offset is about 0.55 m, so
+    # kappa = 6*dd/L^2 is 0.206 rad/m over 4 m and 0.052 rad/m over 8 m. The state
+    # machine's static_avoidance_cb -> update_velocity puts that kappa through the
+    # ggv (ay_max 4.5 m/s^2), which caps the avoidance at 4.67 m/s in the first
+    # case and does not constrain it at all in the second. Curvature is the only
+    # lever on speed during an avoidance, and length is the only lever on
+    # curvature.
+    # gain 1.0 -> 1.6 so the speed term can actually reach the new ceiling at
+    # racing speed (1.6 * 5 m/s = 8 m); below ~2.5 m/s the min floor governs.
+    # 8 m is also about the practical limit on 0815test3: its straights measure
+    # ~10 m and ~8.6 m, and d_right narrows to 0.51 m, so a longer span would meet
+    # boundary_margin and be rejected by _clamp_to_track.
+    pre_dist_gain: 1.6
     pre_dist_min: 2.0
-    pre_dist_max: 4.0
+    pre_dist_max: 8.0
+
+    # The flat hold in front of the car is whatever the speed term leaves of the
+    # room (see _build_path): 10 m of room and 8 m of transition means the car
+    # holds its current offset for 2 m and then moves over. When the obstacle is
+    # nearer than the speed term wants there is no hold and the move starts at the
+    # car, exactly as the old code did in every case.
+
+    # [rad/m] Raceline curvature above which the line counts as "in a corner"
+    # (_corner_exit_limit). 0 disables the correction. The approach is walked back
+    # from the apex and cut at the exit of the last corner it reaches into, so the
+    # lateral move starts once the car is OUT of the corner rather than while it
+    # is still using the track width to get around it.
+    # On 0815test3 (|kappa| median 0.166, p75 0.317, max 0.754 rad/m) 0.30 picks
+    # out exactly the two real straights: obstacles with their apex at s 6.2-10.2
+    # or s 24.1-28.5 get the full 8 m approach, the rest fall back to the floor
+    # below. Retune per map -- it is an absolute curvature, not a fraction.
+    pre_dist_kappa_max: 0.30
+
+    # [m] Floor under the corner cut above -- NOT under the room limit. It is set
+    # to the OLD pre_dist_max on purpose: an obstacle sitting in a corner is now
+    # approached over exactly the distance it was before, so this whole change can
+    # only lengthen an approach, never shorten one. Raising it weakens the corner
+    # rule; setting it equal to pre_dist_max disables the rule entirely.
+    pre_dist_corner_min_m: 4.0
 
     # [m] Length of the return leg AFTER the apex, same form. There is time to
     # move over before the obstacle and none to spare after it, so the two
@@ -116,10 +160,23 @@ static_avoidance_planner:
     # (the static/beyond_path branch of _check_free_frenet), so the path has to
     # reach at least as far as its max_horizon.
     #
-    # 11.0 -> 8.0, and capped at a third of the lap at runtime (7.44 m on
-    # 0814test2) for the reason given under `lookahead`. The state machine's
-    # static_avoidance_planner.max_horizon was lowered to 7.0 to stay under it.
-    min_path_end_m: 8.0
+    # 11.0 -> 8.0 -> 10.0, raised with lookahead: an 8 m approach plus the return
+    # leg reaches further than 8 m, and the state machine must be able to measure
+    # that far or it calls the far end "beyond path". Only lengthens the
+    # global-line tail (end_u = max(sample_u[-1] + tail_m, cur_s + _path_end_eff)),
+    # so it cannot cause a rejection. Capped at a third of the lap at runtime
+    # (11.54 m on 0815test3, so 10.0 stands there).
+    #
+    # ** SHORT-TRACK CAVEAT ** state_machine/config/planners/
+    # static_avoidance_planner.yaml's max_horizon was raised 7.0 -> 10.0 to match,
+    # and THAT value is not capped at track/3 at runtime the way this one is. On
+    # 0815test3 (34.62 m) and 'f' (77.65 m) they agree at 10.0. On the sub-30 m
+    # maps here -- 0804test 17.79, 0804testt2 20.49, 0814test1 20.60, 0814test2
+    # 22.31, 0815test1 22.48, 0805test1 22.75, 0810test1 22.84 -- this one is
+    # capped to 5.93-7.61 m while max_horizon stays 10.0, breaking the invariant
+    # and reintroducing "stuck in TRAILING on a static obstacle beyond path end".
+    # Lower max_horizon to track_length/3 before racing on any of those.
+    min_path_end_m: 10.0
 
     # [m] Once the car is alongside the obstacle the apex is pushed this far
     # ahead rather than the path being dropped -- an empty path here makes the

@@ -4,20 +4,21 @@ min_horizon: 0.0
 # min_path_end_m, capped at a third of the lap), or a static obstacle between the
 # path's end and this horizon reads as "beyond the path" and blocks the avoidance
 # for as long as it is in view.
-# 10.0 -> 7.0 -> 8.0: raised to match stack_master/config/static_avoidance_planner
-# .yaml's lookahead going 6.0 -> 8.0 (so the state machine starts treating a static
-# obstacle as blocking as soon as the planner starts building a path around it,
-# instead of still calling the raceline "free" out to the old 7 m). Matches
-# min_path_end_m (8.0) exactly, same as the previous 7.0 <= 8.0 relationship.
-# CAVEAT: unlike the planner's own lookahead/min_path_end_m, THIS value is not
-# auto-capped at track_length/3 at runtime. It is safe on the currently tuned map
-# (0815test3, 37.8 m) and on 'f' (86.3 m), but tracks under ~24 m -- 0814test1
-# (22.9 m), 0814test2 (24.2 m), 0815test1 (23.5 m), 0810test1 (23.6 m),
-# 0805test1 (23.9 m), 0804test/testt2 (19.7/23.5 m) -- fall under track/3 < 8.0,
-# so on those maps this can reintroduce the "stuck in TRAILING/GB_TRACK on a
-# static obstacle beyond path end" bug that dropping it to 7.0 was fixing. Lower
-# it back toward 7.0 (or track_length/3) before testing on those maps.
-max_horizon: 8.0
+# 10.0 -> 7.0 -> 8.0 -> 10.0: raised in lockstep with the planner's lookahead
+# (6 -> 10) and min_path_end_m (8 -> 10). Without this the state machine keeps
+# calling the raceline "free" past the old horizon, so OVERTAKE still waits for
+# the obstacle to close inside it and the longer, gentler approach the planner
+# can now build is never actually driven. Matches min_path_end_m (10.0) exactly,
+# same relationship as the previous 7.0 <= 8.0.
+# ** NOT capped at track_length/3 at runtime, unlike the planner's own lookahead
+# and min_path_end_m. ** Safe on the tuned maps -- 0818test (36.70 m -> cap
+# 12.23), 0815test3 (34.62 -> 11.54), f (77.65), map_test (86.46). On every
+# sub-30 m map here -- 0804test 17.79, 0804testt2 20.49, 0814test1 20.60,
+# 0814test2 22.31, 0815test1 22.48, 0805test1 22.75, 0810test1 22.84 -- the
+# planner's min_path_end_m is capped to 5.93-7.61 m while this stays 10.0, which
+# breaks the invariant above and brings back "stuck in TRAILING/GB_TRACK on a
+# static obstacle beyond path end". Lower this to track_length/3 on those maps.
+max_horizon: 10.0
 lateral_width_m: 0.1 
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the
