@@ -23,6 +23,21 @@
        needs this node to supply the other half of the REP-105 chain (see
        ekf_pf.yaml / ekf_cartographer.yaml). -->
   <arg name="odom_tf"        default="false"               description="Have vesc_to_odom_node publish odom->base_link TF"/>
+  <!-- /scan angle range. CAR/vehicle_config.yaml's urg_node.angle_min/max is
+       +-3.14 rad (full ~270 deg) so pf (localization.launch.xml) gets the
+       whole sensor FOV: pf/detect read msg.angle_min/angle_max off /scan
+       directly and detect self-narrows via its own max_angle_rad param
+       (opponent_tracker_params.yaml), but cartographer_node has no angle
+       filter of its own and consumes /scan raw (mapping.launch.xml). PF never
+       runs while mapping (mapping.launch.xml doesn't include
+       base_system.launch.xml), so mapping doesn't need the wide FOV, and the
+       extra +-1.34 rad on each side over the old +-1.8 rad crop risks
+       catching the chassis/mounts at the scan's edges: self-hit points that
+       degrade Cartographer's scan matching. Passed as params AFTER
+       vehicle_config so they win over it, same pattern as vesc_to_odom's
+       publish_tf above. Default keeps the full FOV (localization/PF
+       unaffected); mapping.launch.xml sets this true. -->
+  <arg name="mapping_lidar_fov" default="false"            description="Narrow /scan back to the pre-PF +-1.8 rad range for cartographer mapping"/>
 
   <!-- map paths (needed by the simulator and by virtual_perception in both sim and real) -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
@@ -52,6 +67,8 @@
     <let name="lidar_scan_out" value="/scan"     unless="$(var virtual)"/>
     <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
       <param from="$(var vehicle_config)"/>
+      <param name="angle_min" value="-1.8" if="$(var mapping_lidar_fov)"/>
+      <param name="angle_max" value="1.8"  if="$(var mapping_lidar_fov)"/>
       <remap from="/scan" to="$(var lidar_scan_out)"/>
     </node>
 
