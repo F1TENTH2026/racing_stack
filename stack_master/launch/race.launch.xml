@@ -31,6 +31,10 @@
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
   <arg name="debug" default="false"
        description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
+  <arg name="auto_relocalize" default="false"
+       description="Forwarded to base_system: run lap_analyser's relocalizer node (pf only), which re-seeds the particle filter at the nearest global-waypoint pose every relocalize_every_n_laps completed laps. No-op under cartographer/kiss/sim. Pass auto_relocalize:=false to disable it entirely (e.g. while diagnosing a bad pose jump after a fast corner)."/>
+  <arg name="relocalize_every_n_laps" default="3"
+       description="Forwarded to base_system: completed laps between automatic pf re-seeds. Ignored when auto_relocalize:=false."/>
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -49,6 +53,8 @@
     <arg name="localization" value="$(var localization)"/>
     <arg name="virtual"      value="$(var virtual)"/>
     <arg name="debug"        value="$(var debug)"/>
+    <arg name="auto_relocalize"         value="$(var auto_relocalize)"/>
+    <arg name="relocalize_every_n_laps" value="$(var relocalize_every_n_laps)"/>
   </include>
 
   <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
