@@ -65,12 +65,23 @@
          identity remap leaves it on /scan. -->
     <let name="lidar_scan_out" value="/scan_raw" if="$(var virtual)"/>
     <let name="lidar_scan_out" value="/scan"     unless="$(var virtual)"/>
-    <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
-      <param from="$(var vehicle_config)"/>
-      <param name="angle_min" value="-1.8" if="$(var mapping_lidar_fov)"/>
-      <param name="angle_max" value="1.8"  if="$(var mapping_lidar_fov)"/>
-      <remap from="/scan" to="$(var lidar_scan_out)"/>
-    </node>
+    <!-- <param> doesn't take if/unless in ROS 2 launch XML, so the
+         mapping_lidar_fov override is two node variants gated on <group>
+         instead (same params otherwise). -->
+    <group if="$(var mapping_lidar_fov)">
+      <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
+        <param from="$(var vehicle_config)"/>
+        <param name="angle_min" value="-1.8"/>
+        <param name="angle_max" value="1.8"/>
+        <remap from="/scan" to="$(var lidar_scan_out)"/>
+      </node>
+    </group>
+    <group unless="$(var mapping_lidar_fov)">
+      <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
+        <param from="$(var vehicle_config)"/>
+        <remap from="/scan" to="$(var lidar_scan_out)"/>
+      </node>
+    </group>
 
     <!-- Static TFs (base_link->laser, IMU frames) now come from per-vehicle config
          so they can differ by SIM/CAR — edit config/CAR/static_transforms.yaml,
