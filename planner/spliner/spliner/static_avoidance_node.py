@@ -220,10 +220,12 @@ class StaticObstacleSpliner(Node):
             "obstacle_speed_margin_gain_s": 0.008,
             "wall_clearance_m": 0.05,
             "wall_speed_margin_gain_s": 0.005,
-            "margin_speed_cap_mps": 6.0,
+            "margin_speed_cap_mps": 10.0,
             "min_passage_speed_mps": 1.0,
+            "speed_search_step_mps": 0.5,
             "comfortable_decel_mps2": 3.0,
             "planning_reaction_s": 0.25,
+            "footprint_transition_buffer_m": 0.30,
             "ego_grace_m": 1.0,
             "use_map_filter": True,
             "kernel_size": 4,
@@ -267,8 +269,10 @@ class StaticObstacleSpliner(Node):
         "wall_speed_margin_gain_s": "wall_speed_margin_gain_s",
         "margin_speed_cap_mps": "margin_speed_cap_mps",
         "min_passage_speed_mps": "min_passage_speed_mps",
+        "speed_search_step_mps": "speed_search_step_mps",
         "comfortable_decel_mps2": "comfortable_decel_mps2",
         "planning_reaction_s": "planning_reaction_s",
+        "footprint_transition_buffer_m": "footprint_transition_buffer_m",
         "ego_grace_m": "ego_grace_m",
         "use_map_filter": "use_map_filter",
         "kernel_size": "kernel_size",
@@ -340,6 +344,34 @@ class StaticObstacleSpliner(Node):
         reaction = speed * max(self.planning_reaction_s, 0.0)
         reserve = self.ego_length_m / 2 + self.min_apex_lead_m
         return braking + reaction + reserve <= max(obstacle_gap, 0.0)
+
+    def _speed_candidates(self, obstacle_gap: float) -> List[float]:
+        """Descending, reachable avoidance speeds without accelerating.
+
+        Geometry decides the fastest candidate that fits.  The lower end is
+        clipped by the braking equation, so a suddenly revealed corner obstacle
+        cannot ask for a speed reduction that is physically unreachable before
+        footprint overlap.
+        """
+        current = max(abs(float(self.cur_vs)), 0.0)
+        upper = min(current, float(self.max_speed_mps))
+        if current < self.min_passage_speed_mps:
+            return [current]
+
+        reserve = self.ego_length_m / 2 + self.min_apex_lead_m
+        available = max(float(obstacle_gap), 0.0) \
+            - current * max(self.planning_reaction_s, 0.0) - reserve
+        min_reachable_sq = current * current \
+            - 2.0 * max(self.comfortable_decel_mps2, 1e-3) * max(available, 0.0)
+        lower = max(self.min_passage_speed_mps,
+                    float(np.sqrt(max(min_reachable_sq, 0.0))))
+        lower = min(lower, upper)
+
+        step = max(float(self.speed_search_step_mps), 0.1)
+        candidates = list(np.arange(upper, lower - 1e-9, -step))
+        if not candidates or candidates[-1] > lower + 1e-6:
+            candidates.append(lower)
+        return [float(v) for v in candidates]
 
     def _required_obstacle_gap(self) -> float:
         return max(
@@ -578,11 +610,13 @@ class StaticObstacleSpliner(Node):
         # The former centre-only apex was safe for a point mass but exposed the
         # rectangular vehicle's front/rear corners during entry and return.
         first_u = self.cur_s + max(
-            min(self._signed_gap(o.s_start) for o in blockers) - self.ego_length_m / 2,
+            min(self._signed_gap(o.s_start) for o in blockers)
+            - self.ego_length_m / 2 - self.footprint_transition_buffer_m,
             self.min_apex_lead_m,
         )
         last_u = self.cur_s + max(
-            max(self._signed_gap(o.s_end) for o in blockers) + self.ego_length_m / 2,
+            max(self._signed_gap(o.s_end) for o in blockers)
+            + self.ego_length_m / 2 + self.footprint_transition_buffer_m,
             self.min_apex_lead_m,
         )
 
@@ -602,11 +636,8 @@ class StaticObstacleSpliner(Node):
 
         tried = set()
         last_reason = "no_valid_candidate"
-        speed_candidates = sorted(set([
-            float(min(self.max_speed_mps, max(abs(self.cur_vs), self.min_passage_speed_mps))),
-            2.0,
-            float(self.min_passage_speed_mps),
-        ]), reverse=True)
+        speed_candidates = self._speed_candidates(first_gap)
+        dbg["speed_candidates"] = [round(v, 2) for v in speed_candidates]
         for passage_speed in speed_candidates:
             if passage_speed < self.min_passage_speed_mps or \
                     not self._can_slow_for(passage_speed, first_gap):

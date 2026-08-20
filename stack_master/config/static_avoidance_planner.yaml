@@ -203,12 +203,18 @@ static_avoidance_planner:
     obstacle_speed_margin_gain_s: 0.008
     wall_clearance_m: 0.05
     wall_speed_margin_gain_s: 0.005
-    margin_speed_cap_mps: 6.0
-    # Candidate speeds are tried from fast to slow. A slower path is accepted
-    # only when comfortable braking can reach it before footprint overlap.
+    margin_speed_cap_mps: 10.0
+    # Search continuously downward from the measured current speed without ever
+    # accelerating into an avoidance. Candidates below the physically reachable
+    # braking speed are not generated.
     min_passage_speed_mps: 1.0
+    speed_search_step_mps: 0.5
     comfortable_decel_mps2: 3.0
     planning_reaction_s: 0.25
+    # Extra straight plateau before/after footprint overlap. A cubic passing
+    # through the first apex can still have non-zero heading there; this gives it
+    # room to become parallel before the body reaches the obstacle.
+    footprint_transition_buffer_m: 0.30
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can
@@ -232,7 +238,7 @@ static_avoidance_planner:
     # (update_velocity), so this only matters if that replanning is unavailable.
     # State machine now preserves this cap while recomputing the curvature/GGV
     # profile. It applies only to the static avoidance segment.
-    max_speed_mps: 3.0
+    max_speed_mps: 10.0
 
     # ===== stability ===================================================
     # [s] How long the last valid path survives a planning frame that failed.

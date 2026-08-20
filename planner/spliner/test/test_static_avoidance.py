@@ -112,10 +112,11 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
         boundary_margin=0.19, ego_width_m=EGO_WIDTH, ego_length_m=0.52,
         min_free_dist_m=0.10, obstacle_uncertainty_m=0.02,
         obstacle_speed_margin_gain_s=0.008, wall_clearance_m=0.05,
-        wall_speed_margin_gain_s=0.005, margin_speed_cap_mps=6.0,
-        min_passage_speed_mps=1.0, comfortable_decel_mps2=3.0,
-        planning_reaction_s=0.25,
-        ego_grace_m=1.0, use_map_filter=True, kernel_size=4, max_speed_mps=3.0,
+        wall_speed_margin_gain_s=0.005, margin_speed_cap_mps=10.0,
+        min_passage_speed_mps=1.0, speed_search_step_mps=0.5,
+        comfortable_decel_mps2=3.0,
+        planning_reaction_s=0.25, footprint_transition_buffer_m=0.30,
+        ego_grace_m=1.0, use_map_filter=True, kernel_size=4, max_speed_mps=10.0,
         path_hold_s=0.25, side_hysteresis_m=0.10,
     ).items():
         setattr(node, key, value)
@@ -184,6 +185,39 @@ def test_passage_speed_requires_reachable_braking_distance():
     node = build_node(make_track(), cur_s=20.0, cur_vs=6.0)
     assert not node._can_slow_for(2.0, obstacle_gap=4.0)
     assert node._can_slow_for(2.0, obstacle_gap=9.0)
+
+
+def test_high_speed_candidates_respect_braking_limit():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=10.0)
+    candidates = node._speed_candidates(obstacle_gap=8.0)
+    assert candidates[0] == pytest.approx(10.0)
+    assert candidates[-1] >= 8.4
+    assert all(node._can_slow_for(v, 8.0) for v in candidates)
+
+
+def test_avoidance_never_accelerates_a_slow_car():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=1.5)
+    candidates = node._speed_candidates(obstacle_gap=8.0)
+    assert candidates[0] == pytest.approx(1.5)
+    assert max(candidates) <= node.cur_vs
+
+
+def test_wide_straight_keeps_high_speed():
+    node = build_node(make_track(half_width=1.2), cur_s=20.0, cur_vs=10.0)
+    node.obstacles = [obstacle(3, 28.0, 0.0)]
+    dbg = {}
+    path = node._plan(dbg)
+    assert path.wpnts, dbg.get("reason")
+    assert dbg["passage_speed_mps"] == pytest.approx(10.0)
+
+
+def test_tighter_corridor_selects_a_lower_reachable_speed():
+    node = build_node(make_track(half_width=0.70), cur_s=20.0, cur_vs=6.0)
+    node.obstacles = [obstacle(3, 29.0, 0.0)]
+    dbg = {}
+    path = node._plan(dbg)
+    assert path.wpnts, dbg.get("reason")
+    assert 1.0 <= dbg["passage_speed_mps"] < 6.0
 
 
 def test_rectangular_footprint_detects_corner_overlap():
