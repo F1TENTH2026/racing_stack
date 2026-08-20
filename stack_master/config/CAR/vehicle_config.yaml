@@ -70,6 +70,69 @@ vesc/**:
     steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true
 
+    # vesc_to_odom's yaw rate. Empty leaves the servo-COMMAND bicycle model in
+    # charge (v*tan(delta)/L), which measured 18.5% low and ~120 ms late on
+    # this car -- and vesc_to_odom owns odom->base_link, so that error went
+    # straight into the odom frame and map->odom had to grow without bound to
+    # cancel it. The pf (pf.yaml) and the EKFs (ekf_*.yaml) were already on the
+    # gyro; this node was the last one modelling it.
+    #
+    # _corrected, not the raw topic: imu_bias_corrector_node (started by
+    # localization.launch.xml and mapping.launch.xml) removes the measured
+    # zero-rate offset above, which this node would otherwise integrate every
+    # cycle. Set to '' to A/B against the old bicycle model.
+    imu_topic: '/vesc/sensors/imu_corrected'
+    # [s] Age past which a gyro sample is dropped and the bicycle model takes
+    # back over. Matches brake_odom_timeout; the IMU runs at 100 Hz
+    # (vesc_driver's 10 ms timer), so 0.2 s is 20 missed samples.
+    imu_timeout: 0.2
+
+    # /vesc/odom's TWIST COVARIANCE. Upstream published zeros, and zero does not
+    # mean "unknown" downstream: robot_localization replaces a zero variance
+    # with 1e-9 (ekf.cpp) purely to keep the Kalman gain finite, so the EKF was
+    # treating raw ERPM speed as exact.
+    #
+    # PROVISIONAL -- these are conservative starting points, not measurements.
+    # No stationary IMU bag survived the 2026-08-20 calibration (the script
+    # printed the std and nothing wrote it down), so:
+    #   vx_variance             sigma 0.1 m/s. Covers the ~0.8% speed_to_erpm_gain
+    #                           calibration spread and some wheelspin; slip under
+    #                           hard acceleration is worse than this.
+    #   yaw_rate_variance_gyro  sigma 0.02 rad/s, matching imu_bias_corrector's
+    #                           gyro_variance below. Keep the two in step.
+    #   yaw_rate_variance_model sigma 0.5 rad/s. The fallback bicycle model ran
+    #                           18.5% low, which is ~0.37 rad/s of error at a
+    #                           2 rad/s hairpin -- it should be down-weighted
+    #                           hard, not silently trusted like the gyro.
+    vx_variance: 1.0e-2
+    yaw_rate_variance_gyro: 4.0e-4
+    yaw_rate_variance_model: 2.5e-1
+
 imu_bias_corrector:
   ros__parameters:
     gyro_bias: [-0.0013704, 0.0005222, 0.0003731] #[-0.0028153, -0.0018412, 0.0040946] imu calibration 후 수정 # rad/s, measured stationary
+    # [(rad/s)^2] per axis, AFTER the bias above is removed. Only z is fused.
+    #
+    # PROVISIONAL: sigma 0.02 rad/s -- but not an arbitrary one. There is
+    # nothing to copy from roboracer_unita_ws: its vesc_driver publishes no
+    # covariance either, its vesc_to_odom sets pose covariance only (twist is
+    # still the upstream @todo), and the one process_noise_covariance matrix it
+    # does carry sits in config/common/ekf.yaml, which its own header marks
+    # UNUSED and which is byte-for-byte robot_localization's built-in default
+    # (filter_base.cpp:110-124). Measurement covariance cannot come from yaml at
+    # all -- robot_localization reads R off the message, there is no
+    # odom0_covariance parameter -- which is why this lives here.
+    #
+    # The floor comes from our own data: the two stationary calibrations of
+    # gyro_bias above disagree by 0.0037 rad/s on z (+0.0040946 -> +0.0003731),
+    # so run-to-run uncertainty after bias removal is at least that. 0.02 rad/s
+    # is ~5x that floor, leaving room for the vibration a still car never sees.
+    #
+    # imu_gyro_bias_check.py already computes the
+    # real number -- rerun it (car still, 10 s) and paste the gyro_variance line
+    # it now prints. Measure with the motor idling if you can: a dead-still car
+    # understates the vibration the gyro actually sees while racing, and this
+    # value is what scales ekf_*.yaml's imu0_twist_rejection_threshold.
+    gyro_variance: [4.0e-4, 4.0e-4, 4.0e-4]
+    # [(m/s^2)^2] Nothing fuses accel today; declared for honesty.
+    accel_variance: [9.0e-2, 9.0e-2, 9.0e-2]

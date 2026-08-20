@@ -357,7 +357,19 @@ class ParticleFiler(Node):
             else:
                 bx, by, byaw = pose[0], pose[1], pose[2]
             odom = Odometry()
-            odom.header.stamp = self.get_clock().now().to_msg()
+            # The stamp of the SCAN this pose was computed from, not the time it
+            # is being published -- publish_tf's own `stamp` argument, which the
+            # TF above already uses. The two describe the same pose and were
+            # disagreeing by one full MCL step.
+            #
+            # This is what makes ekf_pf.yaml's smooth_lagged_data mean anything:
+            # robot_localization rewinds to the state the car actually held at
+            # this stamp and replays forward. Stamped `now()` there is nothing
+            # lagged to smooth, and the EKF corrects the CURRENT state with a
+            # pose from ~40 ms ago -- 22 cm behind at 5 m/s, which shows up as
+            # base_link oscillating on the map while the particle cloud itself
+            # sits tight on the car.
+            odom.header.stamp = stamp
             odom.header.frame_id = self.MAP_FRAME
             odom.child_frame_id = self.BASE_FRAME
             odom.pose.pose.position.x = bx

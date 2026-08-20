@@ -48,14 +48,50 @@
 # noise, so the filter integrates it every cycle and map->odom has to grow to
 # cancel it, which is what sends the odom frame off the map.
 #
-# The gain error itself is fixed in CAR/vehicle_config.yaml
-# (steering_angle_to_servo_gain), but the command-vs-measurement gap and the
-# 120 ms lag remain by construction. odom0 therefore contributes vx only.
+# THAT MODEL NO LONGER RUNS. vesc_to_odom now takes its yaw rate from the gyro
+# directly (CAR/vehicle_config.yaml's imu_topic, vesc_to_odom.cpp's imuCallback),
+# so odom -> base_link is no longer built on the servo command. Fixing it only
+# here was never enough: this file governs what the EKF believes, while
+# vesc_to_odom owns the odom -> base_link TRANSFORM, and that transform is what
+# carries the car between corrections. A biased yaw there forced map -> odom to
+# grow without bound to cancel it -- the odom frame sliding off the map.
+#
+# odom0 still contributes vx only, and vyaw stays off deliberately: /vesc/odom's
+# yaw rate is now the SAME gyro sample that imu0 already fuses below, and
+# feeding one measurement in twice makes the filter overconfident in it.
 ekf_localization:
   ros__parameters:
 
-    frequency     : 100.0
+    # Match the fastest input, do not exceed it. /vesc/odom arrives at 50 Hz
+    # (vesc_driver's 20 ms state timer, vesc_driver.cpp:109); at 100 half the
+    # iterations predicted forward with nothing new to correct against, and
+    # this node was already missing its deadline on the Jetson.
+    frequency     : 50.0
     sensor_timeout: 0.1
+
+    # Apply an absolute pose at the time it BELONGS to, not the time it arrives.
+    #
+    # /tracked_pose/odom carries cartographer's own stamp
+    # (pose_to_odom_node.py copies the header through) and reaches this node
+    # after the scan match that produced it.
+    #
+    # Without these two robot_localization has no state history to rewind into,
+    # so it corrects the CURRENT state with a pose the car held ~40 ms ago -- at
+    # 5 m/s that is 22 cm behind. The velocity prediction pushes forward, the
+    # stale correction pulls back, and base_link oscillates on the map while the
+    # pose source itself is tight and correct on the car. The amplitude is
+    # latency times speed.
+    #
+    # history_length only has to cover the worst latency; 0.2 s is eight times
+    # the scan period and still only ten filter steps to replay.
+    smooth_lagged_data: true
+    history_length    : 0.2
+    # NOTE: no <sensor>_nodelay here. That was ROS 1's TCP_NODELAY on the
+    # subscriber; robot_localization's ROS 2 port never declares it (verified
+    # with `ros2 param list` against this file -- queue_size shows up, nodelay
+    # does not), so it is dead config wherever it still appears. queue_size is
+    # real and is what matters with smooth_lagged_data: the filter needs the
+    # samples still buffered when it rewinds.
     two_d_mode    : true
     publish_tf    : true  # this node owns map -> base_link (see header)
 
@@ -71,6 +107,14 @@ ekf_localization:
                    false, false, false,     # vyaw DROPPED -> see imu0 below
                    false, false, false]
     odom0_differential: false
+    odom0_queue_size: 5
+    # Mahalanobis gate [sigmas] on this twist. Only meaningful now that
+    # /vesc/odom carries a real covariance (CAR/vehicle_config.yaml's
+    # vx_variance): the filter compares the innovation against sqrt(HPH' + R)
+    # and drops the sample past 5 sigma, so a wheelspin transient cannot snap
+    # the speed estimate. Rejection widens P, which widens the gate, so a
+    # genuinely changed speed is still accepted a few cycles later.
+    odom0_twist_rejection_threshold: 5.0
 
     # Gyro yaw rate -- the yaw source odom0 no longer provides.
     #
@@ -89,6 +133,14 @@ ekf_localization:
                   false, false, true,       # vyaw only
                   false, false, false]
     imu0_differential: false
+    imu0_queue_size: 10
+    # Mahalanobis gate [sigmas] on the gyro -- the answer to "what if the IMU
+    # spikes". Scaled by imu_bias_corrector's gyro_variance, so that value has
+    # to be honest for this to bite. NOTE the same gate is deliberately NOT set
+    # on odom1: a particle-filter pose JUMP is legitimate (relocalisation is
+    # supposed to teleport the estimate), and gating it would leave the filter
+    # stuck on a pose the PF has already abandoned.
+    imu0_twist_rejection_threshold: 5.0
     imu0_relative: false
     imu0_remove_gravitational_acceleration: true
 
@@ -100,3 +152,4 @@ ekf_localization:
                    false, false, false,
                    false, false, false]
     odom1_differential: false
+    odom1_queue_size: 5

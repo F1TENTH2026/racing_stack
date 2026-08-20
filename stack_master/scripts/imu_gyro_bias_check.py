@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
-"""Measure the VESC IMU's gyro bias (zero-rate offset) while the car sits still.
+"""Measure the VESC IMU's gyro bias and noise while the car sits still.
 
 Place the car STILL. The node averages angular_velocity over `duration` seconds
 and reports the bias per axis, plus the heading error that bias alone would
 accumulate over example mapping run lengths. Prints a paste-ready YAML block for
 stack_master/config/CAR/vehicle_config.yaml — does not write any file.
+
+It also reports the VARIANCE, which is what the EKFs need. vesc_driver publishes
+no covariance at all, and robot_localization turns a zero variance into 1e-9
+(ekf.cpp) — a numerical guard, not a safe default, whose effect is a Kalman gain
+of ~1: the filter snaps onto whatever the gyro just said, spike included. The
+variance printed here is also what scales ekf_*.yaml's
+imu0_twist_rejection_threshold, so an honest number is what makes that gate work.
+
+MEASURE IT THE WAY THE CAR WILL SEE IT. A dead-still car on a bench understates
+the noise while racing, which is dominated by chassis vibration, not by the
+sensor. Run it again with the motor idling and take the larger number.
 
     ros2 run stack_master imu_gyro_bias_check.py
     ros2 run stack_master imu_gyro_bias_check.py --ros-args -p duration:=15.0
@@ -73,12 +84,21 @@ class ImuGyroBiasCheck(Node):
                 drift_deg = math.degrees(mean[2] * d)
                 self.get_logger().info(f'    after {d:6.0f}s driving: {drift_deg:+7.2f} deg')
 
+        var = std ** 2
+        self.get_logger().info(
+            f'gyro variance: [{var[0]:.3e} {var[1]:.3e} {var[2]:.3e}] (rad/s)^2 '
+            f'— z sigma {std[2]:.5f} rad/s ({math.degrees(std[2]):.3f} deg/s)')
+
         print('\n# paste into stack_master/config/CAR/vehicle_config.yaml'
               + ('' if ok else '   # WARNING: see log above, result may be unreliable'))
         print('imu_bias_corrector:')
         print('  ros__parameters:')
         print(f'    gyro_bias: [{mean[0]:.7f}, {mean[1]:.7f}, {mean[2]:.7f}]  '
-              f'# rad/s, measured stationary\n')
+              f'# rad/s, measured stationary')
+        print(f'    gyro_variance: [{var[0]:.3e}, {var[1]:.3e}, {var[2]:.3e}]  '
+              f'# (rad/s)^2, measured {"stationary" if ok else "UNRELIABLY"}')
+        print('\n# and keep vesc/** in step with the z variance:')
+        print(f'#   yaw_rate_variance_gyro: {var[2]:.3e}\n')
         raise SystemExit(0)
 
 
