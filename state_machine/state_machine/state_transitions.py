@@ -71,7 +71,12 @@ def OvertakingTransition(state_machine: "StateMachine") -> Tuple[StateType, Stat
     if ot_sustainability and enemy_in_front:
         state_machine.overtaking_ttl_count = 0
         return StateType.OVERTAKE, StateType.OVERTAKE
-    if ot_sustainability and state_machine.overtaking_ttl_count < state_machine.overtaking_ttl_count_threshold:
+    ttl_threshold = (
+        state_machine.static_overtaking_ttl_count_threshold
+        if state_machine.static_overtaking_mode
+        else state_machine.overtaking_ttl_count_threshold
+    )
+    if ot_sustainability and state_machine.overtaking_ttl_count < ttl_threshold:
         state_machine.overtaking_ttl_count += 1
         return StateType.OVERTAKE, StateType.OVERTAKE
     state_machine.overtaking_ttl_count = 0

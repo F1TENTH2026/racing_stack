@@ -251,6 +251,11 @@ class StateMachineParams:
             ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE),
         )
         self.overtaking_ttl_sec: float = node.get_parameter("overtaking_ttl_sec").value
+        self._declare(
+            "static_overtaking_ttl_sec", 0.5,
+            ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE),
+        )
+        self.static_overtaking_ttl_sec: float = node.get_parameter("static_overtaking_ttl_sec").value
 
         self._declare(
             "ftg_speed_mps", 0.1,
@@ -325,6 +330,9 @@ class StateMachineParams:
             elif name == "overtaking_ttl_sec":
                 self.overtaking_ttl_sec = value
                 self.node.overtaking_ttl_count_threshold = int(value * self.rate_hz)
+            elif name == "static_overtaking_ttl_sec":
+                self.static_overtaking_ttl_sec = value
+                self.node.static_overtaking_ttl_count_threshold = int(value * self.rate_hz)
             elif name == "ftg_active":
                 self.ftg_active = value
                 self.node.ftg_disabled = not value

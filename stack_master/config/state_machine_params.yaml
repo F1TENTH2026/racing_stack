@@ -28,6 +28,9 @@ state_machine:
     splini_ttl: 2.0
     pred_splini_ttl: 2.0
     overtaking_ttl_sec: 3.0
+    # Static obstacles do not need the long dynamic-opponent hysteresis.  A short
+    # hold prevents path chatter without carrying the slow avoidance line for 3 s.
+    static_overtaking_ttl_sec: 0.5
     overtake_min_closing_mps: 2.5
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile

@@ -266,6 +266,12 @@ class ObstacleSD:
                 self.static_count = 0
             self.total_count = self.total_count + 1
             self.staticFlag = self.static_count/self.total_count >= 0.5
+            # Do not let one noisy startup window decide the classification forever.
+            # Keep a decaying history so a stationary object can recover after a
+            # short localization/TF disturbance.
+            if self.total_count >= 20:
+                self.static_count //= 2
+                self.total_count //= 2
 
         else:
             self.staticFlag = None
@@ -705,7 +711,7 @@ class StaticDynamic(Node):
                 if(tracked_obstacle.staticFlag == False):
                     if tracked_obstacle.dynamic_state.isInitialised:
                         tracked_obstacle.dynamic_state.useTargetVel = False
-                        if(tracked_obstacle.dynamic_state.avg_vs < self.vs_reset and len(tracked_obstacle.dynamic_state.vs_list) > 10 and self.publish_static):
+                        if(abs(tracked_obstacle.dynamic_state.avg_vs) < self.vs_reset and len(tracked_obstacle.dynamic_state.vs_list) > 10 and self.publish_static):
                             tracked_obstacle.dynamic_state.isInitialised = False
                             tracked_obstacle.staticFlag = True
                             tracked_obstacle.static_count = 0

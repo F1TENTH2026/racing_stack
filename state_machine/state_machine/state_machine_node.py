@@ -324,8 +324,10 @@ class StateMachine(Node):
         self.force_gbtrack_state = self.params.force_GBTRACK
 
         self.overtaking_ttl_sec = self.params.overtaking_ttl_sec
+        self.static_overtaking_ttl_sec = self.params.static_overtaking_ttl_sec
         self.overtaking_ttl_count = 0
         self.overtaking_ttl_count_threshold = int(self.overtaking_ttl_sec * self.rate_hz)
+        self.static_overtaking_ttl_count_threshold = int(self.static_overtaking_ttl_sec * self.rate_hz)
         # Grace window (in loops) during which the OT-blended recovery path is allowed
         # as the recovery source. The blended path (OT heading -> GB) only makes sense
         # when leaving OVERTAKE; outside that window plain recovery is used, so a car
@@ -728,7 +730,12 @@ class StateMachine(Node):
             # Preserve the static planner's corridor speed ceiling. Previously
             # update_velocity replaced its conservative waypoint speeds with the
             # vehicle-wide v_max, defeating narrow-passage safety.
-            planner_cap = min(float(w.vx_mps) for w in data.wpnts)
+            # The path contains a global-line tail, often including a slow downstream
+            # corner.  Taking the minimum therefore capped the *entire* manoeuvre at
+            # that unrelated corner speed.  Every planner waypoint is already bounded
+            # by the selected passage speed, so the maximum preserves that ceiling
+            # while the velocity planner still slows locally for curvature.
+            planner_cap = max(float(w.vx_mps) for w in data.wpnts)
             self.update_velocity(
                 data,
                 self.cur_static_avoidance_wpnts.vel_planner_safety_factor,
@@ -1804,6 +1811,7 @@ class StateMachine(Node):
             self.get_logger().error(f"[{self.name}] cannot locate state_machine_params.yaml")
             return
         keys = ["lateral_width_gb_m", "lateral_width_ot_m", "overtaking_ttl_sec",
+                "static_overtaking_ttl_sec",
                 "splini_hyst_timer_sec", "splini_ttl", "pred_splini_ttl",
                 "emergency_break_horizon", "trailing_speed_scale", "trailing_min_speed_mps",
                 "ftg_speed_mps", "ftg_timer_sec",

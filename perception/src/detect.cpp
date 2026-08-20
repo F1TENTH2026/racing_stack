@@ -287,11 +287,14 @@ std::vector<std::vector<std::pair<double, double>>> Detect::clustering(const sen
   double d_phi = msg->angle_increment;
   double sigma = sigma_;
 
-  current_stamp_ = this->get_clock()->now();
+  // Transform every scan at its acquisition time.  Using the newest pose for an
+  // older scan shifts walls forward while the car accelerates or turns and creates
+  // short-lived clusters that look like obstacles.
+  current_stamp_ = rclcpp::Time(msg->header.stamp);
   geometry_msgs::msg::TransformStamped transform;
 
   try {
-    transform = tf_buffer_->lookupTransform("map", "laser", tf2::TimePointZero,
+    transform = tf_buffer_->lookupTransform("map", "laser", current_stamp_,
                                             tf2::durationFromSec(1.0));
   } catch (const tf2::TransformException &ex) {
     RCLCPP_ERROR(this->get_logger(), "[Opponent Detection]: lookup Transform between map and laser not possible: %s", ex.what());
