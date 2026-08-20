@@ -12,8 +12,8 @@ urg_node:
     # widens what pf sees for localization. detect stays narrowed to the old
     # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
     # instead of at the driver, so raising this doesn't change what it detects.
-    angle_max: 1.8
-    angle_min: -1.8
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"
@@ -61,10 +61,10 @@ vesc/**:
     brake_release_speed_error: 0.05
     brake_release_speed: 0.15
     brake_odom_timeout: 0.2
-    steering_angle_to_servo_gain: -0.99 #-1.2135 # 좌우 반전(-)
+    steering_angle_to_servo_gain: -1.2135 # 좌우 반전(-)
     steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true
 
 imu_bias_corrector:
   ros__parameters:
-    gyro_bias: [-0.0013704, 0.0005222, 0.0003731] #[-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary
+    gyro_bias: [-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary

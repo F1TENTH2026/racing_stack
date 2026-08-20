@@ -5,15 +5,15 @@ ot_sector_tuner:
     yeet_factor: 1.25
     spline_len: 30
     ot_sector_begin: 0.5
-    Overtaking_sector0:
+    Overtaking_sector0: # ot
       start: 0
-      end: 62
+      end: 59
       ot_flag: false
     Overtaking_sector1:
-      start: 63
-      end: 323
+      start: 60
+      end: 325
       ot_flag: false
-    Overtaking_sector2:
-      start: 324
-      end: 392
+    Overtaking_sector2: # ot
+      start: 326
+      end: 391
       ot_flag: false
