@@ -17,8 +17,8 @@ urg_node:
     # unfiltered during mapping and caught chassis/mount self-hits at the wide
     # edges, degrading scan matching -- back to the single +-1.8 rad range
     # that mapping, detect, and pf all use uniformly.
-    angle_max: 1.8
-    angle_min: -1.8
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"

@@ -22,7 +22,25 @@ options = {
   trajectory_builder = TRAJECTORY_BUILDER,
   map_frame = "map",
   tracking_frame = "vesc_imu_rot", --set as imu_frame
-  use_odometry = false,
+  -- ===== VESC odometry =====
+  -- /odom is remapped to /vesc/odom in mapping.launch.xml. This car has no
+  -- wheel encoder, so that odometry is ERPM-integrated dead reckoning: useful
+  -- as a short-horizon motion prior, useless as a global constraint. It is
+  -- therefore fed to the pose extrapolator ONLY -- it gives the scan matcher a
+  -- translation guess between scans, while
+  -- POSE_GRAPH.optimization_problem.odometry_{translation,rotation}_weight = 0
+  -- below keep it out of the backend, so wheel slip can never pull on the
+  -- optimized graph.
+  --
+  -- Yaw still comes from the IMU, not from here. With use_imu_data = true the
+  -- PoseExtrapolator drives its ImuTracker from the gyro and only falls back to
+  -- the odometry's angular velocity when no IMU sample covers the interval; it
+  -- also rotates the odometry's body-frame velocity by that IMU-derived
+  -- heading. So /vesc/odom contributes speed, never heading -- which is what we
+  -- want, because its yaw rate is computed from the servo COMMAND through a
+  -- bicycle model (vehicle_config.yaml: use_servo_cmd_to_calc_angular_velocity
+  -- = true), i.e. what the car was told to do, not what it did.
+  use_odometry = true,
 
   -- ===== TF publishing =====
   -- Consumed by node.cpp PublishLocalTrajectoryData. With publish_to_tf = false
@@ -91,9 +109,10 @@ POSE_GRAPH.global_sampling_ratio = 0.0
 POSE_GRAPH.global_constraint_search_after_n_seconds = 1000.
 
 -- Keep wheel odometry OUT of the pose-graph optimization (wheel slip makes it
--- unreliable as a graph constraint). When use_odometry = true, odometry still
--- feeds the pose extrapolator (velocity for the scan-match initial guess);
--- these weights only remove the node-to-node odometry residual in the backend.
+-- unreliable as a graph constraint). use_odometry = true above, so odometry
+-- still feeds the pose extrapolator (velocity for the scan-match initial
+-- guess); these weights only remove the node-to-node odometry residual in the
+-- backend. Do not raise them without a real wheel encoder on this car.
 POSE_GRAPH.optimization_problem.odometry_translation_weight = 0
 POSE_GRAPH.optimization_problem.odometry_rotation_weight = 0
 POSE_GRAPH.constraint_builder.fast_correlative_scan_matcher.linear_search_window = 1.5  -- default: 7

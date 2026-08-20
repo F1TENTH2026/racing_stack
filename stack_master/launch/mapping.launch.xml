@@ -68,12 +68,18 @@
     <param from="$(var vehicle_config)"/>
   </node>
 
-  <!-- ===== Cartographer SLAM (corrected IMU, no odometry: mapping_2d.lua) =====
+  <!-- ===== Cartographer SLAM (corrected IMU + VESC odometry: mapping_2d.lua) =====
+       /odom -> /vesc/odom feeds cartographer's pose extrapolator only
+       (use_odometry = true, odometry_*_weight = 0), giving the scan matcher a
+       translation prior between scans; heading still comes from the gyro.
+
        cartographer_node broadcasts NO TF here (mapping_2d.lua: publish_to_tf =
        false); ekf_localization below owns map->base_link outright. low_level's
        odom_tf therefore stays false: this car has no wheel encoder, and putting
-       vesc_to_odom's ERPM dead reckoning in the middle of the chain makes the
-       car and the live /scan slide across the map in RViz. See
+       vesc_to_odom's ERPM dead reckoning in the middle of the TF chain makes
+       the car and the live /scan slide across the map in RViz. Feeding that
+       same odometry to cartographer as a prior is fine (it is bounded by the
+       next scan match); letting it carry TF is not. See
        ekf_cartographer_mapping.yaml's header. -->
   <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
         args="-configuration_directory $(var cartographer_config_dir) -configuration_basename mapping_2d.lua -collect_metrics --ros-args --log-level warn">
