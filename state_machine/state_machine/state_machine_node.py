@@ -725,7 +725,15 @@ class StateMachine(Node):
 
     def static_avoidance_cb(self, data: OTWpntArray):
         if len(data.wpnts) != 0:
-            self.update_velocity(data, self.cur_static_avoidance_wpnts.vel_planner_safety_factor)
+            # Preserve the static planner's corridor speed ceiling. Previously
+            # update_velocity replaced its conservative waypoint speeds with the
+            # vehicle-wide v_max, defeating narrow-passage safety.
+            planner_cap = min(float(w.vx_mps) for w in data.wpnts)
+            self.update_velocity(
+                data,
+                self.cur_static_avoidance_wpnts.vel_planner_safety_factor,
+                speed_cap=planner_cap,
+            )
         self.static_avoidance_wpnts = data
 
     def start_wpnts_cb(self, data: OTWpntArray):
@@ -912,6 +920,13 @@ class StateMachine(Node):
         closest_obs = None
         min_gap = 2.0
         max_horizon = wpnts_data.max_horizon
+        # The static planner caps its lookahead/path end to one third of a lap so
+        # wrapped Frenet arithmetic never confuses ahead with behind. Mirror that
+        # cap here; otherwise a short track asks the planner to cover (for example)
+        # 10 m while the longest path it is allowed to publish is only 7 m, and
+        # TRAILING can never transition to the otherwise valid avoidance path.
+        if wpnts_data is self.cur_static_avoidance_wpnts and self.track_length > 0.0:
+            max_horizon = min(max_horizon, self.track_length / 3.0)
         is_gb_track_wpnts = wpnts_data.is_gb_track_wpnts
         is_ot_wpnts = wpnts_data.is_ot_wpnts
         free_scaling_reference_distance_m = wpnts_data.free_scaling_reference_distance_m

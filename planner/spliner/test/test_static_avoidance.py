@@ -22,7 +22,7 @@ from spliner.static_avoidance_node import StaticObstacleSpliner
 HALF_WIDTH = 0.9
 OBS_SIZE = 0.4
 EGO_WIDTH = 0.29
-MIN_FREE_DIST = 0.16
+MIN_FREE_DIST = 0.10
 
 
 class _Clock:
@@ -105,12 +105,17 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
         lookahead=10.0, keep_behind_m=1.0, trajectory_threshold=0.6,
         raceline_clearance_m=0.35, max_group_obstacles=3,
         evasion_distance=0.30, resolution=0.10,
-        pre_dist_gain=1.0, pre_dist_min=2.0, pre_dist_max=4.0,
+        pre_dist_gain=1.6, pre_dist_min=2.0, pre_dist_max=8.0,
         pre_dist_kappa_max=0.30, pre_dist_corner_min_m=4.0,
         post_dist_gain=0.8, post_dist_min=1.5, post_dist_max=4.0,
-        tail_m=4.0, min_path_end_m=11.0, min_apex_lead_m=0.5,
-        boundary_margin=0.19, ego_width_m=EGO_WIDTH, min_free_dist_m=MIN_FREE_DIST,
-        ego_grace_m=1.0, use_map_filter=True, kernel_size=4, max_speed_mps=2.0,
+        tail_m=4.0, min_path_end_m=10.0, min_apex_lead_m=0.5,
+        boundary_margin=0.19, ego_width_m=EGO_WIDTH, ego_length_m=0.52,
+        min_free_dist_m=0.10, obstacle_uncertainty_m=0.02,
+        obstacle_speed_margin_gain_s=0.008, wall_clearance_m=0.05,
+        wall_speed_margin_gain_s=0.005, margin_speed_cap_mps=6.0,
+        min_passage_speed_mps=1.0, comfortable_decel_mps2=3.0,
+        planning_reaction_s=0.25,
+        ego_grace_m=1.0, use_map_filter=True, kernel_size=4, max_speed_mps=3.0,
         path_hold_s=0.25, side_hysteresis_m=0.10,
     ).items():
         setattr(node, key, value)
@@ -141,6 +146,7 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
     node.last_good_path = node.last_good_obs_id = None
     node.last_good_generated = 0
     node.last_good_origin_s = node.last_good_reach = 0.0
+    node._margin_speed_override = None
 
     node.published = []
     node.evasion_pub = types.SimpleNamespace(publish=node.published.append)
@@ -163,6 +169,35 @@ def close_the_walls(node):
     """Make every candidate infeasible without removing the obstacle."""
     node.gb_d_left = np.full_like(node.gb_d_left, 0.20)
     node.gb_d_right = np.full_like(node.gb_d_right, 0.20)
+
+
+def test_safety_margin_grows_with_speed():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=1.0)
+    slow_obs = node._required_obstacle_gap()
+    slow_wall = node._required_wall_gap()
+    node.cur_vs = 6.0
+    assert node._required_obstacle_gap() > slow_obs
+    assert node._required_wall_gap() > slow_wall
+
+
+def test_passage_speed_requires_reachable_braking_distance():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=6.0)
+    assert not node._can_slow_for(2.0, obstacle_gap=4.0)
+    assert node._can_slow_for(2.0, obstacle_gap=9.0)
+
+
+def test_rectangular_footprint_detects_corner_overlap():
+    node = build_node(make_track(), cur_s=20.0, cur_vs=3.0)
+    obs = obstacle(99, 22.0, 0.0)
+    sample_u = np.array([21.55, 21.65, 21.75])
+    sample_d = np.full(3, 0.50)
+
+    # A width-only point-mass check would accept 13.5 cm here. With a 0.35 rad
+    # heading error, the 0.52 m body projects farther laterally and must reject.
+    point_mass_free = sample_d[1] - obs.size / 2 - EGO_WIDTH / 2
+    assert point_mass_free > node._required_obstacle_gap()
+    assert not node._path_clear_of(
+        sample_u, sample_d, [obs], np.full(3, 0.35))
 
 
 # ---------------------------------------------------------------- Case 1

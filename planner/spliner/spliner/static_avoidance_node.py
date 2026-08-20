@@ -147,6 +147,7 @@ class StaticObstacleSpliner(Node):
         self.last_good_generated = 0
         self.last_good_origin_s = 0.0    # cur_s when the held path was built
         self.last_good_reach = 0.0       # how far ahead of that s the path reached
+        self._margin_speed_override = None
 
         # Per-run debug log file (logfile/static_avoidance_*.log): off by default so
         # a normal race doesn't pay disk-write overhead for output nobody reads; pass
@@ -208,16 +209,25 @@ class StaticObstacleSpliner(Node):
             "post_dist_min": 1.5,
             "post_dist_max": 4.0,
             "tail_m": 4.0,
-            "min_path_end_m": 11.0,
+            "min_path_end_m": 10.0,
             "min_apex_lead_m": 0.5,
             # --- safety ---
             "boundary_margin": 0.19,
             "ego_width_m": 0.29,
-            "min_free_dist_m": 0.16,
+            "ego_length_m": 0.52,
+            "min_free_dist_m": 0.10,
+            "obstacle_uncertainty_m": 0.02,
+            "obstacle_speed_margin_gain_s": 0.008,
+            "wall_clearance_m": 0.05,
+            "wall_speed_margin_gain_s": 0.005,
+            "margin_speed_cap_mps": 6.0,
+            "min_passage_speed_mps": 1.0,
+            "comfortable_decel_mps2": 3.0,
+            "planning_reaction_s": 0.25,
             "ego_grace_m": 1.0,
             "use_map_filter": True,
             "kernel_size": 4,
-            "max_speed_mps": 2.0,
+            "max_speed_mps": 3.0,
             # --- stability ---
             "path_hold_s": 0.25,
             "side_hysteresis_m": 0.10,
@@ -249,7 +259,16 @@ class StaticObstacleSpliner(Node):
         "min_apex_lead_m": "min_apex_lead_m",
         "boundary_margin": "boundary_margin",
         "ego_width_m": "ego_width_m",
+        "ego_length_m": "ego_length_m",
         "min_free_dist_m": "min_free_dist_m",
+        "obstacle_uncertainty_m": "obstacle_uncertainty_m",
+        "obstacle_speed_margin_gain_s": "obstacle_speed_margin_gain_s",
+        "wall_clearance_m": "wall_clearance_m",
+        "wall_speed_margin_gain_s": "wall_speed_margin_gain_s",
+        "margin_speed_cap_mps": "margin_speed_cap_mps",
+        "min_passage_speed_mps": "min_passage_speed_mps",
+        "comfortable_decel_mps2": "comfortable_decel_mps2",
+        "planning_reaction_s": "planning_reaction_s",
         "ego_grace_m": "ego_grace_m",
         "use_map_filter": "use_map_filter",
         "kernel_size": "kernel_size",
@@ -303,7 +322,42 @@ class StaticObstacleSpliner(Node):
         machine's `static_avoidance_planner.lateral_width_m`) is the least that can
         ever be planned. No relaxation rung goes below this.
         """
-        return self.ego_width_m / 2 + max(self.min_free_dist_m, SAFETY_MARGIN_M)
+        return self.ego_width_m / 2 + self._required_obstacle_gap()
+
+    def _margin_speed(self) -> float:
+        """Speed used for geometric uncertainty inflation."""
+        speed = abs(self.cur_vs) if self._margin_speed_override is None \
+            else self._margin_speed_override
+        return float(np.clip(speed, 0.0, self.margin_speed_cap_mps))
+
+    def _can_slow_for(self, target_speed: float, obstacle_gap: float) -> bool:
+        """Whether comfortable braking can reach target speed before the obstacle."""
+        speed = max(abs(self.cur_vs), 0.0)
+        if speed <= target_speed:
+            return True
+        decel = max(self.comfortable_decel_mps2, 1e-3)
+        braking = (speed * speed - target_speed * target_speed) / (2.0 * decel)
+        reaction = speed * max(self.planning_reaction_s, 0.0)
+        reserve = self.ego_length_m / 2 + self.min_apex_lead_m
+        return braking + reaction + reserve <= max(obstacle_gap, 0.0)
+
+    def _required_obstacle_gap(self) -> float:
+        return max(
+            SAFETY_MARGIN_M,
+            self.min_free_dist_m + self.obstacle_uncertainty_m
+            + self.obstacle_speed_margin_gain_s * self._margin_speed(),
+        )
+
+    def _required_wall_gap(self) -> float:
+        return self.wall_clearance_m + self.wall_speed_margin_gain_s * self._margin_speed()
+
+    def _footprint_half_extents(self, heading_error):
+        """Frenet extents of the oriented rectangular vehicle footprint."""
+        angle = np.asarray(heading_error, dtype=float)
+        c, s = np.abs(np.cos(angle)), np.abs(np.sin(angle))
+        half_s = 0.5 * self.ego_length_m * c + 0.5 * self.ego_width_m * s
+        half_d = 0.5 * self.ego_width_m * c + 0.5 * self.ego_length_m * s
+        return half_s, half_d
 
     #############
     # CALLBACKS #
@@ -519,10 +573,18 @@ class StaticObstacleSpliner(Node):
         # instead of dropping the path: an empty array here makes the state machine
         # leave OVERTAKE mid-manoeuvre and snap back onto the raceline, straight
         # into the obstacle it was avoiding.
-        first_u = self.cur_s + max(min(self._signed_gap(o.s_center) for o in blockers),
-                                   self.min_apex_lead_m)
-        last_u = self.cur_s + max(max(self._signed_gap(o.s_center) for o in blockers),
-                                  self.min_apex_lead_m)
+        # Reach the full lateral offset before the vehicle nose can overlap the
+        # first obstacle, and hold it until the tail has cleared the last one.
+        # The former centre-only apex was safe for a point mass but exposed the
+        # rectangular vehicle's front/rear corners during entry and return.
+        first_u = self.cur_s + max(
+            min(self._signed_gap(o.s_start) for o in blockers) - self.ego_length_m / 2,
+            self.min_apex_lead_m,
+        )
+        last_u = self.cur_s + max(
+            max(self._signed_gap(o.s_end) for o in blockers) + self.ego_length_m / 2,
+            self.min_apex_lead_m,
+        )
 
         speed = max(abs(self.cur_vs), 1.0)
         pre_dist = self._approach_dist(group_key, first_u, speed)
@@ -540,37 +602,47 @@ class StaticObstacleSpliner(Node):
 
         tried = set()
         last_reason = "no_valid_candidate"
-        for rung, (evasion_scale, post_scale, side_key) in enumerate(RELAXATION_LADDER):
-            side = sides[side_key]
-            evasion = max(evasion_scale * self.evasion_distance, self.min_evasion_m)
-            post_dist = min(base_post * post_scale, self.max_s / 3)
-            key = (side, round(evasion, 3), round(post_dist, 3))
-            if key in tried:
+        speed_candidates = sorted(set([
+            float(min(self.max_speed_mps, max(abs(self.cur_vs), self.min_passage_speed_mps))),
+            2.0,
+            float(self.min_passage_speed_mps),
+        ]), reverse=True)
+        for passage_speed in speed_candidates:
+            if passage_speed < self.min_passage_speed_mps or \
+                    not self._can_slow_for(passage_speed, first_gap):
+                last_reason = "insufficient_braking_distance"
                 continue
-            tried.add(key)
-            apex_d = (max(o.d_left for o in blockers) + evasion) if side == "left" \
-                else (min(o.d_right for o in blockers) - evasion)
-            built, reason = self._build_group_path(
-                blockers, candidates, first_u, last_u, apex_d, pre_dist, post_dist)
-            if built is None:
-                last_reason = reason
-                continue
+            self._margin_speed_override = passage_speed
+            for rung, (evasion_scale, post_scale, side_key) in enumerate(RELAXATION_LADDER):
+                side = sides[side_key]
+                evasion = max(evasion_scale * self.evasion_distance, self.min_evasion_m)
+                post_dist = min(base_post * post_scale, self.max_s / 3)
+                key = (side, round(evasion, 3), round(post_dist, 3), round(passage_speed, 2))
+                if key in tried:
+                    continue
+                tried.add(key)
+                apex_d = (max(o.d_left for o in blockers) + evasion) if side == "left" \
+                    else (min(o.d_right for o in blockers) - evasion)
+                built, reason = self._build_group_path(
+                    blockers, candidates, first_u, last_u, apex_d, pre_dist, post_dist)
+                if built is None:
+                    last_reason = reason
+                    continue
 
-            sample_s, sample_d, xy, psi, kappa, generated_count, reach = built
-            dbg["generated_count"] = generated_count
-            dbg["reach"] = reach
-            if rung > 0:
-                self.get_logger().info(
-                    f"[{self.name}] evasion found on ladder rung {rung} "
-                    f"(side={side}, clearance={evasion:.2f} m, return={post_dist:.1f} m)",
-                    throttle_duration_sec=2.0,
-                )
-            self.last_side = side
-            self.last_side_obs_id = group_key
-            dbg.update({"side": side.upper(), "candidate_valid": True,
-                        "apex_d": apex_d, "rung": rung})
-            self._fill_msg(out, sample_s, sample_d, xy, psi, kappa, side)
-            return out
+                sample_s, sample_d, xy, psi, kappa, generated_count, reach = built
+                dbg["generated_count"] = generated_count
+                dbg["reach"] = reach
+                self.last_side = side
+                self.last_side_obs_id = group_key
+                dbg.update({"side": side.upper(), "candidate_valid": True,
+                            "apex_d": apex_d, "rung": rung,
+                            "passage_speed_mps": passage_speed})
+                self._fill_msg(out, sample_s, sample_d, xy, psi, kappa, side,
+                               passage_speed)
+                self._margin_speed_override = None
+                return out
+
+        self._margin_speed_override = None
 
         dbg.update({"candidate_valid": False, "reason": last_reason,
                     "side": (self.last_side or "-").upper()})
@@ -681,7 +753,7 @@ class StaticObstacleSpliner(Node):
             if not obs.is_static:
                 continue    # dynamic opponents belong to the overtaking planner
             gap = self._signed_gap(obs.s_center)
-            if -self.keep_behind_m <= gap < self._lookahead_eff \
+            if -self.keep_behind_m <= gap <= self._lookahead_eff \
                     and abs(obs.d_center) < self.trajectory_threshold:
                 out.append(obs)
         return out
@@ -872,7 +944,8 @@ class StaticObstacleSpliner(Node):
         # clearance to the obstacle -- so that is re-checked below, on the clamped
         # path, and a clamp that eats the clearance is what makes the gap genuinely
         # impassable (Case 5) rather than merely tight.
-        clamped = self._clamp_to_track(sample_s, sample_d, s_along)
+        heading_error = np.arctan(np.gradient(sample_d, sample_u))
+        clamped = self._clamp_to_track(sample_s, sample_d, s_along, heading_error)
         was_clamped = bool(np.any(np.abs(clamped - sample_d) > 1e-6))
         sample_d = clamped
 
@@ -880,7 +953,7 @@ class StaticObstacleSpliner(Node):
         # an obstacle sitting on it is not something a single-apex path can solve --
         # the state machine judges that (and refuses OVERTAKE) on its own.
         if not self._path_clear_of(sample_u[:generated_count], sample_d[:generated_count],
-                                   candidates):
+                                   candidates, heading_error[:generated_count]):
             return None, "track_too_narrow" if was_clamped else "obstacle_clearance"
 
         xy = self.converter.get_cartesian(sample_s, sample_d)
@@ -911,11 +984,6 @@ class StaticObstacleSpliner(Node):
     def _build_group_path(self, group, candidates, first_u, last_u,
                           apex_d, pre_dist, post_dist):
         """Build one continuous same-side path around every obstacle in group."""
-        # Reuse the proven single-path implementation for a one-obstacle group.
-        if len(group) == 1:
-            return self._build_path(
-                group[0], candidates, first_u, apex_d, pre_dist, post_dist)
-
         control_s = [self.cur_s]
         control_d = [self.cur_d]
         move_start = first_u - pre_dist
@@ -960,11 +1028,12 @@ class StaticObstacleSpliner(Node):
         sample_s = sample_u % self.max_s
         s_along = sample_u - self.cur_s
 
-        clamped = self._clamp_to_track(sample_s, sample_d, s_along)
+        heading_error = np.arctan(np.gradient(sample_d, sample_u))
+        clamped = self._clamp_to_track(sample_s, sample_d, s_along, heading_error)
         was_clamped = bool(np.any(np.abs(clamped - sample_d) > 1e-6))
         sample_d = clamped
         if not self._path_clear_of(sample_u[:generated_count], sample_d[:generated_count],
-                                   candidates):
+                                   candidates, heading_error[:generated_count]):
             return None, "group_track_too_narrow" if was_clamped else "group_obstacle_clearance"
 
         xy = self.converter.get_cartesian(sample_s, sample_d)
@@ -983,7 +1052,7 @@ class StaticObstacleSpliner(Node):
         return (sample_s, sample_d, np.vstack([px, py]), psi, kappa, generated_count,
                 float(sample_u[-1] - self.cur_s)), ""
 
-    def _clamp_to_track(self, sample_s, sample_d, s_along):
+    def _clamp_to_track(self, sample_s, sample_d, s_along, heading_error=None):
         """Hold the path's centreline `boundary_margin` clear of the track edge.
 
         Samples within `ego_grace_m` of the car keep at least the car's own current
@@ -993,12 +1062,18 @@ class StaticObstacleSpliner(Node):
         """
         idx = self._gb_idx(sample_s)
         available = np.where(sample_d >= 0.0, self.gb_d_left[idx], self.gb_d_right[idx])
-        allowed = np.maximum(available - self.boundary_margin, 0.0)
+        if heading_error is None:
+            half_d = np.full_like(sample_d, self.ego_width_m / 2, dtype=float)
+        else:
+            _, half_d = self._footprint_half_extents(heading_error)
+        centre_margin = np.maximum(
+            self.boundary_margin, half_d + self._required_wall_gap())
+        allowed = np.maximum(available - centre_margin, 0.0)
         grace = s_along < self.ego_grace_m
         allowed = np.where(grace, np.maximum(allowed, abs(self.cur_d)), allowed)
         return np.clip(sample_d, -allowed, allowed)
 
-    def _path_clear_of(self, sample_u, sample_d, obstacles) -> bool:
+    def _path_clear_of(self, sample_u, sample_d, obstacles, heading_error=None) -> bool:
         """The collision invariant, checked on the FINISHED path.
 
         `sample_u` is UNWRAPPED s (monotonically increasing from the car), so an
@@ -1014,14 +1089,20 @@ class StaticObstacleSpliner(Node):
         """
         if len(sample_u) == 0:
             return False
+        if heading_error is None:
+            heading_error = np.arctan(np.gradient(sample_d, sample_u)) \
+                if len(sample_u) > 1 else np.zeros(len(sample_u))
+        half_s, half_d = self._footprint_half_extents(heading_error)
+        required_gap = self._required_obstacle_gap()
         for obs in obstacles:
             obs_u = self.cur_s + self._signed_gap(obs.s_center)
-            if not sample_u[0] <= obs_u <= sample_u[-1]:
+            obs_half = max(float(obs.size) / 2, 0.0)
+            overlap = np.abs(sample_u - obs_u) <= (half_s + obs_half)
+            if not np.any(overlap):
                 continue    # the path does not span it; not this check's business
-            j = int(np.argmin(np.abs(sample_u - obs_u)))
-            free_dist = abs(sample_d[j] - obs.d_center) - obs.size / 2 - self.ego_width_m / 2
+            free_dist = np.abs(sample_d[overlap] - obs.d_center) - obs_half - half_d[overlap]
 
-            required = self.min_free_dist_m
+            required = required_gap
             if abs(obs_u - self.cur_s) <= obs.size / 2 + self.min_apex_lead_m:
                 # The car is already alongside this obstacle. Its lateral offset
                 # right now is a fact no path can undo, so the requirement becomes
@@ -1029,15 +1110,23 @@ class StaticObstacleSpliner(Node):
                 # planner refuses every path exactly while the car is passing, the
                 # state machine leaves OVERTAKE mid-manoeuvre, and the car snaps
                 # back onto the raceline into the obstacle it was avoiding.
-                ego_free = abs(self.cur_d - obs.d_center) - obs.size / 2 - self.ego_width_m / 2
+                ego_free = abs(self.cur_d - obs.d_center) - obs_half - self.ego_width_m / 2
                 required = min(required, ego_free)
+                # At this point the current footprint already overlaps the
+                # obstacle longitudinally. Require the commanded centreline to
+                # never reduce the lateral separation; an instantaneous change
+                # of body heading/footprint is physically impossible and would
+                # otherwise make every escape path fail exactly alongside it.
+                free_dist = (np.abs(sample_d[overlap] - obs.d_center)
+                             - obs_half - self.ego_width_m / 2)
             # 1 mm of numerical slack: the last relaxation rung plans exactly at the
             # floor and sample discretisation would otherwise reject it on rounding.
-            if free_dist < required - 1e-3:
+            if np.min(free_dist) < required - 1e-3:
                 return False
         return True
 
-    def _fill_msg(self, out, sample_s, sample_d, xy, psi, kappa, side):
+    def _fill_msg(self, out, sample_s, sample_d, xy, psi, kappa, side,
+                  passage_speed=None):
         idx = self._gb_idx(sample_s)
         out.ot_side = side
         out.ot_line = side
@@ -1056,7 +1145,8 @@ class StaticObstacleSpliner(Node):
                 # Seed only: the state machine replans the profile from kappa and the
                 # ggv (update_velocity). Capped so a path that never reaches the
                 # planner keeps the conservative speed this branch always used.
-                vx_mps=float(min(self.gb_vx[k], self.max_speed_mps)),
+                vx_mps=float(min(self.gb_vx[k], self.max_speed_mps,
+                                 self.max_speed_mps if passage_speed is None else passage_speed)),
                 ax_mps2=float(self.gb_ax[k]),
             ))
 
