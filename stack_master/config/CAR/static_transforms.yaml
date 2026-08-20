@@ -27,4 +27,4 @@
       parent: vesc_imu_rot
       child: vesc_imu
       xyz: [0.0, 0.0, 0.0]
-      rpy: [0.0, 0.0, -1.5707963]    # yaw +90 deg (IMU mounted rotated about Z)
+      rpy: [0.0, 0.0, -1.5707963]    # yaw -90 deg (IMU mounted rotated about Z)
