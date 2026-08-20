@@ -357,19 +357,25 @@ class ParticleFiler(Node):
             else:
                 bx, by, byaw = pose[0], pose[1], pose[2]
             odom = Odometry()
-            # The stamp of the SCAN this pose was computed from, not the time it
-            # is being published -- publish_tf's own `stamp` argument, which the
-            # TF above already uses. The two describe the same pose and were
-            # disagreeing by one full MCL step.
+            # PUBLICATION time, not the scan time -- matching roboracer_unita_ws,
+            # whose particle_filter.py stamps now() here too.
             #
-            # This is what makes ekf_pf.yaml's smooth_lagged_data mean anything:
-            # robot_localization rewinds to the state the car actually held at
-            # this stamp and replays forward. Stamped `now()` there is nothing
-            # lagged to smooth, and the EKF corrects the CURRENT state with a
-            # pose from ~40 ms ago -- 22 cm behind at 5 m/s, which shows up as
-            # base_link oscillating on the map while the particle cloud itself
-            # sits tight on the car.
-            odom.header.stamp = stamp
+            # Stamping the SCAN time was tried and reverted. It is more correct in
+            # principle: the pose belongs to the scan, and it is what would let
+            # ekf_pf.yaml's smooth_lagged_data rewind and replay instead of
+            # correcting the current state with a ~30 ms old pose. But it also
+            # makes EVERY /pf/pose/odom message older than the /vesc/odom already
+            # in the filter, so robot_localization's revertTo path fires on every
+            # one of them -- about 40 times a second, on a code path that had
+            # never executed before (with now(), nothing is ever lagged, which is
+            # why the reference runs smooth_lagged_data: true without it costing
+            # anything). Rewinding and replaying the queue at that rate on the
+            # Jetson is not free, and the filter fell behind.
+            #
+            # To revisit: put `stamp` back here AND confirm ekf_localization holds
+            # its 50 Hz (`ros2 topic hz /car_state/odom`) with the revert path
+            # live. history_length may need raising past 0.2 s as well.
+            odom.header.stamp = self.get_clock().now().to_msg()
             odom.header.frame_id = self.MAP_FRAME
             odom.child_frame_id = self.BASE_FRAME
             odom.pose.pose.position.x = bx
@@ -440,7 +446,12 @@ class ParticleFiler(Node):
             else:
                 self.publish_particles(self.particles)
 
-        if self.pub_fake_scan.get_subscription_count() > 0 and isinstance(self.ranges, np.ndarray):
+        # inferred_pose stays None until the first successful update, and the
+        # guards added to update() can leave it that way, so it is checked the
+        # same way the pose publisher above checks it.
+        if (self.pub_fake_scan.get_subscription_count() > 0
+                and isinstance(self.ranges, np.ndarray)
+                and isinstance(self.inferred_pose, np.ndarray)):
             # generate the scan from the point of view of the inferred position for visualization
             self.viz_queries[:,0] = self.inferred_pose[0]
             self.viz_queries[:,1] = self.inferred_pose[1]
@@ -792,7 +803,34 @@ class ParticleFiler(Node):
             t_sensor = time.time()
 
         # normalize importance weights
-        self.weights /= np.sum(self.weights)
+        #
+        # GUARDED. If the sensor model gives every particle zero weight — the
+        # whole cloud walked outside the map, or a scan came back unusable — then
+        # this sum is 0 and the bare division makes every weight NaN. Nothing
+        # downstream stops it: expected_pose() is a dot product with those
+        # weights, np.cov(..., aweights=...) inherits it, and both go out on
+        # /pf/pose/odom. robot_localization does NOT screen its inputs — its
+        # validateFilterOutput (ros_filter.cpp) checks the OUTPUT and merely logs
+        # "Critical Error, NaNs were detected in the output state of the filter"
+        # while continuing to publish. One NaN therefore poisons the EKF
+        # permanently: it never recovers, map->odom goes wild and the covariance
+        # ellipse on /car_state/odom swells to fill the screen.
+        #
+        # Recovering as uniform keeps the filter numerically valid and lets the
+        # next scan re-converge, which beats both NaN and a silent freeze. The
+        # log is loud on purpose — this means localisation is lost, not degraded.
+        # (Upstream roboracer_unita_ws has the same unguarded division; this
+        # guard is deliberately ours.)
+        weight_sum = float(np.sum(self.weights))
+        if not np.isfinite(weight_sum) or weight_sum <= 0.0:
+            self.get_logger().error(
+                f'particle weights collapsed (sum={weight_sum}) — every particle scored '
+                'zero against this scan. Resetting to uniform; the filter is LOST until '
+                'it reconverges. Re-seed with RViz "2D Pose Estimate" if it does not.',
+                throttle_duration_sec=1.0)
+            self.weights[:] = 1.0 / self.MAX_PARTICLES
+        else:
+            self.weights /= weight_sum
         if self.SHOW_FINE_TIMING:
             t_norm = time.time()
             t_total = (t_norm - t)/100.0
@@ -831,12 +869,26 @@ class ParticleFiler(Node):
                 self.MCL(action, observation)
 
                 # compute the expected value of the robot pose
-                self.inferred_pose = self.expected_pose()
+                pose = self.expected_pose()
                 self.state_lock.release()
+
+                # Second line of defence, at the only point where a pose leaves
+                # this node: publish_tf() below feeds BOTH the TF and
+                # /pf/pose/odom. Holding the last good pose is safe — the EKF
+                # simply gets no correction for a cycle and its covariance grows,
+                # which is visible and recoverable. Letting a non-finite pose
+                # through is neither (see the guard in MCL above).
+                if not np.all(np.isfinite(pose)):
+                    self.get_logger().error(
+                        f'non-finite pose {pose} — not publishing; holding the last good one',
+                        throttle_duration_sec=1.0)
+                else:
+                    self.inferred_pose = pose
                 t2 = time.time()
 
                 # publish transformation frame based on inferred pose
-                self.publish_tf(self.inferred_pose, self.last_stamp)
+                if self.inferred_pose is not None:
+                    self.publish_tf(self.inferred_pose, self.last_stamp)
 
                 # this is for tracking particle filter speed
                 ips = 1.0 / (t2 - t1)

@@ -54,19 +54,23 @@ ekf_localization:
 
     # Apply an absolute pose at the time it BELONGS to, not the time it arrives.
     #
-    # /pf/pose/odom is stamped with the SCAN it was computed from
-    # (particle_filter.py publish_tf) and reaches this node one full MCL
-    # update later -- the delay the filter prints as `possible`.
+    # CURRENTLY INERT FOR odom1, ON PURPOSE. particle_filter.py stamps
+    # /pf/pose/odom with now() (as roboracer_unita_ws does), so nothing arriving
+    # here is ever older than what the filter has already processed and the
+    # revertTo path never runs.
     #
-    # Without these two robot_localization has no state history to rewind into,
-    # so it corrects the CURRENT state with a pose the car held ~40 ms ago -- at
-    # 5 m/s that is 22 cm behind. The velocity prediction pushes forward, the
-    # stale correction pulls back, and base_link oscillates on the map while the
-    # pose source itself is tight and correct on the car. The amplitude is
-    # latency times speed.
+    # Stamping the scan time instead was tried and reverted -- see the comment on
+    # odom.header.stamp in particle_filter.py. It is the more correct thing in
+    # principle (the EKF otherwise corrects the current state with a ~30 ms old
+    # pose, which at 5 m/s is 17 cm behind), but it makes EVERY odom1 message
+    # lagged, so the queue is rewound and replayed ~40 times a second on a path
+    # that had never run before, and the filter fell behind on the Jetson.
     #
-    # history_length only has to cover the worst latency; 0.2 s is eight times
-    # the scan period and still only ten filter steps to replay.
+    # Left true rather than removed because it costs nothing while odom1 is
+    # stamped now(), and it still does the right thing for any input that IS
+    # genuinely late. Re-enabling the scan stamp means re-checking that
+    # `ros2 topic hz /car_state/odom` still holds 50 Hz, and probably raising
+    # history_length past 0.2 s.
     smooth_lagged_data: true
     history_length    : 0.2
     # NOTE: no <sensor>_nodelay here. That was ROS 1's TCP_NODELAY on the
