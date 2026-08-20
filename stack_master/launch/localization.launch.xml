@@ -22,6 +22,14 @@
   <let name="map_path"                value="$(var maps_dir)/$(var map)/$(var map)"/>
   <let name="cartographer_config_dir" value="$(find-pkg-share stack_master)/config"/>
 
+  <!-- odom->base_link TF: needed for pf and cartographer, where ekf_pf.yaml /
+       ekf_cartographer.yaml own map->odom and this node supplies the rest of
+       the REP-105 chain (see those files' headers). kiss fuses wheel-odom +
+       gyro itself and publishes map->base_link directly; turning this on
+       there would give base_link two TF parents. -->
+  <let name="odom_tf" value="false" if="$(eval '\'$(var localization)\' == \'kiss\'')"/>
+  <let name="odom_tf" value="true"  unless="$(eval '\'$(var localization)\' == \'kiss\'')"/>
+
   <!-- ===== Sensors + mux (real hardware) ===== -->
   <include file="$(find-pkg-share stack_master)/launch/low_level.launch.xml">
     <arg name="sim"            value="false"/>
@@ -29,6 +37,7 @@
     <arg name="vehicle_config" value="$(var vehicle_config)"/>
     <arg name="use_estop"      value="$(var use_estop)"/>
     <arg name="virtual"        value="$(var virtual)"/>
+    <arg name="odom_tf"        value="$(var odom_tf)"/>
   </include>
 
   <!-- Map relay: periodically republishes /map so remote subscribers (RViz) receive it.

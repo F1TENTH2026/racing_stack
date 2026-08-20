@@ -127,6 +127,7 @@ class StaticObstacleSpliner(Node):
         self.gb_vx = None
         self.gb_ax = None
         self.gb_psi = None
+        self.gb_kappa = None
         self.gb_x = None
         self.gb_y = None
         self.gb_vmax = 1.0
@@ -136,6 +137,11 @@ class StaticObstacleSpliner(Node):
         # --- planner memory ---
         self.last_side: Optional[str] = None
         self.last_side_obs_id: Optional[int] = None
+        # Absolute s at which the lateral transition for `latched_group` was first
+        # decided to begin. Latched for the same reason `last_side` is: the shape
+        # of the manoeuvre has to stop being re-decided every frame.
+        self.latched_group: Optional[tuple] = None
+        self.latched_move_start: Optional[float] = None
         self.last_good_path: Optional[OTWpntArray] = None
         self.last_good_obs_id: Optional[int] = None
         self.last_good_generated = 0
@@ -193,9 +199,11 @@ class StaticObstacleSpliner(Node):
             # --- path shape ---
             "evasion_distance": 0.30,
             "spline_resolution": 0.10,
-            "pre_dist_gain": 1.0,
+            "pre_dist_gain": 1.6,
             "pre_dist_min": 2.0,
-            "pre_dist_max": 4.0,
+            "pre_dist_max": 8.0,
+            "pre_dist_kappa_max": 0.30,
+            "pre_dist_corner_min_m": 4.0,
             "post_dist_gain": 0.8,
             "post_dist_min": 1.5,
             "post_dist_max": 4.0,
@@ -231,6 +239,8 @@ class StaticObstacleSpliner(Node):
         "pre_dist_gain": "pre_dist_gain",
         "pre_dist_min": "pre_dist_min",
         "pre_dist_max": "pre_dist_max",
+        "pre_dist_kappa_max": "pre_dist_kappa_max",
+        "pre_dist_corner_min_m": "pre_dist_corner_min_m",
         "post_dist_gain": "post_dist_gain",
         "post_dist_min": "post_dist_min",
         "post_dist_max": "post_dist_max",
@@ -337,6 +347,10 @@ class StaticObstacleSpliner(Node):
         self.gb_vx = np.array([w.vx_mps for w in data.wpnts])
         self.gb_ax = np.array([w.ax_mps2 for w in data.wpnts])
         self.gb_psi = np.array([w.psi_rad for w in data.wpnts])
+        # Raceline curvature, used by `_corner_exit_limit` to keep a long approach
+        # from starting inside a corner. It was the one Wpnt field this callback
+        # did not cache, which is why no corner-aware logic was possible here.
+        self.gb_kappa = np.array([w.kappa_radpm for w in data.wpnts])
         self.gb_x = np.array([w.x_m for w in data.wpnts])
         self.gb_y = np.array([w.y_m for w in data.wpnts])
         self.gb_vmax = max(float(np.max(self.gb_vx)), 1e-3)
@@ -469,6 +483,8 @@ class StaticObstacleSpliner(Node):
             # judged on its own geometry.
             self.last_side = None
             self.last_side_obs_id = None
+            self.latched_group = None
+            self.latched_move_start = None
             dbg["obs_present"] = False
             dbg["reason"] = "no_static_obstacle_in_range"
             return out
@@ -509,7 +525,8 @@ class StaticObstacleSpliner(Node):
                                   self.min_apex_lead_m)
 
         speed = max(abs(self.cur_vs), 1.0)
-        pre_dist = float(np.clip(self.pre_dist_gain * speed, self.pre_dist_min, self.pre_dist_max))
+        pre_dist = self._approach_dist(group_key, first_u, speed)
+        dbg["pre_dist"] = pre_dist
         base_post = float(np.clip(self.post_dist_gain * speed, self.post_dist_min, self.post_dist_max))
 
         left_room, right_room = self._group_side_rooms(
@@ -558,6 +575,99 @@ class StaticObstacleSpliner(Node):
         dbg.update({"candidate_valid": False, "reason": last_reason,
                     "side": (self.last_side or "-").upper()})
         return out
+
+    def _approach_dist(self, group_key, apex_u: float, speed: float) -> float:
+        """Length of the lateral transition BEFORE the apex.
+
+        Was `clip(pre_dist_gain * speed, 2.0, 4.0)`, i.e. a function of speed
+        alone, which pinned the whole move into the last four metres before the
+        obstacle however early it had been detected. The offset is ~0.55 m, so
+        `kappa = 6*dd/L^2` came out at 0.21 rad/m over 4 m -- and the state
+        machine's `static_avoidance_cb` -> `update_velocity` feeds exactly that
+        kappa through the ggv (ay_max 4.5), capping the avoidance at 4.7 m/s.
+        Over 8 m the same offset is 0.052 rad/m and stops limiting speed at all.
+        Lowering the path's curvature is the only lever on speed DURING an
+        avoidance, which is why this is the one number that matters here.
+
+        Three terms:
+          * the room that actually exists between the car and the apex -- the
+            move can never begin behind the car;
+          * `pre_dist_gain * speed`, the old speed term, with gain and ceiling
+            raised so it stops binding before the room does. Whatever it leaves
+            over becomes the flat hold in `_build_path`: the car holds its
+            current offset until `move_start` instead of drifting sideways for
+            the whole approach and spending track width it may need later. When
+            the obstacle is closer than the speed term wants, the hold is zero
+            and the move starts at the car -- which is what the old code did in
+            every case;
+          * `_corner_exit_limit`, which stops the span beginning inside a
+            corner -- floored at `pre_dist_corner_min_m`, the OLD ceiling, so an
+            obstacle in a corner is approached exactly as it was before and this
+            change can only ever lengthen an approach, never shorten one.
+
+        `_latch_move_start` then pins the result.
+        """
+        room = apex_u - self.cur_s
+        want = float(np.clip(min(room, self.pre_dist_gain * speed),
+                             self.pre_dist_min, self.pre_dist_max))
+        corner_limit = max(self._corner_exit_limit(apex_u, want),
+                           self.pre_dist_corner_min_m)
+        want = float(np.clip(min(want, corner_limit),
+                             self.pre_dist_min, self.pre_dist_max))
+        return self._latch_move_start(group_key, apex_u, want)
+
+    def _corner_exit_limit(self, apex_u: float, span_len: float) -> float:
+        """Longest approach, measured back from the apex, that starts on a straight.
+
+        Beginning the lateral move eight metres early is only free while the
+        raceline is straight. Inside a corner the line is already using the track
+        width, so committing an offset there is what `_clamp_to_track` and
+        `_group_side_rooms` then have to throw away -- and the driver-visible
+        request was specifically "start moving once the car is OUT of the corner".
+        So: walk back from the apex and stop at the exit of the last corner the
+        span would otherwise reach into.
+
+        A limit rather than a state: there is no corner/straight flag to get stuck
+        in or to chatter on, and `_approach_dist` floors the result at
+        `pre_dist_corner_min_m`.
+
+        `pre_dist_kappa_max` is what counts as "in a corner". On
+        maps/0815test3 (|kappa| median 0.166, p75 0.317, max 0.754 rad/m) 0.30
+        selects the two real straights -- apexes at s 6.2-10.2 and s 24.1-28.5
+        get the full span, everything else falls back to the corner floor.
+        """
+        if self.gb_kappa is None or self.max_s is None or self.pre_dist_kappa_max <= 0.0:
+            return span_len
+        span = np.arange(apex_u - span_len, apex_u, self.wpnt_dist)
+        if span.size == 0:
+            return span_len
+        kappa = np.abs(self.gb_kappa[self._gb_idx(span % self.max_s)])
+        corner = np.flatnonzero(kappa > self.pre_dist_kappa_max)
+        if corner.size == 0:
+            return span_len
+        return float(apex_u - span[corner[-1]])
+
+    def _latch_move_start(self, group_key, apex_u: float, pre_dist: float) -> float:
+        """Pin the transition's start to one absolute s for as long as the group lives.
+
+        `_build_path` computes `move_start = apex_u - pre_dist` fresh every frame.
+        `apex_u` is fixed (the obstacle does not move) but `pre_dist` now follows
+        the room ahead of the car, which shrinks as the car closes -- so without a
+        latch the start point walks forward exactly as fast as the car does and
+        the move is deferred for ever. Latch the shape, not the path: every
+        clearance check still re-runs against the obstacle's current position on
+        every loop, and `path_hold_s` still governs the published path itself.
+
+        The latch is keyed on the tracker's ids, so it is only as stable as they
+        are -- see `ttl_static` in stack_master/config/opponent_tracker_params.yaml.
+        """
+        if self.latched_group != group_key or self.latched_move_start is None:
+            self.latched_group = group_key
+            self.latched_move_start = apex_u - pre_dist
+            return pre_dist
+        # Signed difference so the latch survives the car crossing s = 0.
+        held = (apex_u - self.latched_move_start + self.max_s / 2) % self.max_s - self.max_s / 2
+        return float(np.clip(held, self.pre_dist_min, self.pre_dist_max))
 
     def _candidates(self) -> List[Obstacle]:
         """Static obstacles close enough, and close enough to the line, to matter.
@@ -1003,7 +1113,7 @@ class StaticObstacleSpliner(Node):
                  f"obs_s={fmt('obs_s')} ego_s={fmt('ego_s')} side={fmt('side')}"]
         lines.append(f"  left_clearance={fmt('left_clearance')} right_clearance={fmt('right_clearance')} "
                      f"candidate_valid={str(dbg.get('candidate_valid', False)).lower()} "
-                     f"rung={fmt('rung')}")
+                     f"rung={fmt('rung')} pre_dist={fmt('pre_dist')}m")
         lines.append(f"  cache_used={str(dbg.get('cache_used', False)).lower()} "
                      f"path_age={fmt('path_age', '.3f')} path_points={dbg.get('path_points', 0)} "
                      f"planning_time_ms={fmt('planning_time_ms', '.1f')}")

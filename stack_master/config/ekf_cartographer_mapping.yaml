@@ -1,0 +1,64 @@
+# robot_localization EKF for MAPPING with cartographer. Fuses cartographer's
+# /tracked_pose (via pose_to_odom_node) with the VESC twist, produces
+# /car_state/odom, and owns the map TF (cartographer_node broadcasts nothing --
+# mapping_2d.lua sets publish_to_tf = false).
+#
+# WHY THIS IS SEPARATE FROM ekf_cartographer.yaml
+#
+# odom_frame is deliberately base_link, i.e. NOT the REP-105 split that
+# ekf_cartographer.yaml / ekf_pf.yaml use. With world_frame == map_frame,
+# robot_localization publishes map_frame -> odom_frame, so collapsing
+# odom_frame onto base_link makes it publish map -> base_link DIRECTLY:
+#
+#   map -> base_link    this node, straight from cartographer's /tracked_pose
+#
+# That is what main has always done for mapping, and it is the right shape here
+# because this car has NO wheel encoder: /vesc/odom is dead reckoning
+# integrated from motor ERPM and the servo COMMAND through a bicycle model.
+# Routing map -> base_link through a REP-105 odom hop
+#
+#   map -> odom (this node)  +  odom -> base_link (vesc_to_odom, ERPM)
+#
+# makes the composed car pose inherit that dead-reckoning drift between
+# corrections, so the car and the live /scan visibly slide across the map in
+# RViz while mapping -- even though cartographer's own submaps are unaffected
+# (it never reads this TF; see mapping_2d.lua's tracking_frame and
+# cartographer_ros node.cpp, whose only lookups are static laser/imu/base_link
+# -> vesc_imu_rot).
+#
+# robot_localization does log "Invalid frame configuration!" for the
+# non-distinct frames and then carries on publishing map -> base_link; that
+# warning is expected here and is the documented cost of the simpler tree.
+#
+# LOCALIZATION (localization.launch.xml) keeps the REP-105 split in
+# ekf_cartographer.yaml, where an odom layer is wanted so relocalization can
+# correct map -> odom without teleporting base_link.
+ekf_localization:
+  ros__parameters:
+
+    frequency     : 100.0
+    sensor_timeout: 0.1
+    two_d_mode    : true
+    publish_tf    : true  # this node owns map -> base_link (see header)
+
+    odom_frame     : base_link
+    base_link_frame: base_link
+    world_frame    : map        # absolute pose in map frame
+
+    # VESC odometry (ERPM + servo command through a bicycle model): twist only
+    odom0: /vesc/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+
+    # Cartographer tracked pose (converted PoseStamped -> Odometry): position + yaw
+    odom1: /tracked_pose/odom
+    odom1_config: [true,  true,  false,
+                   false, false, true,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: false

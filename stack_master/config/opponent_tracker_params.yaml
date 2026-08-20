@@ -40,18 +40,58 @@ tracking:
     process_var_vd: 8.0
     max_dist: 0.5
     var_pub: 1.0
-    aggro_multi: 2.0
+    # 2.0 -> 1.3: association radius while an obstacle is flagged dynamic is
+    # max_dist * aggro_multi (verify_position()). At 2.0 a false-dynamic obstacle
+    # kept sweeping up a wide radius of noisy measurements every frame, which fed
+    # right back into std_s/std_d and kept it from ever recovering to static.
+    aggro_multi: 1.3
     dist_deletion: 7.0
     dist_infront: 8.0
-    max_std: 0.2
-    min_std: 0.16
-    min_nb_meas: 3
+    # 0.2 -> 0.3: std_s/std_d above this hard-resets the static vote count
+    # (ObstacleSD.isStatic()). Real static-obstacle jitter (LiDAR cluster-centroid
+    # noise, ego localisation drift -- see the min_free_dist_m comment above about
+    # size swinging ~13 cm frame to frame) was landing inside the old 0.16-0.2
+    # band often enough to flip static obstacles to dynamic on race.launch (where
+    # lane_change_planner actually acts on that flag, unlike quali.launch).
+    max_std: 0.3
+    # 0.16 -> 0.22: below this, a measurement votes static. Widened together with
+    # max_std so ordinary detection noise on a genuinely static obstacle clears
+    # the static-vote bar instead of sitting in the old dead zone between the two
+    # thresholds (neither voting static nor hard-resetting, just diluting the
+    # ratio). Still well under real opponent-motion std, so a moving car is not
+    # expected to get swept into this band.
+    min_std: 0.22
+    # 3 -> 8: measurements required (at rate_tracking=40 Hz, min_nb_meas=3 was
+    # locking in a verdict after ~75 ms -- one or two noisy frames could decide
+    # it). 8 is still only ~200 ms, negligible against the ~8 m detection range,
+    # but averages out enough frames that transient cluster/localisation jitter
+    # doesn't singlehandedly flip the classification.
+    min_nb_meas: 8
     noMemoryMode: true
     debug_mode: false
     publish_static: true
     ratio_to_glob_path: 0.6
     ttl_dynamic: 40
-    ttl_static: 12
-    vs_reset: 0.1
+    # 12 -> 40 frames. With noMemoryMode: true, ttl is decremented on EVERY frame a
+    # static track goes unmatched (multi_tracking.py update()), so 12 @ 40 Hz meant
+    # 0.3 s of missed detections deleted the track. logfile/
+    # latest_static_avoidance.log shows one obstacle at a fixed obs_s=11.4 cycling
+    # through id 1 -> 4 -> 5 -> 7 -> 8 -> 9 -> 14 with
+    # reason=no_static_obstacle_in_range in between: each new id costs min_nb_meas
+    # frames to re-confirm as static, drops the obstacle out of /tracking/obstacles
+    # meanwhile, and makes the planner's _usable_cache discard its path as
+    # "different_obstacle". 40 frames = 1.0 s tolerates that without holding a
+    # genuinely departed obstacle long (an obstacle that really left also leaves
+    # the 8 m dist_infront window). This matters more now that the avoidance shape
+    # is latched per obstacle-id group (_latch_move_start): an id change resets the
+    # latch and the long approach starts over.
+    ttl_static: 40
+    # 0.1 -> 0.2: dynamic obstacles revert to static once avg_vs (Kalman-estimated
+    # s-velocity) drops below this (StaticDynamic.update()). A static obstacle
+    # that got misclassified as dynamic was estimating small nonzero vs from pure
+    # measurement noise and sitting just above the old 0.1 m/s floor, so it never
+    # recovered. 0.2 gives it room to revert quickly instead of staying "dynamic"
+    # (and handed to lane_change_planner) indefinitely.
+    vs_reset: 0.2
     measure: false
     from_bag: false
