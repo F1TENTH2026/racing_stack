@@ -51,7 +51,7 @@ vesc/**:
     servo_min: 0.0
     speed_max: 23250.0
     speed_min: -23250.0
-    speed_to_erpm_gain: 4614.0 # 초기값 4614.0
+    speed_to_erpm_gain: 4577.5 # 초기값 4614.0 켈리브 후 수정
     speed_to_erpm_offset: 0.0
     brake_control_enabled: true
     brake_current_max: 30.0         # 이전 값 10.0 (kHardBrakeCurrentLimit도 30으로 상향)
@@ -66,7 +66,7 @@ vesc/**:
     brake_release_speed_error: 0.05
     brake_release_speed: 0.15
     brake_odom_timeout: 0.2
-    steering_angle_to_servo_gain: -1.2135 # 좌우 반전(-)
+    steering_angle_to_servo_gain: -1.2216 #-1.2135 좌우 반전(-) 캘리브 후 수정함.
     steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true
 
