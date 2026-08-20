@@ -6,11 +6,11 @@ detect:
     # box, so a partly occluded face still passes); max_size_m is the ceiling with room for
     # a corner view plus fit noise.
     min_size_m: 0.15
-    max_size_m: 0.45
+    max_size_m: 0.60 # 테스트 기존 0.45 > 0.60
     lambda_deg: 10
     sigma: 0.029999999999999999
     min_2_points_dist: 0.01
-    new_cluster_threshold_m: 0.40000000000000002
+    new_cluster_threshold_m: 0.20 # 테스트 기존 0.40000000000000002 > 0.20
     max_viewing_distance: 9
     # Detection cone half-width [rad], independent of the lidar's own
     # angle_min/angle_max (CAR/vehicle_config.yaml's urg_node block, now the
@@ -20,7 +20,7 @@ detect:
     # How far inside the track edge an obstacle centre must sit to be accepted [m].
     # A 0.30 m box physically cannot have its centre closer than 0.15 m to a wall, so
     # 0.25 rejects wall returns while still accepting a real obstacle placed near the edge.
-    boundaries_inflation: 0.25
+    boundaries_inflation: 0.15 # 테스트 기존 0.25 > 0.15
     filter_kernel_size: 7
     measure: false
     from_bag: false
@@ -72,7 +72,20 @@ tracking:
     publish_static: true
     ratio_to_glob_path: 0.6
     ttl_dynamic: 40
-    ttl_static: 12
+    # 12 -> 40 frames. With noMemoryMode: true, ttl is decremented on EVERY frame a
+    # static track goes unmatched (multi_tracking.py update()), so 12 @ 40 Hz meant
+    # 0.3 s of missed detections deleted the track. logfile/
+    # latest_static_avoidance.log shows one obstacle at a fixed obs_s=11.4 cycling
+    # through id 1 -> 4 -> 5 -> 7 -> 8 -> 9 -> 14 with
+    # reason=no_static_obstacle_in_range in between: each new id costs min_nb_meas
+    # frames to re-confirm as static, drops the obstacle out of /tracking/obstacles
+    # meanwhile, and makes the planner's _usable_cache discard its path as
+    # "different_obstacle". 40 frames = 1.0 s tolerates that without holding a
+    # genuinely departed obstacle long (an obstacle that really left also leaves
+    # the 8 m dist_infront window). This matters more now that the avoidance shape
+    # is latched per obstacle-id group (_latch_move_start): an id change resets the
+    # latch and the long approach starts over.
+    ttl_static: 40
     # 0.1 -> 0.2: dynamic obstacles revert to static once avg_vs (Kalman-estimated
     # s-velocity) drops below this (StaticDynamic.update()). A static obstacle
     # that got misclassified as dynamic was estimating small nonzero vs from pure
