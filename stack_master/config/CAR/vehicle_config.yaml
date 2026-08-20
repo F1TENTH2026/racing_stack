@@ -72,4 +72,4 @@ vesc/**:
 
 imu_bias_corrector:
   ros__parameters:
-    gyro_bias: [-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary
+    gyro_bias: [-0.0013704, 0.0005222, 0.0003731] #[-0.0028153, -0.0018412, 0.0040946] imu calibration 후 수정 # rad/s, measured stationary
