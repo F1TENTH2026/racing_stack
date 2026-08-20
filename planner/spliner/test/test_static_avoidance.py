@@ -106,6 +106,7 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
         raceline_clearance_m=0.35, max_group_obstacles=3,
         evasion_distance=0.30, resolution=0.10,
         pre_dist_gain=1.0, pre_dist_min=2.0, pre_dist_max=4.0,
+        pre_dist_kappa_max=0.30, pre_dist_corner_min_m=4.0,
         post_dist_gain=0.8, post_dist_min=1.5, post_dist_max=4.0,
         tail_m=4.0, min_path_end_m=11.0, min_apex_lead_m=0.5,
         boundary_margin=0.19, ego_width_m=EGO_WIDTH, min_free_dist_m=MIN_FREE_DIST,
@@ -125,6 +126,7 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
     node.gb_vx = np.array([w.vx_mps for w in track.wpnts])
     node.gb_ax = np.array([w.ax_mps2 for w in track.wpnts])
     node.gb_psi = np.array([w.psi_rad for w in track.wpnts])
+    node.gb_kappa = np.array([w.kappa_radpm for w in track.wpnts])
     node.gb_vmax = 5.0
     node.converter = FrenetConverter(
         np.array([w.x_m for w in track.wpnts]),
@@ -135,8 +137,10 @@ def build_node(track, cur_s, cur_d=0.0, cur_vs=3.0):
     node.cur_yaw = float(node.gb_psi[int(cur_s / node.wpnt_dist)])
     node.cur_x = node.cur_y = 0.0
     node.last_side = node.last_side_obs_id = None
+    node.latched_group = node.latched_move_start = None
     node.last_good_path = node.last_good_obs_id = None
     node.last_good_generated = 0
+    node.last_good_origin_s = node.last_good_reach = 0.0
 
     node.published = []
     node.evasion_pub = types.SimpleNamespace(publish=node.published.append)

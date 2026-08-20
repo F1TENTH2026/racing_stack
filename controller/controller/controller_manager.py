@@ -69,6 +69,7 @@ class ControllerManager(Node):
         self._save_requested = False
 
         self.mapping = self._get_param('mapping', False)
+        self.enable_ftg = bool(self._get_param('enable_ftg', self.mapping))
 
         # state shared with callbacks
         self.position_in_map = []
@@ -80,6 +81,10 @@ class ControllerManager(Node):
         self.speed_now_y = 0
         self.yaw_rate = 0
         self.waypoint_safety_counter = 0
+        self.last_behavior_received_time = None
+        self.last_odom_received_time = None
+        self.last_control_time = None
+        self.last_finite_steering = 0.0
         self.opponent = [0, 0, 0, False, True]  # s, d, vs, is_static, is_visible
         self.last_static_opponent = None
         self.last_static_opponent_time_sec = None
@@ -97,6 +102,12 @@ class ControllerManager(Node):
         self.wheelbase = self._get_param('wheelbase', 0.321)
         self.measuring = self._get_param('measure', False)
         self.state_machine_rate = self._get_param('state_machine_rate', 40)
+        self.behavior_timeout_sec = float(self._get_param('behavior_timeout_sec', 0.25))
+        self.odom_timeout_sec = float(self._get_param('odom_timeout_sec', 0.15))
+        self.minimum_trajectory_points = int(self._get_param('minimum_trajectory_points', 20))
+        self.max_steering_angle = float(self._get_param('max_steering_angle', 0.53))
+        self.dt_min_sec = float(self._get_param('dt_min_sec', 0.005))
+        self.dt_max_sec = float(self._get_param('dt_max_sec', 0.10))
 
         # save-back path (controller.yaml in stack_master/config)
         try:
@@ -139,14 +150,15 @@ class ControllerManager(Node):
             bubble_m=self._get_param('ftg_bubble_m', 0.30),
             steer_ema=self._get_param('ftg_steer_ema', 0.0),
             max_steer=self._get_param('ftg_max_steer', 0.4),
-        )
+        ) if self.enable_ftg else None
 
         # Subscribers
         self.create_subscription(BehaviorStrategy, '/behavior_strategy', self.behavior_cb, 10)
         self.create_subscription(Odometry, '/car_state/odom', self.odom_cb, 10)
         self.create_subscription(Imu, '/imu/data', self.imu_cb, 10)
         self.create_subscription(Odometry, '/car_state/odom_frenet', self.car_state_frenet_cb, 10)
-        self.create_subscription(LaserScan, '/scan', self.scan_cb, qos_profile_sensor_data)
+        if self.enable_ftg:
+            self.create_subscription(LaserScan, '/scan', self.scan_cb, qos_profile_sensor_data)
         self.create_subscription(Odometry, '/vesc/odom', self.vesc_odom_cb, 10)
         self.create_subscription(Bool, '/save_start_traj', self.save_start_traj_cb, 10)
         # global waypoints to build the FrenetConverter + Controller lazily
@@ -285,6 +297,7 @@ class ControllerManager(Node):
             self.get_logger().error(f"failed to save controller params: {e}")
 
     def odom_cb(self, data: Odometry):
+        self.last_odom_received_time = time.monotonic()
         self.speed_now = data.twist.twist.linear.x
         self.speed_now_y = data.twist.twist.linear.y
         # car pose: formerly a separate /car_state/pose (PoseStamped); read it
@@ -297,11 +310,13 @@ class ControllerManager(Node):
         self.position_in_map = np.array([x, y, theta])[np.newaxis]
         if self.controller is not None:
             self.controller.speed_now = self.speed_now
-        self.ftg_controller.set_vel(data.twist.twist.linear.x)
+        if self.ftg_controller is not None:
+            self.ftg_controller.set_vel(data.twist.twist.linear.x)
 
     def vesc_odom_cb(self, data: Odometry):
         self.wheelspeed_now = data.twist.twist.linear.x
-        self.ftg_controller.set_vel(data.twist.twist.linear.x)
+        if self.ftg_controller is not None:
+            self.ftg_controller.set_vel(data.twist.twist.linear.x)
 
     def car_state_frenet_cb(self, data: Odometry):
         s = data.pose.pose.position.x
@@ -311,6 +326,7 @@ class ControllerManager(Node):
         self.position_in_map_frenet = np.array([s, d, vs, vd])
 
     def behavior_cb(self, data: BehaviorStrategy):
+        self.last_behavior_received_time = time.monotonic()
         now_sec = self.get_clock().now().nanoseconds * 1e-9
         if len(data.trailing_targets) != 0:
             opponent = data.trailing_targets[0]
@@ -385,8 +401,18 @@ class ControllerManager(Node):
         if self.mapping:
             self.mapping_loop()
             return
-        # gate until lazy-init + first inputs
-        if self.controller is None or self.waypoint_array_in_map is None or len(self.position_in_map) == 0 or len(self.position_in_map_frenet) == 0:
+        now = time.monotonic()
+        nominal_dt = 1.0 / self.loop_rate
+        elapsed = nominal_dt if self.last_control_time is None else now - self.last_control_time
+        self.last_control_time = now
+        control_dt = float(np.clip(elapsed, self.dt_min_sec, self.dt_max_sec))
+
+        invalid_reason = self._trajectory_invalid_reason(now)
+        if invalid_reason is not None:
+            self.get_logger().error(
+                f'[{self.name}] unsafe control input ({invalid_reason}); STOPPING',
+                throttle_duration_sec=0.5)
+            self.drive_pub.publish(self.create_ack_msg(0.0, 0.0, 0.0, self.last_finite_steering))
             return
 
         if self.measuring:
@@ -395,7 +421,7 @@ class ControllerManager(Node):
 
         # Logic to select controller
         if self.state != "FTGONLY":
-            speed, acceleration, jerk, steering_angle = self.controller_cycle()
+            speed, acceleration, jerk, steering_angle = self.controller_cycle(control_dt)
         else:
             speed, steering_angle = self.ftg_cycle()
 
@@ -416,8 +442,29 @@ class ControllerManager(Node):
         ack_msg = self.create_ack_msg(speed, acceleration, jerk, steering_angle)
         self.drive_pub.publish(ack_msg)
 
-    def controller_cycle(self):
-        speed, acceleration, jerk, steering_angle, L1_point, L1_distance, idx_nearest_waypoint, curvature_waypoints, future_position = self.controller.main_loop(
+    def _trajectory_invalid_reason(self, now):
+        if self.controller is None:
+            return 'controller not initialized'
+        if self.last_behavior_received_time is None:
+            return 'behavior never received'
+        if now - self.last_behavior_received_time > self.behavior_timeout_sec:
+            return 'behavior stale'
+        if self.last_odom_received_time is None or now - self.last_odom_received_time > self.odom_timeout_sec:
+            return 'odometry stale'
+        if len(self.position_in_map) == 0 or len(self.position_in_map_frenet) == 0:
+            return 'pose unavailable'
+        wp = self.waypoint_array_in_map
+        if wp is None or wp.ndim != 2 or wp.shape[0] < self.minimum_trajectory_points or wp.shape[1] < 9:
+            return 'trajectory missing/short'
+        if not np.all(np.isfinite(wp)):
+            return 'trajectory non-finite'
+        if not np.all(np.isfinite(self.position_in_map)) or not np.all(np.isfinite(self.position_in_map_frenet)):
+            return 'pose non-finite'
+        return None
+
+    def controller_cycle(self, control_dt):
+        try:
+            result = self.controller.main_loop(
             self.state,
             self.position_in_map,
             self.waypoint_array_in_map,
@@ -425,25 +472,33 @@ class ControllerManager(Node):
             self.opponent,
             self.position_in_map_frenet,
             self.acc_now,
-            self.track_length)
+            self.track_length,
+            control_dt=control_dt)
+            speed, acceleration, jerk, steering_angle, L1_point, L1_distance, idx_nearest_waypoint, curvature_waypoints, future_position = result
+        except (ValueError, FloatingPointError) as exc:
+            self.get_logger().error(
+                f'[{self.name}] invalid trajectory/control geometry: {exc}',
+                throttle_duration_sec=0.5)
+            return 0.0, 0.0, 0.0, self.last_finite_steering
 
-        self.set_lookahead_marker(L1_point, 100)
-        self.visualize_steering(steering_angle)
-        self.visualize_trailing_opponent()
-        self.viz_future_position(future_position, 200)
+        if self.lookahead_pub.get_subscription_count() > 0:
+            self.set_lookahead_marker(L1_point, 100)
+        if self.steering_pub.get_subscription_count() > 0:
+            self.visualize_steering(steering_angle)
+        if self.trailing_pub.get_subscription_count() > 0:
+            self.visualize_trailing_opponent()
+        if self.future_position_pub.get_subscription_count() > 0:
+            self.viz_future_position(future_position, 200)
 
         self.curvature_waypoints = curvature_waypoints
-        self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
-
-        self.waypoint_safety_counter += 1
-        if self.waypoint_safety_counter >= self.loop_rate/self.state_machine_rate * 10:
-            self.get_logger().error(f"[{self.name}] Received no local wpnts. STOPPING!!", throttle_duration_sec=0.5)
-            speed = 0
-            steering_angle = 0
+        if self.l1_pub.get_subscription_count() > 0:
+            self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
 
         return speed, acceleration, jerk, steering_angle
 
     def ftg_cycle(self):
+        if self.ftg_controller is None or self.scan is None:
+            return 0.0, self.last_finite_steering
         speed, steer = self.ftg_controller.process_lidar(
             self.scan.ranges, self.scan.angle_min, self.scan.angle_increment)
         self.get_logger().warning(f"[{self.name}] FTGONLY!!!")
@@ -453,11 +508,17 @@ class ControllerManager(Node):
         ack_msg = AckermannDriveStamped()
         ack_msg.header.stamp = self.get_clock().now().to_msg()
         ack_msg.header.frame_id = 'base_link'
-        ack_msg.drive.steering_angle = float(steering_angle)
-       
-        ack_msg.drive.speed = float(speed)  # 초기값 ack_msg.drive.speed = float(speed) -> float(min(speed,3.5s))
-        ack_msg.drive.jerk = float(jerk)
-        ack_msg.drive.acceleration = float(acceleration)
+        safe_speed = float(speed) if np.isfinite(speed) else 0.0
+        safe_speed = max(0.0, safe_speed)
+        if np.isfinite(steering_angle):
+            safe_steer = float(np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle))
+            self.last_finite_steering = safe_steer
+        else:
+            safe_steer = self.last_finite_steering
+        ack_msg.drive.steering_angle = safe_steer
+        ack_msg.drive.speed = safe_speed
+        ack_msg.drive.jerk = float(jerk) if np.isfinite(jerk) else 0.0
+        ack_msg.drive.acceleration = float(acceleration) if np.isfinite(acceleration) else 0.0
         return ack_msg
 
     ############################################ VIZ ############################################

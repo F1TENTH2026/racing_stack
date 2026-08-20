@@ -29,6 +29,7 @@ from rcl_interfaces.msg import ParameterDescriptor
 import numpy as np
 import range_libc
 import time
+from collections import deque
 from threading import Lock
 from particle_filter import utils as Utils
 
@@ -112,6 +113,10 @@ class ParticleFiler(Node):
         # [Hz] How often the viz topics are drawn, independent of the scan
         # rate. 0 draws on every iteration, the old behaviour.
         self.declare_parameter('viz_rate_hz', 10.0)
+        self.declare_parameter('motion_buffer_duration_sec', 2.0)
+        self.declare_parameter('max_scan_gap_sec', 0.25)
+        self.declare_parameter('stats_period_sec', 2.0)
+        self.declare_parameter('deadline_sec', 0.025)
 
         # parameters
         self.ANGLE_STEP           = self.get_parameter('angle_step').value
@@ -130,6 +135,11 @@ class ParticleFiler(Node):
         self.LASER_FRAME          = self.get_parameter('laser_frame').value
         self.DO_VIZ               = self.get_parameter('viz').value
         self.VIZ_RATE_HZ          = float(self.get_parameter('viz_rate_hz').value)
+        self.MOTION_BUFFER_DURATION_SEC = float(
+            self.get_parameter('motion_buffer_duration_sec').value)
+        self.MAX_SCAN_GAP_SEC = float(self.get_parameter('max_scan_gap_sec').value)
+        self.STATS_PERIOD_SEC = float(self.get_parameter('stats_period_sec').value)
+        self.DEADLINE_SEC = float(self.get_parameter('deadline_sec').value)
 
         # sensor model constants
         self.Z_SHORT   = self.get_parameter('z_short').value
@@ -192,6 +202,13 @@ class ParticleFiler(Node):
         self.current_speed   = 0.0   # twist.linear.x  (body forward velocity)
         self.current_angular = 0.0   # twist.angular.z (yaw rate)
         self.last_scan_time  = None  # float secs of the previous scan, for dt
+        # maxlen is a hard memory bound even if a broken sensor repeats one
+        # timestamp forever and the duration-based pruning cannot advance.
+        self.speed_buffer = deque(maxlen=512)
+        self.angular_buffer = deque(maxlen=512)
+        self.update_latencies = deque(maxlen=400)
+        self.deadline_misses = 0
+        self.last_stats_time = time.perf_counter()
 
         # Pub Subs
         # these topics are for visualization
@@ -357,7 +374,10 @@ class ParticleFiler(Node):
             else:
                 bx, by, byaw = pose[0], pose[1], pose[2]
             odom = Odometry()
-            odom.header.stamp = self.get_clock().now().to_msg()
+            # This pose was inferred from the scan at ``stamp``.  Using now()
+            # here disguises processing latency as fresh sensor data and lets
+            # the global EKF fuse an old observation as if it were current.
+            odom.header.stamp = stamp if stamp is not None else self.get_clock().now().to_msg()
             odom.header.frame_id = self.MAP_FRAME
             odom.child_frame_id = self.BASE_FRAME
             odom.pose.pose.position.x = bx
@@ -473,16 +493,25 @@ class ParticleFiler(Node):
         self.downsampled_ranges = np.array(msg.ranges[::self.ANGLE_STEP])
         self.lidar_initialized = True
 
-        # Velocity motion model: integrate the latest odom twist over the interval
-        # since the previous scan -> body-frame delta [dx, dy(~0 on a car), dtheta].
-        # update() consumes self.odometry_data and zeroes it, so we recompute it
-        # fresh from velocity * dt on every scan.
+        # Integrate timestamped velocity samples over the scan interval.  This
+        # avoids applying a newly arrived sample retroactively to the whole
+        # interval, which is especially harmful when PF processing is delayed.
         scan_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         if self.last_scan_time is not None:
             dt = scan_time - self.last_scan_time
-            if dt > 0.0:
-                self.odometry_data = np.array(
-                    [self.current_speed * dt, 0.0, self.current_angular * dt])
+            if 0.0 < dt <= self.MAX_SCAN_GAP_SEC:
+                dx = self._integrate_samples(
+                    self.speed_buffer, self.last_scan_time, scan_time, self.current_speed)
+                dtheta = self._integrate_samples(
+                    self.angular_buffer, self.last_scan_time, scan_time, self.current_angular)
+                self.odometry_data = np.array([dx, 0.0, dtheta])
+            else:
+                # Out-of-order stamps or a large sensor gap must not create a
+                # backwards/huge motion jump.  Treat this scan as a new epoch.
+                self.odometry_data.fill(0.0)
+                self.get_logger().warning(
+                    f'[pf] rejected scan interval dt={dt:.3f}s',
+                    throttle_duration_sec=1.0)
         self.last_scan_time = scan_time
         self.last_stamp = msg.header.stamp
 
@@ -495,8 +524,11 @@ class ParticleFiler(Node):
         callback no longer computes position deltas or triggers an MCL update.
         '''
         self.current_speed = msg.twist.twist.linear.x
+        self._append_sample(self.speed_buffer, self._stamp_sec(msg.header.stamp), self.current_speed)
         if self.imu_sub is None:
             self.current_angular = msg.twist.twist.angular.z
+            self._append_sample(
+                self.angular_buffer, self._stamp_sec(msg.header.stamp), self.current_angular)
         self.odom_initialized = True
 
     def imuCB(self, msg):
@@ -521,6 +553,49 @@ class ParticleFiler(Node):
         move z - so no transform is needed here.
         '''
         self.current_angular = msg.angular_velocity.z
+        self._append_sample(
+            self.angular_buffer, self._stamp_sec(msg.header.stamp), self.current_angular)
+
+    @staticmethod
+    def _stamp_sec(stamp):
+        return stamp.sec + stamp.nanosec * 1e-9
+
+    def _append_sample(self, buffer, stamp, value):
+        if not np.isfinite(stamp) or not np.isfinite(value):
+            return
+        # Sensor restarts can move time backwards.  Keep each buffer ordered;
+        # a new time epoch discards samples which can no longer be integrated.
+        if buffer and stamp < buffer[-1][0]:
+            buffer.clear()
+        buffer.append((stamp, float(value)))
+        cutoff = stamp - self.MOTION_BUFFER_DURATION_SEC
+        while len(buffer) > 1 and buffer[1][0] < cutoff:
+            buffer.popleft()
+
+    @staticmethod
+    def _integrate_samples(buffer, start, end, fallback):
+        """Zero-order-hold integral over [start, end] from a bounded buffer."""
+        if end <= start:
+            return 0.0
+        samples = list(buffer)
+        value = float(fallback) if np.isfinite(fallback) else 0.0
+        for stamp, sample in samples:
+            if stamp <= start:
+                value = sample
+            else:
+                break
+        total = 0.0
+        cursor = start
+        for stamp, sample in samples:
+            if stamp <= start:
+                continue
+            if stamp >= end:
+                break
+            total += value * (stamp - cursor)
+            cursor = stamp
+            value = sample
+        total += value * (end - cursor)
+        return total
 
     def clicked_pose(self, msg):
         '''
@@ -810,7 +885,7 @@ class ParticleFiler(Node):
                 self.timer.tick()
                 self.iters += 1
 
-                t1 = time.time()
+                t1 = time.perf_counter()
                 observation = np.copy(self.downsampled_ranges).astype(np.float32)
                 action = np.copy(self.odometry_data)
                 self.odometry_data = np.zeros(3)
@@ -821,16 +896,28 @@ class ParticleFiler(Node):
                 # compute the expected value of the robot pose
                 self.inferred_pose = self.expected_pose()
                 self.state_lock.release()
-                t2 = time.time()
+                t2 = time.perf_counter()
 
                 # publish transformation frame based on inferred pose
                 self.publish_tf(self.inferred_pose, self.last_stamp)
 
                 # this is for tracking particle filter speed
-                ips = 1.0 / (t2 - t1)
+                latency = t2 - t1
+                ips = 1.0 / latency
                 self.smoothing.append(ips)
-                if self.iters % 10 == 0:
-                    self.get_logger().info(str(['iters per sec:', int(self.timer.fps()), ' possible:', int(self.smoothing.mean())]))
+                self.update_latencies.append(latency)
+                if latency > self.DEADLINE_SEC:
+                    self.deadline_misses += 1
+                now = time.perf_counter()
+                if now - self.last_stats_time >= self.STATS_PERIOD_SEC:
+                    values = np.asarray(self.update_latencies) * 1000.0
+                    self.get_logger().info(
+                        '[pf] latency_ms avg=%.2f p95=%.2f p99=%.2f max=%.2f '
+                        'deadline_misses=%d effective_hz=%.1f' % (
+                            np.mean(values), np.percentile(values, 95),
+                            np.percentile(values, 99), np.max(values),
+                            self.deadline_misses, self.timer.fps()))
+                    self.last_stats_time = now
 
                 self.visualize()
 

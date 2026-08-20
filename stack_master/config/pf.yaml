@@ -50,6 +50,8 @@ particle_filter:
     # one is a whole extra ray-cast pass, and at 0 (unthrottled) it ran at the
     # scan rate.
     viz_rate_hz: 10.0
+    motion_buffer_duration_sec: 2.0
+    max_scan_gap_sec: 0.25
 
     # Ray casting, and the filter's whole cost: 1081/angle_step beams times
     # max_particles times the scan rate.
@@ -68,7 +70,9 @@ particle_filter:
 
     # Matches the UST-10LX's guaranteed range.
     max_range: 10
-    fine_timing: 1
+    fine_timing: 0
+    stats_period_sec: 2.0
+    deadline_sec: 0.025
     publish_odom: 1
 
     # sensor model constants

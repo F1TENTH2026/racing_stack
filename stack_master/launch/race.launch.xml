@@ -20,6 +20,8 @@
 -->
 <launch>
   <arg name="map"        description="Map name (folder in stack_master/maps/)"/>
+  <arg name="race_mode" default="head_to_head"
+       description="Startup-only mode: time_trial | static_qualify | head_to_head | practice"/>
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
   <arg name="virtual"    default="$(var sim)" description="Inject a virtual opponent + static obstacles (on by default in sim, off on the real car; e.g. virtual:=true to overlay a virtual opponent onto the real LiDAR)"/>
@@ -38,6 +40,16 @@
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
+  <let name="time_trial" value="true" if="$(eval '\'$(var race_mode)\' == \'time_trial\'')"/>
+  <let name="time_trial" value="false" unless="$(eval '\'$(var race_mode)\' == \'time_trial\'')"/>
+  <let name="static_mode" value="true" if="$(eval '\'$(var race_mode)\' == \'static_qualify\'')"/>
+  <let name="static_mode" value="false" unless="$(eval '\'$(var race_mode)\' == \'static_qualify\'')"/>
+  <let name="full_mode" value="true" if="$(eval '\'$(var race_mode)\' == \'head_to_head\' or \'$(var race_mode)\' == \'practice\'')"/>
+  <let name="full_mode" value="false" unless="$(eval '\'$(var race_mode)\' == \'head_to_head\' or \'$(var race_mode)\' == \'practice\'')"/>
+  <let name="obstacle_mode" value="false" if="$(var time_trial)"/>
+  <let name="obstacle_mode" value="true" unless="$(var time_trial)"/>
+  <let name="enable_ftg" value="false" if="$(var time_trial)"/>
+  <let name="enable_ftg" value="true" unless="$(var time_trial)"/>
   <!-- virtual_perception injection seam is chosen at RUNTIME from the Sim Control
        panel (/vp/inject_mode: overlay | merge; default 'overlay'). In BOTH modes
        tracking publishes /tracking/obstacles_raw and tracking_merger owns
@@ -61,6 +73,7 @@
        detect publishes /detect/raw_obstacles (Frenet filled at the source);
        tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
        (sim virtual_perception) owns /tracking/obstacles. -->
+  <group if="$(var obstacle_mode)">
   <node pkg="perception" exec="detect" name="detect" output="screen">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <param name="map" value="$(var map)" type="str"/>
@@ -73,8 +86,15 @@
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
     <remap from="/tracking/obstacles" to="$(var tracking_out)"/>
   </node>
+  </group>
+
+  <!-- Q1/Q3: no perception/planning/state-machine work. The adapter preserves
+       the controller's BehaviorStrategy interface with the scaled raceline. -->
+  <node pkg="controller" exec="raceline_behavior_publisher"
+        name="raceline_behavior_publisher" output="screen" if="$(var time_trial)"/>
 
   <!-- ===== State machine: the racing brain ===== -->
+  <group if="$(var obstacle_mode)">
   <node pkg="state_machine" exec="state_machine" name="state_machine" output="screen">
     <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
     <param name="sim"             value="$(var sim)"/>
@@ -102,8 +122,10 @@
     <param name="debug_log_enabled" value="$(var debug)"/>
     <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
   </node>
+  </group>
 
   <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
+  <group if="$(var full_mode)">
   <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
     <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="screen">
       <param name="vis" value="$(var vis_lane_change)"/>
@@ -114,15 +136,18 @@
     <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="screen"/>
     <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
   </group>
+  </group>
 
   <!-- ===== GP opponent-trajectory predictor =====
        Pipeline (README): opponent_trajectory (collect /proj_opponent_trajectory) ->
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
        opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
-  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+  <group if="$(var full_mode)">
+    <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
+    <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen"/>
+    <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+  </group>
 
   <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
@@ -132,5 +157,6 @@
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="sim" value="$(var sim)"/>
+    <param name="enable_ftg" value="$(var enable_ftg)"/>
   </node>
 </launch>

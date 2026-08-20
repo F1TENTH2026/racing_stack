@@ -48,3 +48,11 @@ controller_manager:
     ftg_steer_ema: 0.0           # steering low-pass 0..1 (0=off, higher=smoother)
     ftg_max_steer: 0.4           # steering command clip [rad]
     save_params: false
+    # Freshness and final actuator-boundary safety. Steady/wall elapsed time is
+    # used in code; these values do not depend on callback counts or SM rate.
+    behavior_timeout_sec: 0.25
+    odom_timeout_sec: 0.15
+    minimum_trajectory_points: 20
+    max_steering_angle: 0.53
+    dt_min_sec: 0.005
+    dt_max_sec: 0.10

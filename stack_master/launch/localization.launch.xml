@@ -22,13 +22,9 @@
   <let name="map_path"                value="$(var maps_dir)/$(var map)/$(var map)"/>
   <let name="cartographer_config_dir" value="$(find-pkg-share stack_master)/config"/>
 
-  <!-- odom->base_link TF: needed for pf and cartographer, where ekf_pf.yaml /
-       ekf_cartographer.yaml own map->odom and this node supplies the rest of
-       the REP-105 chain (see those files' headers). kiss fuses wheel-odom +
-       gyro itself and publishes map->base_link directly; turning this on
-       there would give base_link two TF parents. -->
-  <let name="odom_tf" value="false" if="$(eval '\'$(var localization)\' == \'kiss\'')"/>
-  <let name="odom_tf" value="true"  unless="$(eval '\'$(var localization)\' == \'kiss\'')"/>
+  <!-- vesc_to_odom never owns TF. For PF/cartographer, ekf_local_odom is the
+       sole odom->base_link publisher; KISS owns map->base_link itself. -->
+  <let name="odom_tf" value="false"/>
 
   <!-- ===== Sensors + mux (real hardware) ===== -->
   <include file="$(find-pkg-share stack_master)/launch/low_level.launch.xml">
@@ -53,6 +49,14 @@
     <param name="autostart"    value="true"/>
     <param name="node_names"   value="['map_server']"/>
   </node>
+
+  <!-- ===== Shared local odometry for global localization backends ===== -->
+  <group unless="$(eval '\'$(var localization)\' == \'kiss\'')">
+    <node pkg="robot_localization" exec="ekf_node" name="ekf_local_odom" output="screen">
+      <param from="$(find-pkg-share stack_master)/config/ekf_local_odom.yaml"/>
+      <remap from="odometry/filtered" to="/odometry/local"/>
+    </node>
+  </group>
   <node pkg="nav2_map_server" exec="map_server" name="map_server" output="screen">
     <param name="yaml_filename" value="$(var map_path).yaml"/>
     <param name="topic"         value="map"/>

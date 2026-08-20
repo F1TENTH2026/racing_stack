@@ -8,10 +8,7 @@
 # -- this file had the identical odom_frame == base_link_frame bug):
 #
 #   map  -> odom       this node (publish_tf below)
-#   odom -> base_link   vesc_to_odom, dead reckoning between corrections
-#
-# vesc_to_odom's publish_tf is switched on for this by localization.launch.xml's
-# odom_tf (localization:=pf|cartographer) -- see low_level.launch.xml.
+#   odom -> base_link   ekf_local_odom only (vx + measured gyro wz)
 ekf_localization:
   ros__parameters:
 
@@ -25,14 +22,15 @@ ekf_localization:
     base_link_frame: base_link
     world_frame    : map        # absolute pose in map frame
 
-    # VESC wheel odometry: use twist only (vx, vyaw)
-    odom0: /vesc/odom
+    # Local EKF twist: vx + measured gyro wz (not servo-model yaw rate).
+    odom0: /odometry/local
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  false, false,
                    false, false, true,
                    false, false, false]
     odom0_differential: false
+    odom0_queue_size: 1
 
     # Cartographer tracked pose (converted PoseStamped → Odometry): use position + yaw
     odom1: /tracked_pose/odom
@@ -42,3 +40,4 @@ ekf_localization:
                    false, false, false,
                    false, false, false]
     odom1_differential: false
+    odom1_queue_size: 1

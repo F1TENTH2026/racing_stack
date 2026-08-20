@@ -1,9 +1,0 @@
-# state_machine debug log started 20260817_115157  map='0815test3'
-1786935125.599 [OBSTACLES] cur_s=0.00 cur_d=0.00 vs=0.00 n=0 [none]
-1786935125.599 [STATE_CHANGE] None -> GB_TRACK src=GB_TRACK s=0.00 d=0.00 vs=0.00
-1786935126.106 [OBSTACLES] cur_s=0.00 cur_d=0.00 vs=0.00 n=0 [none]
-1786935126.606 [OBSTACLES] cur_s=0.00 cur_d=0.00 vs=0.00 n=0 [none]
-1786935127.108 [OBSTACLES] cur_s=0.00 cur_d=0.00 vs=0.00 n=0 [none]
-1786935132.302 [OBSTACLES] cur_s=0.00 cur_d=0.00 vs=0.00 n=0 [none]
-1786935132.348 [STATE_CHANGE] GB_TRACK -> LOSTLINE src=GB_TRACK s=7.81 d=0.46 vs=0.00
-1786935132.855 [OBSTACLES] cur_s=7.81 cur_d=0.46 vs=0.00 n=0 [none]

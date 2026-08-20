@@ -147,7 +147,7 @@ class Controller:
         self.future_lat_e_norm = 0.0
         self.boost_mode = False
 
-    def main_loop(self, state, position_in_map, waypoint_array_in_map, speed_now, opponent, position_in_map_frenet, acc_now, track_length):
+    def main_loop(self, state, position_in_map, waypoint_array_in_map, speed_now, opponent, position_in_map_frenet, acc_now, track_length, control_dt=None):
         # Updating parameters from manager
         self.state = state
         self.position_in_map = position_in_map
@@ -162,6 +162,7 @@ class Controller:
         self.position_in_map_frenet = position_in_map_frenet
         self.acc_now = acc_now
         self.track_length = track_length
+        self.control_dt = (1.0 / self.loop_rate) if control_dt is None else float(control_dt)
 
         ## PREPROCESS ##
         # speed vector
@@ -181,9 +182,11 @@ class Controller:
         if np.isnan(self.idx_nearest_waypoint):
             self.idx_nearest_waypoint = 0
 
-        if len(self.waypoint_array_in_map[self.idx_nearest_waypoint:]) > 2:
-            # calculate curvature of global optimizer waypoints
-            self.curvature_waypoints = np.mean(abs(self.waypoint_array_in_map[self.idx_nearest_waypoint+10:self.idx_nearest_waypoint+20, 5]))
+        curvature_slice = self.waypoint_array_in_map[
+            self.idx_nearest_waypoint + 10:self.idx_nearest_waypoint + 20, 5]
+        if curvature_slice.size == 0 or not np.all(np.isfinite(curvature_slice)):
+            raise ValueError('curvature horizon unavailable')
+        self.curvature_waypoints = float(np.mean(np.abs(curvature_slice)))
 
         # calculate future lateral error and future lateral error norm
 
@@ -210,10 +213,10 @@ class Controller:
             jerk = 0
 
         else:
-            speed = self.last_valid_speed
+            speed = 0.0
             jerk = 0
             acceleration = 0
-            self.logger_warn("[Controller] non-finite/none speed; holding last valid speed")
+            self.logger_warn("[Controller] non-finite/none speed; commanding stop")
 
         ### LATERAL CONTROL ###
 
@@ -224,7 +227,10 @@ class Controller:
         L1_point, L1_distance = self.calc_future_L1_point(self.future_lat_err)
         #-----------------------------------------Future-------------------------------------------
 
-        if L1_point.any() is not None:
+        if (L1_point is not None and np.asarray(L1_point).ndim == 1
+                and np.asarray(L1_point).size >= 2
+                and np.all(np.isfinite(L1_point))
+                and np.isfinite(L1_distance) and L1_distance > 1e-6):
 
             #-----------------------------------------Future-------------------------------------------
             steering_angle = self.calc_steering_angle_for_future(L1_point, L1_distance, yaw, self.future_lat_e_norm, v)
@@ -233,7 +239,7 @@ class Controller:
             self.current_steer_command = steering_angle
 
         else:
-            raise Exception("L1_point is None")
+            raise ValueError("invalid L1 point/distance")
 
         # Final safety net: never emit a non-finite steering command. A NaN/inf
         # here (e.g. from a degenerate local trajectory during overtaking) would
@@ -278,23 +284,22 @@ class Controller:
 
         """
         marks = MarkerArray()
-        for i in range(1):
-            mrk = Marker()
-            mrk.header.frame_id = "map"
-            mrk.type = mrk.SPHERE
-            mrk.scale.x = 0.3
-            mrk.scale.y = 0.3
-            mrk.scale.z = 0.3
-            mrk.color.a = 1.0
-            mrk.color.b = 1.0
+        if self.predict_pub is not None and self.predict_pub.get_subscription_count() > 0:
+            for i in range(1):
+                mrk = Marker()
+                mrk.header.frame_id = "map"
+                mrk.type = mrk.SPHERE
+                mrk.scale.x = 0.3
+                mrk.scale.y = 0.3
+                mrk.scale.z = 0.3
+                mrk.color.a = 1.0
+                mrk.color.b = 1.0
 
-            mrk.id = i
-            mrk.pose.position.x = self.future_position[0, 0]
-            mrk.pose.position.y = self.future_position[0, 1]
-            mrk.pose.orientation.w = 1.0
-            marks.markers.append(mrk)
-
-        if self.predict_pub is not None:
+                mrk.id = i
+                mrk.pose.position.x = self.future_position[0, 0]
+                mrk.pose.position.y = self.future_position[0, 1]
+                mrk.pose.orientation.w = 1.0
+                marks.markers.append(mrk)
             self.predict_pub.publish(marks)
 
         if (self.state == "TRAILING") and (self.opponent is not None):
@@ -324,7 +329,7 @@ class Controller:
         # Pure-Pursuit steering (ROS1 MAP/steering-lookup branch removed)
         steering_angle = np.arctan(2*self.wheelbase*np.sin(eta)/L1_distance)
 
-        dt = 1.0 / self.loop_rate
+        dt = self.control_dt
 
         #-------------------------Steering Scaling-----------------------------
 
@@ -468,7 +473,7 @@ class Controller:
 
         self.gap_error = self.gap_should - self.gap_actual
         self.v_diff = self.position_in_map_frenet[2] - self.opponent[2]
-        self.i_gap = np.clip(self.i_gap + self.gap_error/self.loop_rate, -10, 10)
+        self.i_gap = np.clip(self.i_gap + self.gap_error * self.control_dt, -10, 10)
 
         p_value = self.gap_error * self.trailing_p_gain
         d_value = self.v_diff * self.trailing_d_gain

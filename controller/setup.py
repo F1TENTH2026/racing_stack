@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'controller_manager = controller.controller_manager:main',
+            'raceline_behavior_publisher = controller.raceline_behavior_publisher:main',
         ],
     },
 )
