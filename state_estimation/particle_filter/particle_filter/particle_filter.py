@@ -39,7 +39,7 @@ from tf2_ros import TransformBroadcaster, Buffer, TransformListener
 import tf_transformations
 
 # messages
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from std_msgs.msg import String, Header, Float32MultiArray
 from sensor_msgs.msg import Imu, LaserScan
 from visualization_msgs.msg import Marker
@@ -229,16 +229,28 @@ class ParticleFiler(Node):
             self.imu_sub = self.create_subscription(
                 Imu, imu_topic, self.imuCB, qos_profile_sensor_data)
             self.get_logger().info(f'yaw rate from {imu_topic}, not the odometry twist')
+        # RViz's "2D Pose Estimate" / "Publish Point" tools publish BEST_EFFORT.
+        # A RELIABLE subscriber (what you get by passing a plain depth here) is
+        # QoS-incompatible with that and receives NOTHING -- clicking the tool
+        # never fires clicked_pose, so the filter could not be seeded by hand and
+        # was left running on its startup initialize_global() cloud. A BEST_EFFORT
+        # subscriber accepts a best-effort OR a reliable publisher, so this keeps
+        # working for the reliable publishers too (lap_analyser's relocalizer,
+        # `ros2 topic pub`). Same fix, same reason as set_initial_pose_node.py.
+        rviz_tool_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10)
         self.pose_sub = self.create_subscription(
             PoseWithCovarianceStamped,
             '/initialpose',
             self.clicked_pose,
-            1)
+            rviz_tool_qos)
         self.click_sub = self.create_subscription(
             PointStamped,
             '/clicked_point',
             self.clicked_pose,
-            1)
+            rviz_tool_qos)
 
         self.get_logger().info('Finished initializing, waiting on messages...')
 
