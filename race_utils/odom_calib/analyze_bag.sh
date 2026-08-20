@@ -18,13 +18,14 @@
 #   --servo-gain G       "
 #   --servo-offset O     "
 #   --t-start S / --t-end S   crop the bag
-#   --imu-yaw RAD        base_link->vesc_imu yaw for the EKF TF (default +pi/2)
+#   --imu-yaw RAD        base_link->vesc_imu yaw for the EKF TF (default -pi/2,
+#                        matching CAR/static_transforms.yaml)
 #   --no-ekf             skip the robot_localization replay stage
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYBASE="$(command -v python3)"          # base env (has mcap/numpy/scipy/matplotlib)
 
-BAG=""; OUT=""; DO_EKF=1; IMU_YAW="1.5707963"; EXTRA=()
+BAG=""; OUT=""; DO_EKF=1; IMU_YAW="-1.5707963"; EXTRA=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out)          OUT="$2"; shift 2;;

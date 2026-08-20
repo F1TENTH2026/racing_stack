@@ -12,6 +12,24 @@
 #
 # vesc_to_odom's publish_tf is switched on for this by localization.launch.xml's
 # odom_tf (localization:=pf|cartographer) -- see low_level.launch.xml.
+# WHY THE YAW RATE COMES FROM THE GYRO, NOT /vesc/odom
+#
+# vesc_to_odom does NOT measure angular velocity. It takes the servo COMMAND,
+# inverts it through steering_angle_to_servo_gain/offset, and pushes it through
+# a bicycle model (vesc_to_odom.cpp: v*tan(delta)/L) -- i.e. the yaw rate the
+# car WOULD have if the tyres never slipped and the servo tracked instantly.
+#
+# Measured against the VESC gyro over a 36 s drive (yaw_diag bag):
+#   * the model came out 18.5% LOW on yaw rate (VESC = 0.815 x gyro), and
+#   * the servo response lags the command by ~120 ms (peak cross-correlation).
+# Over that run the car actually turned 723 deg while /vesc/odom reported 595 --
+# a 128 deg heading error in half a minute. That is a systematic error, not
+# noise, so the filter integrates it every cycle and map->odom has to grow to
+# cancel it, which is what sends the odom frame off the map.
+#
+# The gain error itself is fixed in CAR/vehicle_config.yaml
+# (steering_angle_to_servo_gain), but the command-vs-measurement gap and the
+# 120 ms lag remain by construction. odom0 therefore contributes vx only.
 ekf_localization:
   ros__parameters:
 
@@ -29,10 +47,30 @@ ekf_localization:
     odom0: /vesc/odom
     odom0_config: [false, false, false,
                    false, false, false,
-                   true,  false, false,
-                   false, false, true,
+                   true,  false, false,     # vx: motor ERPM, a real measurement
+                   false, false, false,     # vyaw DROPPED -> see imu0 below
                    false, false, false]
     odom0_differential: false
+
+    # Gyro yaw rate -- the yaw source odom0 no longer provides.
+    #
+    # Bias-corrected upstream by imu_bias_corrector (bias lives in
+    # CAR/vehicle_config.yaml under imu_bias_corrector.gyro_bias); the launch
+    # file that loads this config starts that node. Subscribing to the RAW
+    # /vesc/sensors/imu here would re-introduce the zero-rate offset.
+    #
+    # orientation is deliberately NOT fused: that field carries the VESC's own
+    # AHRS quaternion, which free-runs and drifts. Absolute heading comes from
+    # odom1 (the map-locked pose); the IMU only supplies the rate.
+    imu0: /vesc/sensors/imu_corrected
+    imu0_config: [false, false, false,
+                  false, false, false,      # no orientation (AHRS drifts)
+                  false, false, false,
+                  false, false, true,       # vyaw only
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
 
     # Cartographer tracked pose (converted PoseStamped → Odometry): use position + yaw
     odom1: /tracked_pose/odom

@@ -6,22 +6,28 @@
   Usage:
     # terminal 1 — bring up the filter + the static IMU/laser TFs
     ros2 launch odom_calib replay_ekf.launch.xml         # (or run this file directly)
-    # terminal 2 — replay the bag (use_sim_time picks up /clock if you add --clock)
-    ros2 bag play /path/to/rosbag2_2026_06_30-22_27_29 --clock
+    # terminal 2 — replay the bag. Add the clock flag (two dashes + "clock") so
+    #              use_sim_time picks up /clock:
+    ros2 bag play /path/to/rosbag2_2026_06_30-22_27_29
 
   Then record/compare:
     ros2 topic echo /odometry/filtered        # the dead-reckoning estimate
   Score /odometry/filtered against /tracked_pose with the offline tool's TUM
   export + evo, or just overlay in RViz.
 
-  NOTE: this reuses the base_link->vesc_imu (+90° yaw) static TFs from
-  low_level.launch.xml; they are duplicated here so the launch is self-contained.
+  NOTE: the static TF below MIRRORS stack_master/config/CAR/static_transforms.yaml
+  (base_link -> vesc_imu_rot -> vesc_imu); it is duplicated here so the launch is
+  self-contained. Keep the two in sync. It previously carried +90° yaw and zero
+  translation, neither of which matched the car.
 -->
 <launch>
   <arg name="config" default="$(find-pkg-share stack_master)/../TODO/system_identification/odom_calib/ros/ekf_deadreckoning.yaml"/>
 
-  <node pkg="tf2_ros" exec="static_transform_publisher" name="base_to_vesc_imu_broadcaster"
-        args="--x 0 --y 0 --z 0 --roll 0 --pitch 0 --yaw 1.5707963 --frame-id base_link --child-frame-id vesc_imu"/>
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="base_to_vesc_imu_rot_broadcaster"
+        args="--x 0.07 --y 0 --z 0.04 --roll 0 --pitch 0 --yaw 0 --frame-id base_link --child-frame-id vesc_imu_rot"/>
+
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="vesc_imu_rot_to_vesc_imu_broadcaster"
+        args="--x 0 --y 0 --z 0 --roll 0 --pitch 0 --yaw -1.5707963 --frame-id vesc_imu_rot --child-frame-id vesc_imu"/>
 
   <node pkg="robot_localization" exec="ekf_node" name="ekf_deadreckoning" output="screen">
     <param from="$(var config)"/>

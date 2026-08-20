@@ -27,4 +27,10 @@
       parent: vesc_imu_rot
       child: vesc_imu
       xyz: [0.0, 0.0, 0.0]
-      rpy: [0.0, 0.0, -1.5707963]    # yaw -90 deg (IMU mounted rotated about Z)
+      rpy: [0.0, 0.0, -1.5707963]    # yaw -90 deg (IMU mounted rotated about Z).
+                                     # A mounting rotation about Z leaves gyro.z
+                                     # and accel.z untouched, so in this 2D stack
+                                     # the sign here is inert -- only roll/pitch
+                                     # (gravity alignment) and the translation
+                                     # above change any result. Verify roll/pitch
+                                     # with scripts/imu_mount_calibration.py.
