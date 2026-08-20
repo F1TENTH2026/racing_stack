@@ -29,12 +29,23 @@ ekf_localization:
     base_link_frame: base_link
     world_frame:     map       # absolute pose in map frame
 
-    # VESC wheel odometry: use twist only (vx, vyaw)
+    # VESC odometry: vx ONLY.
+    #
+    # vyaw used to be fused from here too and is now off. /vesc/odom's angular.z
+    # is not a measurement: vesc_to_odom takes the servo COMMAND through a
+    # bicycle model (vesc_to_odom.cpp), so it reports the rate the car would
+    # turn if the tyres never slipped. That error is systematic, and this car
+    # has no wheel encoder to bound it, so it is what walks the dead-reckoned
+    # pose (and with it the odom frame) off the map between pf corrections.
+    # imu0 below supplies a MEASURED yaw rate instead.
+    #
+    # vx stays: it comes from the motor ERPM, which is measured, and it is the
+    # filter's only source of forward speed.
     odom0: /vesc/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  false, false,
-                   false, false, true,
+                   false, false, false,
                    false, false, false]
     odom0_differential: false
 
@@ -46,3 +57,29 @@ ekf_localization:
                    false, false, false,
                    false, false, false]
     odom1_differential: false
+
+    # Gyro yaw rate (vyaw ONLY) from imu_bias_corrector's output -- the measured
+    # replacement for odom0's servo-command estimate above. Bias-corrected, so
+    # the zero-rate offset in vehicle_config.yaml's gyro_bias is not integrated
+    # here; that node also stamps angular_velocity_covariance, without which
+    # robot_localization substitutes a near-zero variance for a fused variable
+    # and treats a single gyro sample as exact (watch the startup log for its
+    # zero-variance warning if that covariance ever goes missing).
+    #
+    # Nothing else is taken from the IMU. Absolute orientation is not fused: the
+    # VESC IMU has no map-frame heading reference, and it would fight odom1's pf
+    # pose. Linear acceleration is not fused either -- it is noisy enough to
+    # corrupt vx, which odom0 already measures.
+    #
+    # The IMU reports in frame vesc_imu; base_link -> vesc_imu_rot -> vesc_imu
+    # comes from static_tf_publisher (CAR/static_transforms.yaml) via low_level,
+    # so robot_localization can transform it. The mounting is a pure +90 deg yaw
+    # about Z, which leaves the yaw rate itself unchanged.
+    imu0: /vesc/sensors/imu_corrected
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false

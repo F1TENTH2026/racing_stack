@@ -73,3 +73,7 @@ vesc/**:
 imu_bias_corrector:
   ros__parameters:
     gyro_bias: [-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary
+    # (rad/s)^2 stamped onto the corrected IMU's angular_velocity_covariance.
+    # ekf_pf.yaml fuses vyaw from that topic and robot_localization needs a real
+    # variance there; see imu_bias_corrector_node.py. 1e-4 == sigma 0.01 rad/s.
+    gyro_variance: 1.0e-4

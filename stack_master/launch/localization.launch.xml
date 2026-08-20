@@ -40,6 +40,22 @@
     <arg name="odom_tf"        value="$(var odom_tf)"/>
   </include>
 
+  <!-- Remove the measured zero-rate gyro offset before anything integrates it.
+       mapping.launch.xml has always run this; localization did not, so a map built
+       on /vesc/sensors/imu_corrected was then localized against with the RAW topic
+       and every consumer re-acquired the bias vehicle_config.yaml already measures
+       (gyro_bias z = 0.0040946 rad/s ~ 14 deg of yaw per minute). cartographer and
+       pf below both read the corrected topic now.
+
+       Unconditional rather than gated on `localization`: kiss does not consume it
+       (kiss.yaml estimates its own gyro bias from imu_init_samples on the raw
+       topic), but this is a bare republisher and leaving the topic present for all
+       three backends is cheaper than a gate that silently removes it. -->
+  <node pkg="stack_master" exec="imu_bias_corrector_node.py"
+        name="imu_bias_corrector" output="screen">
+    <param from="$(var vehicle_config)"/>
+  </node>
+
   <!-- Map relay: periodically republishes /map so remote subscribers (RViz) receive it.
        nav2 map_server publishes only once with TRANSIENT_LOCAL, which CycloneDDS may not
        deliver reliably across machine boundaries. This relay re-publishes every 3 s. -->
@@ -68,7 +84,7 @@
     <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
           args="-configuration_directory $(var cartographer_config_dir) -configuration_basename $(var lua_file) -load_state_filename $(var pbstream_file) -collect_metrics">
       <param name="use_sim_time" value="false"/>
-      <remap from="/imu" to="/vesc/sensors/imu"/>
+      <remap from="/imu" to="/vesc/sensors/imu_corrected"/>
       <remap from="/odom" to="/vesc/odom"/>
     </node>
 

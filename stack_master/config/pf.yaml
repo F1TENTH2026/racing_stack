@@ -24,7 +24,14 @@ particle_filter:
     # which on this car is the servo COMMAND run through a bicycle model
     # rather than a measurement - see imuCB in particle_filter.py. Set back to
     # '' to A/B against the odom twist.
-    imu_topic: '/vesc/sensors/imu'
+    #
+    # The CORRECTED topic (imu_bias_corrector, launched by
+    # localization.launch.xml): the raw gyro's zero-rate offset is a constant,
+    # not noise, so the motion model added the same wrong yaw increment on
+    # every scan and the sensor model had to drag the cloud back each time -
+    # exactly the failure imuCB's docstring describes for the servo-command
+    # twist. Point this back at '/vesc/sensors/imu' to A/B the bias itself.
+    imu_topic: '/vesc/sensors/imu_corrected'
 
     publish_tf: false
     map_frame: 'map'
