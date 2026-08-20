@@ -7,18 +7,13 @@
 
 urg_node:
   ros__parameters:
-    # One range for every consumer (mapping/cartographer, pf, detect): pf and
-    # detect both read msg.angle_min/angle_max off /scan directly (no separate
-    # FOV param of their own, though detect also self-narrows via its own
-    # max_angle_rad in opponent_tracker_params.yaml, which is now a no-op at
-    # this value), and cartographer_node has no angle filter at all, so
-    # whatever is set here is what mapping sees too. Was widened to +-3.14 for
-    # pf's relocalization FOV, but that let raw /scan reach cartographer
-    # unfiltered during mapping and caught chassis/mount self-hits at the wide
-    # edges, degrading scan matching -- back to the single +-1.8 rad range
-    # that mapping, detect, and pf all use uniformly.
-    angle_max: 1.8
-    angle_min: -1.8
+    # Full sensor FOV -- both pf and detect read msg.angle_min/angle_max off
+    # /scan directly (no separate FOV param of their own), so widening it here
+    # widens what pf sees for localization. detect stays narrowed to the old
+    # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
+    # instead of at the driver, so raising this doesn't change what it detects.
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"

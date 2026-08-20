@@ -1,7 +1,14 @@
-# robot_localization EKF for MAPPING with cartographer. Fuses cartographer's
-# /tracked_pose (via pose_to_odom_node) with the VESC twist, produces
-# /car_state/odom, and owns the map TF (cartographer_node broadcasts nothing --
+# robot_localization EKF for MAPPING with cartographer. Produces
+# /car_state/odom and owns the map TF (cartographer_node broadcasts nothing --
 # mapping_2d.lua sets publish_to_tf = false).
+#
+# Each state has exactly ONE source, so nothing fights over it:
+#   x, y, yaw  <- odom1, cartographer /tracked_pose via pose_to_odom_node
+#   vx         <- odom0, /vesc/odom (ERPM)
+#   vyaw       <- imu0,  /vesc/sensors/imu_corrected (gyro)
+# That split matters because neither VESC channel is trustworthy for the other
+# half: the ERPM speed knows nothing about heading, and the odometry's yaw rate
+# is modelled from the servo command rather than measured. See each block below.
 #
 # WHY THIS IS SEPARATE FROM ekf_cartographer.yaml
 #
@@ -99,7 +106,14 @@ ekf_localization:
     base_link_frame: base_link
     world_frame    : map        # absolute pose in map frame
 
-    # VESC odometry (ERPM + servo command through a bicycle model): twist only
+    # VESC odometry: FORWARD SPEED ONLY (vx).
+    #
+    # vyaw is deliberately OFF here even though /vesc/odom carries it, because
+    # with use_servo_cmd_to_calc_angular_velocity = true that yaw rate is the
+    # servo COMMAND pushed through a bicycle model -- it is what the car was
+    # asked to do, so it ignores tire slip, steering slop and servo lag, and it
+    # keeps reporting rotation while the car understeers straight on. The gyro
+    # measures the rotation that actually happened; imu0 below owns vyaw.
     odom0: /vesc/odom
     odom0_config: [false, false, false,
                    false, false, false,

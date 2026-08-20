@@ -129,7 +129,7 @@
        (virtual_perception) owns /tracking/obstacles when virtual:=true. -->
   <node pkg="perception" exec="detect" name="detect" output="screen">
     <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
-    <param name="map" value="$(var map)"/>
+    <param name="map" value="$(var map)" type="str"/>
   </node>
   <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
   <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
@@ -147,7 +147,7 @@
     <param name="racecar_version" value="$(var racecar_version)"/>
     <param name="timetrials_only" value="false"/>
     <param name="ot_planner"      value="$(var ot_planner)"/>
-    <param name="map"             value="$(var map)"/>
+    <param name="map"             value="$(var map)" type="str"/>
     <param name="debug_log_enabled" value="$(var debug)"/>
   </node>
 
