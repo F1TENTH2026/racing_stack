@@ -92,20 +92,21 @@ vesc/**:
     # with 1e-9 (ekf.cpp) purely to keep the Kalman gain finite, so the EKF was
     # treating raw ERPM speed as exact.
     #
-    # PROVISIONAL -- these are conservative starting points, not measurements.
-    # No stationary IMU bag survived the 2026-08-20 calibration (the script
-    # printed the std and nothing wrote it down), so:
-    #   vx_variance             sigma 0.1 m/s. Covers the ~0.8% speed_to_erpm_gain
-    #                           calibration spread and some wheelspin; slip under
-    #                           hard acceleration is worse than this.
-    #   yaw_rate_variance_gyro  sigma 0.02 rad/s, matching imu_bias_corrector's
-    #                           gyro_variance below. Keep the two in step.
-    #   yaw_rate_variance_model sigma 0.5 rad/s. The fallback bicycle model ran
-    #                           18.5% low, which is ~0.37 rad/s of error at a
-    #                           2 rad/s hairpin -- it should be down-weighted
-    #                           hard, not silently trusted like the gyro.
+    # vx_variance: DELIBERATELY LARGER THAN THE MEASURED NOISE. The high-frequency
+    # noise on this signal measured 3.9e-4 (sigma 0.020 m/s) over the
+    # bags/rosbag2_2026_08_21-06_07_33 laps, i.e. 26x smaller than the value here.
+    # It is not lowered to match, because that measurement is a FLOOR, not the
+    # uncertainty: vx is ERPM/speed_to_erpm_gain, so its real error is dominated
+    # by wheelspin and by the gain calibration itself, both of which are slow,
+    # systematic, and therefore invisible to a high-pass estimate. Sitting at the
+    # measured floor would tell the EKF that ERPM speed is nearly exact, which is
+    # the zero-covariance mistake again in a milder form. sigma 0.1 m/s covers the
+    # ~0.8% gain spread (0.028 m/s at 3.5 m/s) plus room for slip.
     vx_variance: 1.0e-2
-    yaw_rate_variance_gyro: 4.0e-4
+    # MEASURED WHILE DRIVING, 2026-08-21, bags/rosbag2_2026_08_21-06_07_33
+    # (2 laps + ~20 s stopped). Matches imu_bias_corrector's gyro_variance z --
+    # keep the two in step.
+    yaw_rate_variance_gyro: 3.5e-3
     yaw_rate_variance_model: 2.5e-1
 
 imu_bias_corrector:
@@ -113,26 +114,27 @@ imu_bias_corrector:
     gyro_bias: [-0.0013704, 0.0005222, 0.0003731] #[-0.0028153, -0.0018412, 0.0040946] imu calibration 후 수정 # rad/s, measured stationary
     # [(rad/s)^2] per axis, AFTER the bias above is removed. Only z is fused.
     #
-    # PROVISIONAL: sigma 0.02 rad/s -- but not an arbitrary one. There is
-    # nothing to copy from roboracer_unita_ws: its vesc_driver publishes no
-    # covariance either, its vesc_to_odom sets pose covariance only (twist is
-    # still the upstream @todo), and the one process_noise_covariance matrix it
-    # does carry sits in config/common/ekf.yaml, which its own header marks
-    # UNUSED and which is byte-for-byte robot_localization's built-in default
-    # (filter_base.cpp:110-124). Measurement covariance cannot come from yaml at
-    # all -- robot_localization reads R off the message, there is no
-    # odom0_covariance parameter -- which is why this lives here.
+    # MEASURED WHILE DRIVING -- imu_gyro_noise_check.py over
+    # bags/rosbag2_2026_08_21-06_07_33 (2 laps + ~20 s stopped, same run):
     #
-    # The floor comes from our own data: the two stationary calibrations of
-    # gyro_bias above disagree by 0.0037 rad/s on z (+0.0040946 -> +0.0003731),
-    # so run-to-run uncertainty after bias removal is at least that. 0.02 rad/s
-    # is ~5x that floor, leaving room for the vibration a still car never sees.
+    #     driving  (|vx| > 0.5)   3.499e-3   sigma 0.0592 rad/s  (3.39 deg/s)
+    #     stopped  (|vx| < 0.05)  1.375e-4   sigma 0.0117 rad/s  (0.67 deg/s)
     #
-    # imu_gyro_bias_check.py already computes the
-    # real number -- rerun it (car still, 10 s) and paste the gyro_variance line
-    # it now prints. Measure with the motor idling if you can: a dead-still car
-    # understates the vibration the gyro actually sees while racing, and this
-    # value is what scales ekf_*.yaml's imu0_twist_rejection_threshold.
-    gyro_variance: [4.0e-4, 4.0e-4, 4.0e-4]
+    # 25x the variance -- 5x the sigma -- once the car is actually moving. That
+    # gap is chassis vibration, and it is the whole reason a stationary
+    # measurement is the wrong tool: imu_gyro_bias_check.py would have reported
+    # the 1.4e-4 floor. Use that script for the BIAS, this one for the variance.
+    #
+    # The previous provisional value here was 4.0e-4, 8.7x too small. That is not
+    # a harmless conservatism: ekf_*.yaml gates the gyro at 5 sigma, so a sigma
+    # understated 3x turned a 5-sigma gate into a 1.7-sigma one, which rejects
+    # ~9% of samples even for clean Gaussian noise and far more with vibration's
+    # heavy tails. Rejected gyro means no yaw-rate correction, which means the
+    # EKF's covariance grows -- the magenta ellipse on /car_state/odom in RViz.
+    #
+    # x and y take the z value: only z is fused in this 2D stack, and splitting
+    # per axis would just be three noisier estimates of the same vibration.
+    # Re-measure on a new surface or after a mechanical change.
+    gyro_variance: [3.5e-3, 3.5e-3, 3.5e-3]
     # [(m/s^2)^2] Nothing fuses accel today; declared for honesty.
     accel_variance: [9.0e-2, 9.0e-2, 9.0e-2]
