@@ -68,7 +68,11 @@ class ParticleFiler(Node):
         # declare parameters
         #
         # dynamic_typing because every one of these gets its value and its type
+        # from pf.yaparameters
+        #
+        # dynamic_typing because every one of these gets its value and its type
         # from pf.yaml. Declaring a bare name means the same thing, but Humble
+        # deprecatml. Declaring a bare name means the same thing, but Humble
         # deprecated it and prints a six-line warning for each - twenty-two of
         # them, which buried the startup lines worth reading.
         dyn = ParameterDescriptor(dynamic_typing=True)

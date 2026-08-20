@@ -6,11 +6,11 @@ detect:
     # box, so a partly occluded face still passes); max_size_m is the ceiling with room for
     # a corner view plus fit noise.
     min_size_m: 0.15
-    max_size_m: 0.45
+    max_size_m: 0.60 # 테스트 기존 0.45 > 0.60
     lambda_deg: 10
     sigma: 0.029999999999999999
     min_2_points_dist: 0.01
-    new_cluster_threshold_m: 0.40000000000000002
+    new_cluster_threshold_m: 0.20 # 테스트 기존 0.40000000000000002 > 0.20
     max_viewing_distance: 9
     # Detection cone half-width [rad], independent of the lidar's own
     # angle_min/angle_max (CAR/vehicle_config.yaml's urg_node block, now the
@@ -20,7 +20,7 @@ detect:
     # How far inside the track edge an obstacle centre must sit to be accepted [m].
     # A 0.30 m box physically cannot have its centre closer than 0.15 m to a wall, so
     # 0.25 rejects wall returns while still accepting a real obstacle placed near the edge.
-    boundaries_inflation: 0.25
+    boundaries_inflation: 0.15 # 테스트 기존 0.25 > 0.15
     filter_kernel_size: 7
     measure: false
     from_bag: false
