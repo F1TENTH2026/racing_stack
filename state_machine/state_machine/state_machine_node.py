@@ -321,6 +321,7 @@ class StateMachine(Node):
         self._last_dyn_gap_m = None
         self._last_dyn_id = None
         self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
+        self.overtake_speed_scale = self.params.overtake_speed_scale
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
@@ -768,12 +769,14 @@ class StateMachine(Node):
 
     def avoidance_cb(self, data: OTWpntArray):
         if len(data.wpnts) != 0:
-            self.update_velocity(data, self.cur_avoidance_wpnts.vel_planner_safety_factor)
+            self.update_velocity(data, self.cur_avoidance_wpnts.vel_planner_safety_factor,
+                                 speed_scale=self.overtake_speed_scale)
         self.avoidance_wpnts = data
 
     def static_avoidance_cb(self, data: OTWpntArray):
         if len(data.wpnts) != 0:
-            self.update_velocity(data, self.cur_static_avoidance_wpnts.vel_planner_safety_factor)
+            self.update_velocity(data, self.cur_static_avoidance_wpnts.vel_planner_safety_factor,
+                                 speed_scale=self.overtake_speed_scale)
         self.static_avoidance_wpnts = data
 
     def start_wpnts_cb(self, data: OTWpntArray):
@@ -1611,7 +1614,7 @@ class StateMachine(Node):
     ################
     # HELPER FUNCS #
     ################
-    def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None):
+    def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None, speed_scale=1.0):
         """Recompute a physically-consistent velocity profile for `wpnts_msg`.
 
         `wpnts_msg` is either an object with a `.wpnts` list (OTWpntArray/WpntArray)
@@ -1623,6 +1626,15 @@ class StateMachine(Node):
         touching the braking curve (ax_max_machines/b_ax_max_machines) itself. That
         keeps this a normal, physically-smooth slow-down to a lower cruise speed --
         not an emergency stop (v_end still floors at 0 only if speed_cap does).
+
+        `speed_scale` multiplies the finished profile, exactly as the sector tuner
+        multiplies the raceline to produce /global_waypoints_scaled. It exists
+        because that scaling never reached the avoidance path: the planner emits
+        vx_mps = 0 for every point and this function rebuilds the profile from raw
+        ggv/ax_max_machines, so only v_end (the last point) inherited the sector
+        scaling. The raceline ran at 1.05-1.2x while the avoidance path ran at 1.0x.
+        Still clipped to veh_params v_max, and NOT applied to speed_cap: a scale
+        must never raise a cap that exists to slow the car down.
         """
         if self.ggv is None or self.gb_wpnts is None:
             return  # velocity replanning unavailable (no veh dyn info / no gb wpnts yet)
@@ -1675,6 +1687,12 @@ class StateMachine(Node):
             v_start=self.cur_vs,
             v_end=v_end,
         )
+
+        if speed_scale != 1.0:
+            vx_profile = np.minimum(vx_profile * float(speed_scale),
+                                    self.pars["veh_params"]["v_max"])
+            if speed_cap is not None:
+                vx_profile = np.minimum(vx_profile, speed_cap)
 
         for i in range(len(vx_profile)):
             wpnts[i].vx_mps = vx_profile[i]
@@ -2272,6 +2290,7 @@ class StateMachine(Node):
         self._last_dyn_gap_m = None
         self._last_dyn_id = None
         self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
+        self.overtake_speed_scale = self.params.overtake_speed_scale
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()

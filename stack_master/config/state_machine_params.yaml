@@ -139,6 +139,32 @@ state_machine:
     # too expensive, but understand that is the trade being made. 0 disables the
     # memory entirely and restores the old behaviour.
     dynamic_opponent_memory_sec: 3.0
+    # Multiplier on the AVOIDANCE path's velocity profile.
+    #
+    # The sector tuner scales the raceline (speed_scaling.yaml, 1.05-1.2 on
+    # 0820test1) to produce /global_waypoints_scaled. The avoidance path never
+    # got any of it: the lane_change planner publishes vx_mps = 0 for every point
+    # and update_velocity() rebuilds the profile from raw ggv/ax_max_machines, so
+    # only v_end -- the single last waypoint -- inherited the scaling. The car
+    # therefore ran the raceline at up to 1.2x and the overtake at 1.0x.
+    #
+    # ot_sectors.yaml's yeet_factor (1.25) does NOT cover this. It scales
+    # /global_waypoints/overtaking, and with ot_planner: lane_change the state
+    # machine's Overtaking() returns get_splini_wpts() -- the avoidance spline --
+    # so that topic never reaches the driven speed at all.
+    #
+    # 1.2 matches the scaling already validated on this track's straights.
+    # Clipped to veh_params v_max (15.0) and never allowed to raise a trailing
+    # speed cap. 1.0 restores the previous behaviour.
+    #
+    # NOTE this raises the CEILING only. Measured in
+    # state_machine_20260822_063122.log, OVERTAKE ran at 2.51 m/s against a
+    # scaled raceline of 4.20 m/s -- 53 %, far more than the 17 % this scale can
+    # explain. calc_vel_profile starts the profile at v_start = cur_vs, so the
+    # car enters the overtake at whatever TRAILING left it at (1.65 m/s median)
+    # and the episode lasts 0.50 s median -- not enough to reach any ceiling.
+    # trailing_speed_scale is the lever for that half of the problem.
+    overtake_speed_scale: 1.2
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.

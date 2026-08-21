@@ -43,6 +43,7 @@ class StateMachineParams:
         "dynamic_overtake_min_rel_speed_mps",
         "dynamic_prediction_span_m",
         "dynamic_opponent_memory_sec",
+        "overtake_speed_scale",
     }
 
     def __init__(self, node: "StateMachine") -> None:
@@ -357,6 +358,23 @@ class StateMachineParams:
             ),
         )
         self.dynamic_opponent_memory_sec: float = node.get_parameter("dynamic_opponent_memory_sec").value
+
+        self._declare(
+            "overtake_speed_scale", 1.2,
+            ParameterDescriptor(
+                description=(
+                    "Multiplier on the AVOIDANCE path's velocity profile, matching "
+                    "what the sector tuner does to the raceline. The avoidance "
+                    "profile is rebuilt from raw ggv and never received the sector "
+                    "scaling, so it ran at 1.0x while the raceline ran at 1.05-1.2x. "
+                    "Clipped to veh_params v_max; never raises a trailing speed cap. "
+                    "1.0 restores the previous behaviour."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.5, to_value=1.5, step=0.01)],
+            ),
+        )
+        self.overtake_speed_scale: float = node.get_parameter("overtake_speed_scale").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not
