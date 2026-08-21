@@ -23,6 +23,7 @@
        needs this node to supply the other half of the REP-105 chain (see
        ekf_pf.yaml / ekf_cartographer.yaml). -->
   <arg name="odom_tf"        default="false"               description="Have vesc_to_odom_node publish odom->base_link TF"/>
+  <arg name="scan_viz_hz"    default="5.0"                 description="[Hz] Rate of the /scan_viz mirror that RViz watches (localisation always gets the full 40 Hz /scan). 0 disables the mirror. Live-tunable: ros2 param set /scan_throttle rate_hz X"/>
 
   <!-- map paths (needed by the simulator and by virtual_perception in both sim and real) -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
@@ -53,6 +54,16 @@
     <node pkg="urg_node" exec="urg_node_driver" name="urg_node" output="screen">
       <param from="$(var vehicle_config)"/>
       <remap from="/scan" to="$(var lidar_scan_out)"/>
+    </node>
+
+    <!-- Low-rate /scan mirror for RViz (/scan_viz). Localisation keeps the full
+         40 Hz /scan; only the pitwall's view is throttled, because a 40 Hz scan
+         over WiFi was enough on its own to starve the control loop. Costs
+         nothing while /scan_viz has no subscriber. scan_viz_hz:=0 disables it. -->
+    <node pkg="stack_master" exec="scan_throttle_node.py" name="scan_throttle" output="screen">
+      <param name="input_topic"  value="$(var lidar_scan_out)"/>
+      <param name="output_topic" value="/scan_viz"/>
+      <param name="rate_hz"      value="$(var scan_viz_hz)" type="double"/>
     </node>
 
     <!-- Static TFs (base_link->laser, IMU frames) now come from per-vehicle config
