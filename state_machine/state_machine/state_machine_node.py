@@ -413,6 +413,20 @@ class StateMachine(Node):
         self.overtaking_marker_pub = self.create_publisher(Marker, "/state_machine/overtaking_target", 10)
         self.loc_wpnt_pub = self.create_publisher(WpntArray, "local_waypoints", 1)
         self.vis_loc_wpnt_pub = self.create_publisher(MarkerArray, "local_waypoints/markers", 10)
+        # [Hz] How often the local-waypoint markers are DRAWN, independent of the
+        # decision rate. Nothing the car does depends on this: /local_waypoints,
+        # /behavior_strategy and the state string all go out at `rate` regardless.
+        #
+        # The subscriber gate in _pub_local_wpnts makes drawing free while pitwall
+        # is closed, but the moment RViz connects the gate opens and every tick
+        # draws again -- which is exactly when the car has the least CPU to spare.
+        # This caps that cost: at 10 Hz a connected pitwall costs a fifth of what
+        # the decision rate would, and a marker cloud is not worth watching faster.
+        # 0 disables drawing outright.
+        if not self.has_parameter("viz_rate_hz"):
+            self.declare_parameter("viz_rate_hz", 10.0)
+        self.viz_rate_hz = float(self.get_parameter("viz_rate_hz").value)
+        self._last_viz_sec = 0.0
         self.state_pub = self.create_publisher(String, "state_machine", 1)
         # Per-loop diagnostic snapshot (JSON) for offline/live debugging of the
         # local_wpnts source selection and stale-cache leaks.
@@ -1650,9 +1664,16 @@ class StateMachine(Node):
         # ---- CONTROL PATH: unconditional, and first, so viz can never delay it.
         self.loc_wpnt_pub.publish(loc_wpnts)
 
-        # ---- VIZ PATH: skipped entirely when nothing is subscribed.
+        # ---- VIZ PATH: skipped entirely when nothing is subscribed, and
+        # rate-limited to viz_rate_hz when something is.
         if self.vis_loc_wpnt_pub.get_subscription_count() == 0:
             return
+        if self.viz_rate_hz <= 0.0:
+            return
+        _now = time.monotonic()
+        if _now - self._last_viz_sec < 1.0 / self.viz_rate_hz:
+            return
+        self._last_viz_sec = _now
 
         mrk = Marker()
         mrk.header.frame_id = "map"

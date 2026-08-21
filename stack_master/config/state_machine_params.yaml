@@ -14,6 +14,11 @@ state_machine:
     # blended-recovery grace)는 전부 `초 * rate`로 계산되므로 자동으로 따라온다.
     rate: 50
     n_loc_wpnts: 80
+
+    # [Hz] 로컬 웨이포인트 마커를 그리는 주기. 주행 동작과 무관한 순수 시각화다.
+    # 구독자가 없으면 아예 안 그리고(가드), 있으면 이 주기로 제한한다.
+    # 0이면 완전히 끈다. 업스트림도 10.0.
+    viz_rate_hz: 10.0
     timetrials_only: false
     sim: true
     measure: false

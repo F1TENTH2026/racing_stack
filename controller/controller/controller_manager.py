@@ -112,6 +112,14 @@ class ControllerManager(Node):
             setattr(self, p, self._get_param(p))
 
         # Publishers (ROS1 topic names kept)
+        # [Hz] Drawing rate for this node's markers, independent of loop_rate.
+        # These four draws sit INSIDE the 50 Hz control loop, so with pitwall
+        # connected they were adding to steering latency 50 times a second.
+        # The subscriber gates make them free with pitwall closed; this caps
+        # what a connected pitwall can cost. 0 disables drawing.
+        self.viz_rate_hz = float(self._get_param('viz_rate_hz', 10.0))
+        self._last_viz_sec = 0.0
+
         self.lookahead_pub = self.create_publisher(Marker, 'lookahead_point', 10)
         # steering-direction arrow on its own topic (was on lookahead_point with the
         # point marker; RViz2's singular-Marker display drops one of two ids at 100Hz)
@@ -427,10 +435,17 @@ class ControllerManager(Node):
             self.acc_now,
             self.track_length)
 
-        self.set_lookahead_marker(L1_point, 100)
-        self.visualize_steering(steering_angle)
-        self.visualize_trailing_opponent()
-        self.viz_future_position(future_position, 200)
+        # Viz is rate-limited as a group: one clock check instead of four, and
+        # the whole block is skipped on most control ticks. Each function still
+        # has its own subscriber gate for the pitwall-closed case.
+        if self.viz_rate_hz > 0.0:
+            _now = time.monotonic()
+            if _now - self._last_viz_sec >= 1.0 / self.viz_rate_hz:
+                self._last_viz_sec = _now
+                self.set_lookahead_marker(L1_point, 100)
+                self.visualize_steering(steering_angle)
+                self.visualize_trailing_opponent()
+                self.viz_future_position(future_position, 200)
 
         self.curvature_waypoints = curvature_waypoints
         self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))

@@ -5,9 +5,12 @@
   config shipped in stack_master. More tools may be added here later.
 -->
 <launch>
-  <arg name="rviz_config"
-       default="$(find-pkg-share stack_master)/config/pitwall.rviz"
-       description="RViz config to load"/>
+  <arg name="race" default="false"
+       description="Load the slim RACE-TIME config (config/pitwall_race.rviz, 7 subscriptions) instead of the full one (25). Every enabled display is a topic the CAR has to serialise and push over WiFi, and a connected pitwall was enough to starve the control loop -- the car lagged, stopped and hit a wall while a 15-minute run with pitwall closed was clean. Use race:=true while the car is DRIVING; the full config is for a stationary car in the pits."/>
+  <let name="default_cfg" value="$(find-pkg-share stack_master)/config/pitwall_race.rviz" if="$(var race)"/>
+  <let name="default_cfg" value="$(find-pkg-share stack_master)/config/pitwall.rviz" unless="$(var race)"/>
+  <arg name="rviz_config" default="$(var default_cfg)"
+       description="RViz config to load (overrides the race/full choice above)"/>
   <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"
         args="-d $(var rviz_config)"/>
 
