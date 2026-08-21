@@ -63,7 +63,7 @@
     <node pkg="stack_master" exec="scan_throttle_node.py" name="scan_throttle" output="screen">
       <param name="input_topic"  value="$(var lidar_scan_out)"/>
       <param name="output_topic" value="/scan_viz"/>
-      <param name="rate_hz"      value="$(var scan_viz_hz)" type="double"/>
+      <param name="rate_hz"      value="$(var scan_viz_hz)" type="float"/>
     </node>
 
     <!-- Static TFs (base_link->laser, IMU frames) now come from per-vehicle config
