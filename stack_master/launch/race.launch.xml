@@ -47,6 +47,10 @@
   <let name="static_mode" value="false" unless="$(eval '\'$(var race_mode)\' == \'static_qualify\'')"/>
   <let name="full_mode" value="true" if="$(eval '\'$(var race_mode)\' == \'head_to_head\' or \'$(var race_mode)\' == \'practice\'')"/>
   <let name="full_mode" value="false" unless="$(eval '\'$(var race_mode)\' == \'head_to_head\' or \'$(var race_mode)\' == \'practice\'')"/>
+  <let name="controller_overlay" value="$(find-pkg-share stack_master)/config/dynamic_controller.yaml" if="$(var full_mode)"/>
+  <!-- Nested <param> elements do not accept if/unless in ROS2 XML. Reloading
+       the base in non-H2H modes is equivalent and keeps a single controller. -->
+  <let name="controller_overlay" value="$(find-pkg-share stack_master)/config/controller.yaml" unless="$(var full_mode)"/>
   <let name="obstacle_mode" value="false" if="$(var time_trial)"/>
   <let name="obstacle_mode" value="true" unless="$(var time_trial)"/>
   <let name="enable_ftg" value="false" if="$(var time_trial)"/>
@@ -157,6 +161,8 @@
        to the same file. -->
   <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <!-- Moving-opponent gains only; static_qualify keeps the base controller. -->
+    <param from="$(var controller_overlay)"/>
     <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="sim" value="$(var sim)"/>
     <param name="enable_ftg" value="$(var enable_ftg)"/>

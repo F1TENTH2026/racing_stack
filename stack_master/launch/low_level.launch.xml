@@ -23,6 +23,7 @@
        needs this node to supply the other half of the REP-105 chain (see
        ekf_pf.yaml / ekf_cartographer.yaml). -->
   <arg name="odom_tf"        default="false"               description="Have vesc_to_odom_node publish odom->base_link TF"/>
+  <arg name="scan_viz_hz"    default="5.0"                 description="Low-rate /scan_viz mirror for RViz; /scan remains full-rate. 0 disables forwarding."/>
 
   <!-- map paths (needed by the simulator and by virtual_perception in both sim and real) -->
   <let name="maps_dir" value="$(find-pkg-share stack_master)/maps"/>
@@ -90,6 +91,15 @@
       <arg name="scan_out"       value="/scan"/>
     </include>
   </group>
+
+  <!-- Visualization-only mirror. Placing it after virtual_perception makes its
+       input the final /scan in every real/sim/overlay configuration. Algorithm
+       consumers remain connected directly to the full-rate /scan topic. -->
+  <node pkg="stack_master" exec="scan_throttle_node.py" name="scan_throttle" output="screen">
+    <param name="input_topic" value="/scan"/>
+    <param name="output_topic" value="/scan_viz"/>
+    <param name="rate_hz" value="$(var scan_viz_hz)" type="float"/>
+  </node>
 
   <!-- ========== KEYBOARD TELEOP SOURCE (sim only) ========== -->
   <!-- keyboard_joy (pynput -> /joy_keyboard). pynput needs a focused keyboard +

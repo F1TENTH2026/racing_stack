@@ -1,0 +1,9 @@
+# Head-to-head/practice overlay. Keep this file limited to parameters that must
+# differ behind a moving opponent; controller.yaml remains the common base.
+controller_manager:
+  ros__parameters:
+    trailing_gap: 2.0
+    trailing_vel_gain: 0.10
+    trailing_p_gain: 0.5
+    trailing_i_gain: 0.0
+    trailing_d_gain: 0.25

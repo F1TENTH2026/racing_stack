@@ -11,14 +11,18 @@
                 <!-- Jetson(차량) 온보드 컴퓨터의 실제 WiFi 인터페이스 이름 -->
                 <NetworkInterface name="wlP1p1s0" multicast="true" presence_required="false"/>
             </Interfaces>
-            <AllowMulticast>true</AllowMulticast>
+            <!-- Keep multicast for discovery only. User data (notably LaserScan
+                 and RViz markers) uses unicast, avoiding low-rate multicast
+                 airtime on the car/pitwall Wi-Fi link. -->
+            <AllowMulticast>spdp</AllowMulticast>
         </General>
         <Discovery>
             <ParticipantIndex>none</ParticipantIndex>
         </Discovery>
         <Internal>
-            <SocketReceiveBufferSize min="default"/>
-            <SocketSendBufferSize min="default"/>
+            <!-- setup_conda_onCar.sh raises the matching OS limits to 25 MiB. -->
+            <SocketReceiveBufferSize min="10MB"/>
+            <SocketSendBufferSize min="10MB"/>
         </Internal>
     </Domain>
 </CycloneDDS>
