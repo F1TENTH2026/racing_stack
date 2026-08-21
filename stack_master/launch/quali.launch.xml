@@ -73,7 +73,7 @@
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
-  <arg name="speed_scale" default="0.6"
+  <arg name="speed_scale" default="0.8"
        description="Flat scaling (0.0-2.0) used over the WHOLE lap for the first fast_after_laps laps, sectors ignored: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. After the switch it is gone -- the map's speed_scaling.yaml drives on its own."/>
   <arg name="fast_after_laps" default="7"
        description="Completed laps (lap_analyser /lap_data) after which the flat speed_scale gives way to the map's speed_scaling.yaml. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
