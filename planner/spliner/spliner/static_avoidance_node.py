@@ -142,6 +142,9 @@ class StaticObstacleSpliner(Node):
         # of the manoeuvre has to stop being re-decided every frame.
         self.latched_group: Optional[tuple] = None
         self.latched_move_start: Optional[float] = None
+        # [s] cur_s time of the last frame that had no candidates, so a single
+        # dropped detection does not wipe the side latch mid-manoeuvre.
+        self.last_empty_time: Optional[float] = None
         self.last_good_path: Optional[OTWpntArray] = None
         self.last_good_obs_id: Optional[int] = None
         self.last_good_generated = 0
@@ -221,6 +224,7 @@ class StaticObstacleSpliner(Node):
             # --- stability ---
             "path_hold_s": 0.25,
             "side_hysteresis_m": 0.10,
+            "side_commit": True,
         }
         for key, value in defaults.items():
             self.declare_parameter(key, value)
@@ -256,6 +260,7 @@ class StaticObstacleSpliner(Node):
         "max_speed_mps": "max_speed_mps",
         "path_hold_s": "path_hold_s",
         "side_hysteresis_m": "side_hysteresis_m",
+        "side_commit": "side_commit",
     }
 
     def _load_parameters(self):
@@ -481,6 +486,20 @@ class StaticObstacleSpliner(Node):
         if not candidates:
             # No obstacle in range: forget the side latch so the next obstacle is
             # judged on its own geometry.
+            #
+            # ...but not on the FIRST empty frame. A tracked box's size swings
+            # frame to frame (see tracking's robust_size), and one frame where it
+            # falls under trajectory_threshold used to clear the latch, so the
+            # obstacle came back a frame later and the side was re-decided from
+            # scratch. Hold the latch for path_hold_s -- the same window that
+            # already keeps the last good path alive across a dropped frame.
+            now = self.get_clock().now().nanoseconds / 1e9
+            if self.last_empty_time is None:
+                self.last_empty_time = now
+            if now - self.last_empty_time < self.path_hold_s:
+                dbg["obs_present"] = False
+                dbg["reason"] = "no_static_obstacle_in_range (side latch held)"
+                return out
             self.last_side = None
             self.last_side_obs_id = None
             self.latched_group = None
@@ -489,6 +508,7 @@ class StaticObstacleSpliner(Node):
             dbg["reason"] = "no_static_obstacle_in_range"
             return out
 
+        self.last_empty_time = None
         group = self._pick_target_group(candidates)
         group_key = tuple(sorted(int(o.id) for o in group))
         first = group[0]
@@ -537,6 +557,34 @@ class StaticObstacleSpliner(Node):
         preferred = self._preferred_group_side(group_key, left_room, right_room)
         wider = "left" if left_room >= right_room else "right"
         sides = {"preferred": preferred, "opposite": _opposite(preferred), "wider": wider}
+
+        # ONCE THE CAR HAS STARTED TURNING, STOP OFFERING THE OTHER SIDE.
+        #
+        # side_hysteresis_m only biases which side is TRIED FIRST. It never bound
+        # the outcome, because rung 1 of the ladder is "opposite": with a centred
+        # obstacle in a narrow corridor both sides are marginal, so the preferred
+        # side failed the safety check on some frames and the ladder happily built
+        # the manoeuvre on the other side instead -- and line "self.last_side =
+        # side" below then latched THAT. The latch followed whatever happened to
+        # pass, so it flipped with the noise instead of damping it. Every flip is a
+        # completely different path, the state machine rejects a path the car is
+        # not on, no avoidance is ever driven, and the car ends up going straight
+        # into the obstacle. That is the observed left-right-left-hit failure.
+        #
+        # Committed means the car is at or past the latched start of the lateral
+        # transition, i.e. it has physically begun moving over. Before that point
+        # switching sides is free and still allowed -- nothing has been committed
+        # to yet, and the wider side genuinely is the better choice.
+        #
+        # When committed, every rung is pointed at the SAME side. The ladder keeps
+        # its purpose: the later rungs still relax clearance and lengthen the
+        # return leg, they just do it on the side already being driven instead of
+        # jumping across the obstacle. If no rung can solve that side the planner
+        # publishes nothing and the controller crawls in, which is the correct
+        # (and recoverable) outcome -- unlike a path the car cannot follow.
+        if self.side_commit and self._is_committed(group_key) and self.last_side:
+            sides = {k: self.last_side for k in sides}
+            dbg["side_committed"] = self.last_side.upper()
 
         tried = set()
         last_reason = "no_valid_candidate"
@@ -758,6 +806,24 @@ class StaticObstacleSpliner(Node):
         right_apex = min(o.d_right for o in group) - evasion
         return (float(np.min(self.gb_d_left[idx])) - left_apex,
                 float(np.min(self.gb_d_right[idx])) + right_apex)
+
+    def _is_committed(self, group_key) -> bool:
+        """Has the car physically begun the lateral move for this group?
+
+        True once cur_s is at or past the latched move start. `latched_move_start`
+        is already the absolute s at which the transition was first decided to
+        begin (see _build_group_path), so this asks nothing new of the geometry.
+        """
+        if self.latched_group != group_key or self.latched_move_start is None:
+            return False
+        if self.last_side_obs_id != group_key or not self.last_side:
+            return False
+        if self.cur_s is None or not self.max_s:
+            return False
+        # Signed "how far past the move start are we", wrapped like every other
+        # s comparison in this node.
+        past = (self.cur_s - self.latched_move_start + self.max_s / 2) % self.max_s - self.max_s / 2
+        return past >= 0.0
 
     def _preferred_group_side(self, group_key, left_room, right_room) -> str:
         """Sticky same-side choice for a complete obstacle group."""

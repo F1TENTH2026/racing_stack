@@ -78,7 +78,7 @@ static_avoidance_planner:
     # raceline, the line clears it and this planner publishes nothing. MUST be
     # >= what the state machine calls a blocked raceline, which is
     # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
-    raceline_clearance_m: 0.35
+    raceline_clearance_m: 0.30
 
     # Maximum number of simultaneously visible static obstacles shaped into one
     # same-side path. The simulator supports at most three practice obstacles.
@@ -90,7 +90,7 @@ static_avoidance_planner:
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
     # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
     # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    evasion_distance: 0.40 #3.0
+    evasion_distance: 0.30 #3.0
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -251,3 +251,25 @@ static_avoidance_planner:
     # and every flip is a completely different path, which the state machine
     # then rejects because the car is not on it.
     side_hysteresis_m: 0.10
+
+    # 한 번 몸을 틀기 시작했으면 그 방향을 끝까지 유지한다.
+    #
+    # side_hysteresis_m 은 "어느 쪽을 먼저 시도할지"만 편향시킬 뿐, 결과를
+    # 구속하지 못했다. 완화 사다리의 1단이 "opposite"(반대쪽)이기 때문이다.
+    # 장애물이 경로 한가운데 있으면 좌우 여유가 거의 같아서, 어떤 프레임에서는
+    # 선호하는 쪽이 안전검사에 걸리고 사다리가 반대쪽으로 경로를 만든다.
+    # 그러면 last_side 가 그 반대쪽으로 갱신되고, 다음 프레임엔 또 뒤집힌다.
+    # 래치가 노이즈를 억제하는 게 아니라 노이즈를 따라다녔다.
+    #
+    # 매 프레임 완전히 다른 경로가 나오면 상태기계는 "차가 그 경로 위에 없다"고
+    # 거부하므로 회피가 한 번도 실행되지 않고, 결국 장애물을 그대로 들이받는다.
+    # 좌우로 왔다갔다 찍히다가 치고 가는 현상이 정확히 이것이다.
+    #
+    # true 면: 차가 횡방향 전환 시작점(latched_move_start)을 지난 뒤부터 사다리의
+    # 모든 단이 같은 쪽을 향한다. 클리어런스 완화와 복귀 거리 연장은 그대로
+    # 동작하되, 장애물 반대편으로 건너뛰지만 않는다. 그 쪽으로 아무 단도 풀지
+    # 못하면 경로를 발행하지 않고 컨트롤러가 기어서 접근한다 (복구 가능한 상태).
+    # 전환 시작점 이전에는 아직 커밋한 게 없으므로 자유롭게 넓은 쪽을 고른다.
+    #
+    # false 로 두면 예전 동작(매 프레임 양쪽 모두 시도)으로 돌아간다.
+    side_commit: true
