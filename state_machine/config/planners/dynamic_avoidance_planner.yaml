@@ -2,7 +2,38 @@ free_scaling_reference_distance_m: 1
 hyst_timer_sec: 6.0
 is_closed: false
 killing_timer_sec: 10.0
-lateral_width_m: 0.2
+# [m] Extra lateral clearance the DYNAMIC avoidance path must keep, on top of
+# both half-widths, before _check_free_frenet calls it safe:
+#
+#   free_dist = |path_d - opponent_d| - opponent_half_width - gb_ego_width_m/2
+#   blocked when  free_dist < lateral_width_m * clip(gap / free_scaling_ref, 0, 1)
+#
+# 0.2 -> 0.1. The arithmetic did not close. With the predictor's old 0.25 m
+# opponent half-width this demanded
+#     0.25 + 0.145 + 0.20 = 0.595 m
+# of separation, while the lane_change planner can displace the path by at most
+# lane_offset = 0.35 m from the centreline -- 0.245 m short of a requirement no
+# achievable path could ever meet. In state_machine_20260822_051509.log that
+# showed up as 359 PATH_BLOCKED samples (48 % of every dynamic decision), all
+# 359 with an existing path and 348 with a fresh valid prediction: the pipeline
+# was healthy and this check was refusing its output.
+#
+# Together with opponent_half_width_m 0.25 -> 0.15 in opp_prediction.py the
+# requirement becomes
+#     0.15 + 0.145 + 0.10 = 0.395 m
+# which the planner's 0.35 m offset can very nearly meet, and does meet once the
+# opponent is even slightly off the raceline.
+#
+# WHAT THIS BUYS IN METRES: at the threshold the ego's outer edge passes roughly
+# 0.10 m from the opponent's outer edge. On 0820test1 (width 1.63 m mean, 0.96 m
+# at the narrowest) two 0.30 m cars side by side leave 0.36 m of total slack at
+# the narrowest point, so this is deliberately tight. Raise it back toward 0.2
+# if the car passes closer than the driver is comfortable with.
+#
+# STATIC avoidance is unaffected: static_avoidance_planner.yaml keeps its own
+# lateral_width_m (0.155) and the static branch of _check_free_frenet uses
+# obs.size, not the predictor's d bounds.
+lateral_width_m: 0.1
 # [s] How old a /planner/avoidance/otwpnts message may be and still count as
 # fresh (_check_latest_wpnts -> the OVERTAKE entry gate).
 #

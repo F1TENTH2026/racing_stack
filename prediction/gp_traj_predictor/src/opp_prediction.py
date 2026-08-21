@@ -78,6 +78,27 @@ class OppTrajPredictor(PredictionNode):
         # Replaced with a two-threshold, frame-confirmed hysteresis. Same purpose,
         # same meaning of the output: True == "the prediction is only a
         # constant-velocity fallback, do not authorize a new overtake".
+        # [m] Half the opponent's LATERAL extent, written into every predicted
+        # pose's d_left/d_right. 0.25 -> 0.15.
+        #
+        # 0.25 modelled the opponent as 0.50 m wide. A RoboRacer is 0.30 m
+        # (planner width_car 0.30, state machine gb_ego_width_m 0.29), so this
+        # was 0.10 m of unexplained inflation per side -- and it is not a safety
+        # margin, because both consumers add their own on top:
+        #
+        #   state machine  free_dist = |path_d - pred_d| - THIS - gb_ego_width/2
+        #                  blocked when free_dist < lateral_width_m
+        #   planner        apex = obs.d_left + width_car/2 + safety_margin + 0.2
+        #
+        # With 0.25 the state machine demanded 0.25 + 0.145 + 0.20 = 0.595 m of
+        # separation between the avoidance path and the opponent, while the
+        # planner can displace the path by at most lane_offset = 0.35 m. The
+        # requirement was 0.245 m beyond anything that could ever be built, so
+        # the OT path was judged unsafe whenever the opponent sat on its learned
+        # line -- 359 PATH_BLOCKED samples, 48 % of all dynamic decisions, in
+        # state_machine_20260822_051509.log, every one of them with a fresh
+        # valid path (path_age 0.07-0.22 s).
+        self.opponent_half_width_m = 0.15
         self.min_training_laps = 0.5
         self.learned_deviation_enter_threshold = 0.35   # [m] enter learned (authorize)
         self.learned_deviation_exit_threshold = 0.55    # [m] leave learned (veto)
@@ -98,6 +119,7 @@ class OppTrajPredictor(PredictionNode):
                 'max_expire_counter': self.max_expire_counter,
                 'speed_offset': self.speed_offset,
                 # --- learned-trajectory authorization hysteresis (see _update_learned_authorization) ---
+                'opponent_half_width_m': self.opponent_half_width_m,
                 'min_training_laps': self.min_training_laps,
                 'learned_deviation_enter_threshold': self.learned_deviation_enter_threshold,
                 'learned_deviation_exit_threshold': self.learned_deviation_exit_threshold,
@@ -354,6 +376,7 @@ class OppTrajPredictor(PredictionNode):
         self.save_distance_front = self.get_parameter('save_distance_front').value
         self.max_expire_counter = self.get_parameter('max_expire_counter').value
         self.speed_offset = self.get_parameter('speed_offset').value
+        self.opponent_half_width_m = self.get_parameter('opponent_half_width_m').value
         self.min_training_laps = self.get_parameter('min_training_laps').value
         self.learned_deviation_enter_threshold = self.get_parameter(
             'learned_deviation_enter_threshold').value
@@ -384,6 +407,8 @@ class OppTrajPredictor(PredictionNode):
                 self.max_expire_counter = parameter.value
             elif parameter.name == 'speed_offset':
                 self.speed_offset = parameter.value
+            elif parameter.name == 'opponent_half_width_m':
+                self.opponent_half_width_m = parameter.value
             elif parameter.name == 'min_training_laps':
                 self.min_training_laps = parameter.value
             elif parameter.name == 'learned_deviation_enter_threshold':
@@ -518,8 +543,8 @@ class OppTrajPredictor(PredictionNode):
                         obs.s_end = current_opponent_s
                         obs.s_center = current_opponent_s + i * current_opponent_v * self.dt
                         obs.d_center = interpolated_d
-                        obs.d_left = obs.d_center + 0.25
-                        obs.d_right = obs.d_center - 0.25
+                        obs.d_left = obs.d_center + self.opponent_half_width_m
+                        obs.d_right = obs.d_center - self.opponent_half_width_m
                         obs.size = opponent_pos_copy.obstacles[0].size
                         obs.vs = current_opponent_v
                         obs.vd = 0
@@ -586,8 +611,8 @@ class OppTrajPredictor(PredictionNode):
                         obs.s_end = current_opponent_s + opponent_speed * self.dt
                         obs.s_center = (obs.s_start + obs.s_end) / 2
                         obs.d_center = opponent_d
-                        obs.d_left = opponent_d + 0.25
-                        obs.d_right = opponent_d - 0.25
+                        obs.d_left = opponent_d + self.opponent_half_width_m
+                        obs.d_right = opponent_d - self.opponent_half_width_m
                         obs.size = opponent_pos_copy.obstacles[0].size
                         obs.vs = opponent_speed
                         obs.vd = 0
