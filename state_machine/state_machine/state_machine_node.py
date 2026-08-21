@@ -180,7 +180,7 @@ class StateMachine(Node):
         self.sectors_params = {}
         self.ot_sectors_params = {}
         self.only_ftg_zones = []
-        self.ftg_counter = 0
+        self._ftg_low_speed_since_sec = None
 
         # Per-run debug log file (logfile/state_machine_*.log): off by default so a
         # normal race doesn't pay disk-write overhead for output nobody reads; pass
@@ -292,7 +292,6 @@ class StateMachine(Node):
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
-        self.splini_ttl_counter = int(self.splini_ttl * self.rate_hz)
         self.avoidance_wpnts = None
         self.static_avoidance_wpnts = None
         self.start_wpnts = None
@@ -325,16 +324,17 @@ class StateMachine(Node):
 
         self.overtaking_ttl_sec = self.params.overtaking_ttl_sec
         self.static_overtaking_ttl_sec = self.params.static_overtaking_ttl_sec
-        self.overtaking_ttl_count = 0
-        self.overtaking_ttl_count_threshold = int(self.overtaking_ttl_sec * self.rate_hz)
-        self.static_overtaking_ttl_count_threshold = int(self.static_overtaking_ttl_sec * self.rate_hz)
-        # Grace window (in loops) during which the OT-blended recovery path is allowed
+        # Time-based holds must not depend on how often loop() happens.  In particular,
+        # changing this node from 80 Hz to the 40 Hz perception cadence must preserve
+        # the transition semantics even when a timer invocation is delayed or skipped.
+        self._overtaking_unsustained_since_sec = None
+        # Grace window (in seconds) during which the OT-blended recovery path is allowed
         # as the recovery source. The blended path (OT heading -> GB) only makes sense
         # when leaving OVERTAKE; outside that window plain recovery is used, so a car
         # that never overtook (OT sector off) never trails on the blended OT line.
-        # Set to a positive count while in OVERTAKE and decremented each loop after.
-        self.blended_recovery_grace_loops = int(0.5 * self.rate_hz)
-        self._blended_grace_count = 0
+        # Its deadline is refreshed while in OVERTAKE.
+        self.blended_recovery_grace_sec = 0.5
+        self._blended_grace_until_sec = None
 
         self.save_start_traj = False
         self.cur_start_wpnts_candidate = OTWpntArray()
@@ -700,7 +700,11 @@ class StateMachine(Node):
         # window it must NOT stand in as the recovery source, otherwise a car that is
         # merely trailing (OT sector off, OVERTAKE never entered) would follow the OT
         # line whenever it drifts off the raceline. Fall back to plain recovery then.
-        allow_blended = self.cur_state == StateType.OVERTAKE or self._blended_grace_count > 0
+        grace_active = (
+            self._blended_grace_until_sec is not None
+            and self.now_sec() < self._blended_grace_until_sec
+        )
+        allow_blended = self.cur_state == StateType.OVERTAKE or grace_active
         blended = self._recovery_blended
         if allow_blended and blended is not None and len(blended.wpnts) != 0 and (
             self.now_sec() - time_to_float(blended.header.stamp)
@@ -899,20 +903,25 @@ class StateMachine(Node):
             return bool(self._check_on_spline(wpnts_data))
 
     def _check_ftg(self) -> bool:
-        threshold = self.ftg_timer_sec * self.rate_hz
         if self.ftg_disabled:
+            self._ftg_low_speed_since_sec = None
             return False
-        else:
-            if (self.cur_state == StateType.TRAILING or self.cur_state == StateType.ATTACK) and \
-                    self.cur_vs < self.ftg_speed_mps:
-                self.ftg_counter += 1
-                self.get_logger().warn(
-                    f"[{self.name}] FTG counter: {self.ftg_counter}/{threshold}",
-                    throttle_duration_sec=0.5,
-                )
-            else:
-                self.ftg_counter = 0
-            return self.ftg_counter > threshold
+        low_speed = (
+            self.cur_state in (StateType.TRAILING, StateType.ATTACK)
+            and self.cur_vs < self.ftg_speed_mps
+        )
+        if not low_speed:
+            self._ftg_low_speed_since_sec = None
+            return False
+        now = self.now_sec()
+        if self._ftg_low_speed_since_sec is None:
+            self._ftg_low_speed_since_sec = now
+        elapsed = max(0.0, now - self._ftg_low_speed_since_sec)
+        self.get_logger().warn(
+            f"[{self.name}] FTG low speed: {elapsed:.2f}/{self.ftg_timer_sec:.2f} s",
+            throttle_duration_sec=0.5,
+        )
+        return elapsed >= self.ftg_timer_sec
 
     def _check_on_spline(self, wpnt_data) -> bool:
         if wpnt_data.is_init:
@@ -1945,11 +1954,9 @@ class StateMachine(Node):
         # Post-OVERTAKE grace: keep the blended-recovery source eligible for a short
         # window after leaving OVERTAKE (see _select_recovery_source), so the OT->GB
         # blend can smooth the return instead of snapping to GB the instant OVERTAKE
-        # ends. Refresh while overtaking, decrement once we are out.
+        # ends. The deadline is seconds-based, independent of loop frequency.
         if self.cur_state == StateType.OVERTAKE:
-            self._blended_grace_count = self.blended_recovery_grace_loops
-        elif self._blended_grace_count > 0:
-            self._blended_grace_count -= 1
+            self._blended_grace_until_sec = self.now_sec() + self.blended_recovery_grace_sec
 
         local_wpnts = self.states[self.local_wpnts_src](self)
 
@@ -1984,7 +1991,7 @@ class StateMachine(Node):
         self._pub_local_wpnts(local_wpnts)
 
         if self.cur_state != StateType.TRAILING and self.cur_state != StateType.ATTACK:
-            self.ftg_counter = 0
+            self._ftg_low_speed_since_sec = None
 
         overtaking_target_mrk = Marker()
         overtaking_target_mrk.header.frame_id = "map"  # set always so the DELETEALL marker isn't dropped by RViz (empty frame)

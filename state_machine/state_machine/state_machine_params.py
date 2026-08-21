@@ -48,7 +48,7 @@ class StateMachineParams:
         # NON-DYNAMIC / STRUCTURAL PARAMETERS (read once)
         # ------------------------------------------------------------------ #
         self._declare(
-            "rate", 80,
+            "rate", 40,
             ParameterDescriptor(
                 description="Rate at which the state machine runs in Hz",
                 type=ParameterType.PARAMETER_INTEGER,
@@ -317,22 +317,23 @@ class StateMachineParams:
 
             if name == "rate":
                 self.rate_hz = value
+                self.node.rate_hz = value
                 if self.node.main_loop is not None:
                     self.node.main_loop.timer_period_ns = int(1e9 / value)
             elif name == "splini_ttl":
                 if self.node.ot_planner == "spliner":
                     self.splini_ttl = value
-                    self.node.splini_ttl_counter = int(self.splini_ttl * self.rate_hz)
+                    self.node.splini_ttl = value
             elif name == "pred_splini_ttl":
                 if self.node.ot_planner != "spliner":
                     self.splini_ttl = value
-                    self.node.splini_ttl_counter = int(self.splini_ttl * self.rate_hz)
+                    self.node.splini_ttl = value
             elif name == "overtaking_ttl_sec":
                 self.overtaking_ttl_sec = value
-                self.node.overtaking_ttl_count_threshold = int(value * self.rate_hz)
+                self.node.overtaking_ttl_sec = value
             elif name == "static_overtaking_ttl_sec":
                 self.static_overtaking_ttl_sec = value
-                self.node.static_overtaking_ttl_count_threshold = int(value * self.rate_hz)
+                self.node.static_overtaking_ttl_sec = value
             elif name == "ftg_active":
                 self.ftg_active = value
                 self.node.ftg_disabled = not value

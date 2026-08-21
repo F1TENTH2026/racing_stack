@@ -24,6 +24,7 @@
        description="Startup-only mode: time_trial | static_qualify | head_to_head | practice"/>
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
+  <arg name="ekf_profile" default="100hz" description="Real-car EKF A/B profile: 100hz | 50hz"/>
   <arg name="virtual"    default="$(var sim)" description="Inject a virtual opponent + static obstacles (on by default in sim, off on the real car; e.g. virtual:=true to overlay a virtual opponent onto the real LiDAR)"/>
   <arg name="ot_planner" default="lane_change"
        description="Overtake planner to run and listen to: lane_change (lane_change_planner) or sqp (sqp_planner)"/>
@@ -63,6 +64,7 @@
     <arg name="map"          value="$(var map)"/>
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>
+    <arg name="ekf_profile" value="$(var ekf_profile)"/>
     <arg name="virtual"      value="$(var virtual)"/>
     <arg name="debug"        value="$(var debug)"/>
     <arg name="auto_relocalize"         value="$(var auto_relocalize)"/>

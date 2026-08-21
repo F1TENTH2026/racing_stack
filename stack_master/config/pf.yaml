@@ -39,12 +39,15 @@ particle_filter:
     max_particles: 1000
     squash_factor: 2.2
 
-    viz: 1
+    # Race default: localization output only.  The fake scan performs another
+    # ray-cast pass and particle markers serialize the full cloud; enable this
+    # temporarily while diagnosing localization, not on the freshness-critical run.
+    viz: 0
     # How many particles RViz/Foxglove gets, sampled UNIFORMLY. 0 draws all of
     # them, which is what you want when the question is "has the cloud spread"
     # - see visualize(). Costs a Pose per particle per frame, so it is
     # throttled by viz_rate_hz rather than running at the scan rate.
-    max_viz_particles: 0
+    max_viz_particles: 200
 
     # [Hz] Drawing rate for every /pf/viz topic, the fake scan included. That
     # one is a whole extra ray-cast pass, and at 0 (unthrottled) it ran at the

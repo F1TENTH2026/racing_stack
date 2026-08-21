@@ -14,6 +14,7 @@
   REAL: ros2 launch stack_master base_system.launch.xml map:=f localization:=pf
 -->
 <launch>
+  <arg name="ekf_profile" default="100hz" description="EKF profile forwarded to real-car localization"/>
   <arg name="map"          description="Map name (folder in stack_master/maps/)"/>
   <arg name="sim"          default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="cartographer"    description="gt (sim) | cartographer | pf (real)"/>
@@ -48,6 +49,7 @@
   <!-- REAL: localization brings up VESC/LiDAR + the chosen localization stack. -->
   <group unless="$(var sim)">
     <include file="$(find-pkg-share stack_master)/launch/localization.launch.xml">
+      <arg name="ekf_profile" value="$(var ekf_profile)"/>
       <arg name="map"            value="$(var map)"/>
       <arg name="localization"   value="$(var localization)"/>
       <arg name="vehicle_config" value="$(var vehicle_config)"/>

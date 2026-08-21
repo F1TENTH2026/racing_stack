@@ -24,7 +24,7 @@ NOTE 2: notice that, when implementing new states, if an attribute/condition in 
 
 NOTE 3: transitions must not have side effects on the state machine!
     i.e. any attribute of the state machine should not be modified in the transitions.
-    (The UNICORN implementation does mutate overtaking_ttl_count / cur_start_wpnts here;
+    (The UNICORN implementation does mutate the overtaking hold / cur_start_wpnts here;
      behaviour preserved as-is from the ROS1 stack.)
 """
 
@@ -69,17 +69,20 @@ def OvertakingTransition(state_machine: "StateMachine") -> Tuple[StateType, Stat
     ot_sustainability = state_machine._check_overtaking_mode_sustainability()
     enemy_in_front = state_machine._check_enemy_in_front()
     if ot_sustainability and enemy_in_front:
-        state_machine.overtaking_ttl_count = 0
+        state_machine._overtaking_unsustained_since_sec = None
         return StateType.OVERTAKE, StateType.OVERTAKE
-    ttl_threshold = (
-        state_machine.static_overtaking_ttl_count_threshold
+    ttl_sec = (
+        state_machine.static_overtaking_ttl_sec
         if state_machine.static_overtaking_mode
-        else state_machine.overtaking_ttl_count_threshold
+        else state_machine.overtaking_ttl_sec
     )
-    if ot_sustainability and state_machine.overtaking_ttl_count < ttl_threshold:
-        state_machine.overtaking_ttl_count += 1
-        return StateType.OVERTAKE, StateType.OVERTAKE
-    state_machine.overtaking_ttl_count = 0
+    if ot_sustainability:
+        now = state_machine.now_sec()
+        if state_machine._overtaking_unsustained_since_sec is None:
+            state_machine._overtaking_unsustained_since_sec = now
+        if max(0.0, now - state_machine._overtaking_unsustained_since_sec) < ttl_sec:
+            return StateType.OVERTAKE, StateType.OVERTAKE
+    state_machine._overtaking_unsustained_since_sec = None
     close_to_raceline = state_machine._check_close_to_raceline(0.05) * state_machine._check_close_to_raceline_heading(20)
     return GlobalTrackingTransition(state_machine, close_to_raceline)
 

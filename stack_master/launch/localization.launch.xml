@@ -17,10 +17,15 @@
   <arg name="use_estop"     default="false"        description="Use emergency stop (true) or not (false)"/>
   <arg name="virtual"       default="false"        description="Inject virtual opponent/obstacles (scan overlay etc.) onto the real LiDAR"/>
   <arg name="debug"         default="false"        description="Enable verbose debug logging (KISS STAT prints), off by default so a normal race doesn't pay the per-scan log line cost"/>
+  <arg name="ekf_profile"   default="100hz"        description="EKF publish/predict profile: 100hz | 50hz"/>
 
   <let name="maps_dir"                value="$(find-pkg-share stack_master)/maps"/>
   <let name="map_path"                value="$(var maps_dir)/$(var map)/$(var map)"/>
   <let name="cartographer_config_dir" value="$(find-pkg-share stack_master)/config"/>
+  <let name="ekf_rate_config" value="$(find-pkg-share stack_master)/config/ekf_rate_100hz.yaml"
+       if="$(eval '\'$(var ekf_profile)\' == \'100hz\'')"/>
+  <let name="ekf_rate_config" value="$(find-pkg-share stack_master)/config/ekf_rate_50hz.yaml"
+       unless="$(eval '\'$(var ekf_profile)\' == \'100hz\'')"/>
 
   <!-- vesc_to_odom never owns TF. For PF/cartographer, ekf_local_odom is the
        sole odom->base_link publisher; KISS owns map->base_link itself. -->
@@ -54,6 +59,7 @@
   <group unless="$(eval '\'$(var localization)\' == \'kiss\'')">
     <node pkg="robot_localization" exec="ekf_node" name="ekf_local_odom" output="screen">
       <param from="$(find-pkg-share stack_master)/config/ekf_local_odom.yaml"/>
+      <param from="$(var ekf_rate_config)"/>
       <remap from="odometry/filtered" to="/odometry/local"/>
     </node>
   </group>
@@ -94,6 +100,7 @@
     </node>
     <node pkg="robot_localization" exec="ekf_node" name="ekf_localization" output="screen">
       <param from="$(find-pkg-share stack_master)/config/ekf_cartographer.yaml"/>
+      <param from="$(var ekf_rate_config)"/>
       <remap from="odometry/filtered" to="/car_state/odom"/>
     </node>
   </group>
@@ -111,6 +118,7 @@
     </node>
     <node pkg="robot_localization" exec="ekf_node" name="ekf_localization" output="screen">
       <param from="$(find-pkg-share stack_master)/config/ekf_pf.yaml"/>
+      <param from="$(var ekf_rate_config)"/>
       <remap from="odometry/filtered" to="/car_state/odom"/>
     </node>
   </group>

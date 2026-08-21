@@ -69,6 +69,7 @@
   REAL: ros2 launch stack_master quali.launch.xml map:=f sim:=false
 -->
 <launch>
+  <arg name="ekf_profile" default="100hz" description="Real-car EKF A/B profile: 100hz | 50hz"/>
   <arg name="map"        description="Map name (folder in stack_master/maps/)"/>
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
@@ -95,6 +96,7 @@
 
   <!-- ===== Base system: sensors/sim + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
+    <arg name="ekf_profile" value="$(var ekf_profile)"/>
     <arg name="map"          value="$(var map)"/>
     <arg name="sim"          value="$(var sim)"/>
     <arg name="localization" value="$(var localization)"/>

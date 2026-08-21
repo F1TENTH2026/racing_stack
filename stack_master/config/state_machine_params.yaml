@@ -1,7 +1,9 @@
 state_machine:
   ros__parameters:
     # structural
-    rate: 80
+    # Match the detect/tracking freshness boundary.  At 80 Hz, half of state-machine
+    # invocations necessarily reused the previous 40 Hz perception sample.
+    rate: 40
     n_loc_wpnts: 80
     timetrials_only: false
     sim: true
