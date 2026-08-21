@@ -158,6 +158,13 @@ def ObstacleTransition(state_machine: "StateMachine", close_to_raceline) -> Tupl
             return StateType.RECOVERY, StateType.RECOVERY
 
     if can_overtake:
+        # A current TRAILING target that conflicts only with the static path's
+        # shared prefix is not a reason to discard that path. Commit its lateral
+        # source now, but remain in TRAILING so the controller still enforces the
+        # target gap until the predicted conflict clears. A post-entry conflict
+        # never sets this flag and remains blocked above.
+        if state_machine._static_prefix_wait_ready:
+            return StateType.TRAILING, StateType.OVERTAKE
         return StateType.OVERTAKE, StateType.OVERTAKE
     else:
         if close_to_raceline:

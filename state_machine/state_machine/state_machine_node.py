@@ -218,6 +218,16 @@ class StateMachine(Node):
         # of when the path first became valid+safe (for [STATIC_OT_TRANSITION] latency).
         self._static_path_dbg = None
         self._static_first_valid_sec = None
+        # Static-avoidance preparation: when the current TRAILING target only
+        # intersects the part of the static path that is still shared with the
+        # current line, keep longitudinal TRAILING control while committing the
+        # lateral source to the static path. The target id is latched only for
+        # that preparation window; every other dynamic obstacle remains a hard
+        # blocker.
+        self._static_prefix_wait_ready = False
+        self._static_trailing_target_id = None
+        self._static_prep_entry_s = None
+        self._static_safety_dbg = None
         # Previous loop's source cache, for rule 2 (drop the cache on a real src change).
         self._prev_src_cache = None
 
@@ -1177,6 +1187,7 @@ class StateMachine(Node):
                             if end_idx - start_idx < 2:
                                 end_idx = min(start_idx + 2, len(obstacle_predictions))
                         worst_fd = None
+                        blocked_path_idxs = []
                         for obs_pred in obstacle_predictions[start_idx:end_idx]:
                             wpnt_idx = np.argmin(abs(wpnts_data.array[:, 2] - obs_pred.pred_s))
                             wpnt_d = wpnts_data.list[wpnt_idx].d_m
@@ -1195,11 +1206,19 @@ class StateMachine(Node):
                             if free_dist < lateral_width_m * scaling_factor:
                                 is_free = False
                                 rec["blocked"] = True
+                                blocked_path_idxs.append(int(wpnt_idx))
                                 if closest_obs is None or min_gap > gap:
                                     closest_obs = obs
                                     min_gap = gap
                         rec["free_dist"] = None if worst_fd is None else round(float(worst_fd), 3)
                         rec["pred_n"] = int(end_idx - start_idx)
+                        if blocked_path_idxs:
+                            first_idx = min(blocked_path_idxs)
+                            last_idx = max(blocked_path_idxs)
+                            rec["collision_path_idx"] = first_idx
+                            rec["collision_path_last_idx"] = last_idx
+                            rec["collision_path_s"] = round(float(wpnts_data.array[first_idx, 2]), 3)
+                            rec["collision_path_last_s"] = round(float(wpnts_data.array[last_idx, 2]), 3)
                     else:
                         rec["branch"] = "dyn/nopred (id_mismatch or empty)"
                         rec["pred_id"] = int(self.obstacles_prediction_id) if self.obstacles_prediction_id is not None else None
@@ -1367,6 +1386,9 @@ class StateMachine(Node):
             and self._check_free_frenet(self.cur_avoidance_wpnts)
         ):
             self.static_overtaking_mode = False
+            self._static_prefix_wait_ready = False
+            self._static_trailing_target_id = None
+            self._static_prep_entry_s = None
             return True
         else:
             return False
@@ -1407,19 +1429,164 @@ class StateMachine(Node):
         self._static_path_dbg = {"exists": True, "ttl_ok": True, "raw_n": raw_n, "age": age}
         return True
 
+    def _obstacle_by_id(self, obstacle_id):
+        if obstacle_id is None:
+            return None
+        return next((obs for obs in self.cur_obstacles_in_interest if obs.id == obstacle_id), None)
+
+    def _current_trailing_target(self):
+        """Return the target the existing TRAILING behaviour is controlling.
+
+        There is no standalone current_trailing_target_id in this stack. The
+        active source's closest_target is the value later copied into
+        BehaviorStrategy.trailing_targets. During STATIC_AVOID_PREP the source
+        is already OVERTAKE, so use the narrowly-scoped latched id instead.
+        """
+        latched = self._obstacle_by_id(self._static_trailing_target_id)
+        if latched is not None:
+            return latched
+        if self.local_wpnts_src == StateType.RECOVERY:
+            return self.cur_recovery_wpnts.closest_target
+        return self.cur_gb_wpnts.closest_target
+
+    def _static_path_entry(self, wpnts_data):
+        """First sample where the static path has genuinely left its shared prefix.
+
+        The path is anchored at the ego's current d, which need not be zero, so
+        compare against its first sample rather than against the raceline. Reuse
+        the configured static-path lateral clearance as the divergence threshold;
+        this introduces no new tuned distance.
+        """
+        if not wpnts_data.is_init or wpnts_data.array is None or len(wpnts_data.array) == 0:
+            return None, None
+        delta_d = np.abs(wpnts_data.array[:, 3] - wpnts_data.array[0, 3])
+        entered = np.flatnonzero(delta_d > wpnts_data.lateral_width_m)
+        if len(entered) == 0:
+            return None, None
+        idx = int(entered[0])
+        return idx, float(wpnts_data.array[idx, 2])
+
+    def _check_static_path_safety_detailed(self, wpnts_data):
+        """Classify a static-path conflict without weakening general safety.
+
+        A normal free path is accepted unchanged. An unsafe path is eligible
+        for STATIC_AVOID_PREP only when *all* blockers are the current dynamic
+        TRAILING target, that target lies between ego and the nearest static
+        obstacle, and every predicted collision is before path divergence.
+        Other dynamic obstacles and post-entry conflicts remain hard blockers.
+        """
+        safe = self._check_free_frenet(wpnts_data)
+        result = {
+            "safe": bool(safe), "prefix_only": False, "target_id": None,
+            "static_obs_id": None, "static_s": None, "entry_idx": None,
+            "entry_s": None, "collision_idx": None, "collision_last_idx": None,
+            "reason": "SAFE" if safe else "PATH_BLOCKED",
+        }
+        if safe:
+            self._static_safety_dbg = result
+            return result
+
+        free_dbg = wpnts_data.free_dbg or {}
+        blockers = [rec for rec in free_dbg.get("obs", []) if rec.get("blocked")]
+        target = self._current_trailing_target()
+        if target is None or target.is_static:
+            result["reason"] = "NO_DYNAMIC_TRAILING_TARGET"
+            self._static_safety_dbg = result
+            return result
+        result["target_id"] = int(target.id)
+
+        # Never waive another obstacle just because the current target also blocks.
+        if not blockers or any(rec.get("id") != target.id for rec in blockers):
+            result["reason"] = "NON_TARGET_BLOCKER"
+            self._static_safety_dbg = result
+            return result
+
+        target_rec = blockers[0]
+        first_collision = target_rec.get("collision_path_idx")
+        last_collision = target_rec.get("collision_path_last_idx")
+        result["collision_idx"] = first_collision
+        result["collision_last_idx"] = last_collision
+        if first_collision is None or last_collision is None:
+            result["reason"] = "NO_PREDICTED_COLLISION_INDEX"
+            self._static_safety_dbg = result
+            return result
+
+        target_gap = (target.s_center - self.cur_s) % self.max_s
+        static_candidates = [
+            ((obs.s_center - self.cur_s) % self.max_s, obs)
+            for obs in self.cur_obstacles_in_interest
+            if obs.is_static and ((obs.s_center - self.cur_s) % self.max_s) < wpnts_data.max_horizon
+        ]
+        if not static_candidates:
+            result["reason"] = "NO_STATIC_AHEAD"
+            self._static_safety_dbg = result
+            return result
+        static_gap, static_obs = min(static_candidates, key=lambda item: item[0])
+        result.update({"static_obs_id": int(static_obs.id), "static_s": float(static_obs.s_center)})
+        if not target_gap < static_gap:
+            result["reason"] = "TARGET_NOT_BETWEEN_EGO_AND_STATIC"
+            self._static_safety_dbg = result
+            return result
+
+        entry_idx, entry_s = self._static_path_entry(wpnts_data)
+        result.update({"entry_idx": entry_idx, "entry_s": entry_s})
+        if entry_idx is None:
+            result["reason"] = "NO_PATH_DIVERGENCE"
+            self._static_safety_dbg = result
+            return result
+        if last_collision >= entry_idx:
+            result["reason"] = "POST_ENTRY_CONFLICT"
+            self._static_safety_dbg = result
+            return result
+
+        result["prefix_only"] = True
+        result["reason"] = "TRAILING_TARGET_SHARED_PREFIX"
+        self._static_safety_dbg = result
+        return result
+
     def _check_static_overtaking_mode(self) -> bool:
         path_available = self._static_path_available()
-        path_safe = self._check_free_frenet(self.cur_static_avoidance_wpnts) if path_available else False
+        safety = self._check_static_path_safety_detailed(self.cur_static_avoidance_wpnts) if path_available else {
+            "safe": False, "prefix_only": False, "reason": "NO_STATIC_PATH"
+        }
+        path_safe = safety["safe"]
+        prefix_only = safety["prefix_only"]
+        if prefix_only:
+            self._static_prep_entry_s = safety.get("entry_s")
+        elif (
+            path_safe
+            and self.cur_state == StateType.TRAILING
+            and self._static_trailing_target_id is not None
+            and self._static_prep_entry_s is not None
+        ):
+            # Once preparation has committed the static path, do not release the
+            # controller's TRAILING longitudinal constraint merely because the
+            # prediction becomes clear a couple of metres before the lateral move.
+            # Stay in preparation until the ego reaches the already-locked path
+            # entry. Reuse waypoint spacing as the arrival tolerance.
+            entry_gap = (
+                self._static_prep_entry_s - self.cur_s + self.max_s / 2
+            ) % self.max_s - self.max_s / 2
+            if entry_gap > self.wpnt_dist:
+                prefix_only = True
+                safety.update({
+                    "prefix_only": True,
+                    "target_id": int(self._static_trailing_target_id),
+                    "entry_s": self._static_prep_entry_s,
+                    "reason": "WAITING_FOR_PATH_ENTRY",
+                })
         on_spline = self._check_on_spline(self.cur_static_avoidance_wpnts)
-        decision = path_available and path_safe
-        reason = None if decision else ("PATH_BLOCKED" if path_available else "NO_STATIC_PATH")
+        decision = path_available and (path_safe or prefix_only)
+        self._static_prefix_wait_ready = bool(path_available and prefix_only)
+        reason = safety.get("reason") if path_available else "NO_STATIC_PATH"
 
         if decision:
             if self._static_first_valid_sec is None:
                 self._static_first_valid_sec = self.now_sec()
             if not self.static_overtaking_mode:
                 latency_ms = (self.now_sec() - self._static_first_valid_sec) * 1000.0
-                transition_line = f"[STATIC_OT_TRANSITION] first_valid_path_to_overtake_ms={latency_ms:.1f}"
+                event = "STATIC_AVOID_PREP" if prefix_only else "STATIC_OT_TRANSITION"
+                transition_line = f"[{event}] first_valid_path_ms={latency_ms:.1f}"
                 self.get_logger().info(transition_line)
                 self._dbg_log(transition_line)
         else:
@@ -1436,9 +1603,20 @@ class StateMachine(Node):
             if blocked_obs:
                 worst = min(blocked_obs, key=lambda o: o.get("free_dist") if o.get("free_dist") is not None else 0.0)
                 blocked_detail = (
-                    f" blocked_obs_id={worst['id']} gap={worst['gap']}m "
+                    f" blocked_obs_id={worst['id']} blocked_obs_is_static={int(worst['static'])} "
+                    f"gap={worst['gap']}m "
                     f"free_dist={worst.get('free_dist')}m branch={worst.get('branch')}"
                 )
+
+        safety_detail = ""
+        if path_available:
+            safety_detail = (
+                f" target_id={safety.get('target_id')} static_obs_id={safety.get('static_obs_id')} "
+                f"entry_idx={safety.get('entry_idx')} entry_s={safety.get('entry_s')} "
+                f"collision_idx={safety.get('collision_idx')} "
+                f"collision_last_idx={safety.get('collision_last_idx')} "
+                f"prefix_only={int(prefix_only)}"
+            )
 
         dbg = self._static_path_dbg or {}
         raw_n = dbg.get("raw_n")
@@ -1451,9 +1629,10 @@ class StateMachine(Node):
             f"on_spline={int(on_spline)} speed={self.cur_vs:.2f} "
             f"raw_wpnts={'-' if raw_n is None else raw_n} "
             f"raw_age={'-' if age is None else f'{age:.2f}'}s "
-            f"decision={'OVERTAKE' if decision else 'TRAILING'}"
+            f"decision={'STATIC_AVOID_PREP' if prefix_only else ('OVERTAKE' if decision else 'TRAILING')}"
             + (f" reason={reason}" if reason else "")
             + blocked_detail
+            + safety_detail
         )
         self.get_logger().info(static_ot_line, throttle_duration_sec=0.2)
         if self.now_sec() - self._dbg_last_static_log_sec > 0.2:
@@ -1462,8 +1641,14 @@ class StateMachine(Node):
 
         if decision:
             self.static_overtaking_mode = True
+            if prefix_only and safety.get("target_id") is not None:
+                self._static_trailing_target_id = int(safety["target_id"])
             return True
         else:
+            self._static_prefix_wait_ready = False
+            if self._obstacle_by_id(self._static_trailing_target_id) is None:
+                self._static_trailing_target_id = None
+                self._static_prep_entry_s = None
             return False
 
     def _update_opponent_memory(self):
@@ -2221,6 +2406,14 @@ class StateMachine(Node):
 
         if local_wpnts_src == StateType.RECOVERY and self.cur_recovery_wpnts.closest_target is not None:
             return [self.cur_recovery_wpnts.closest_target], local_wpnts_src
+
+        # STATIC_AVOID_PREP deliberately uses the static OVERTAKE path while the
+        # state remains TRAILING. Preserve the exact latched dynamic target so the
+        # controller continues longitudinal gap control during the shared prefix.
+        if local_wpnts_src == StateType.OVERTAKE and self._static_prefix_wait_ready:
+            target = self._obstacle_by_id(self._static_trailing_target_id)
+            if target is not None and not target.is_static:
+                return [target], local_wpnts_src
 
         return [], local_wpnts_src
 
