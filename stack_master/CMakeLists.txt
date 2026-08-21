@@ -37,6 +37,7 @@ install(PROGRAMS
   scripts/finish_map.py
   scripts/pose_to_odom_node.py
   scripts/map_relay_node.py
+  scripts/check_scaling.py
   scripts/scan_throttle_node.py
   scripts/keyboard_joy_node.py
   scripts/mapping_joy_node.py
