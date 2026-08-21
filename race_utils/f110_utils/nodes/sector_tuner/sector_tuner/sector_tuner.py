@@ -61,6 +61,31 @@ class SectorTuner(Node):
         if not self.has_parameter('default_scaling'):
             self.declare_parameter('default_scaling', 1.0)
 
+        # [s] How long a CHANGE in scaling takes to reach the wheels.
+        #
+        # Every scaling change used to land in one 0.5 s tick: flipping
+        # use_sector_scaling from a 0.5 opening phase to a 1.2 sector multiplies
+        # every target velocity by 2.4 INSTANTLY. On a straight the car just
+        # accelerates; taken mid-corner the controller is handed a step change in
+        # target speed while it is already at the limit, and the car understeers
+        # into the wall. That is a real crash, observed on the car.
+        #
+        # The automatic phase switch is safe on its own -- race_phase_speed acts on
+        # /lap_data, which lap_analyser publishes at the FINISH LINE, i.e. on a
+        # straight. A manual `ros2 param set` has no such protection and can land
+        # anywhere on the track, which is what this ramp is for.
+        #
+        # 0 restores the old instant behaviour.
+        if not self.has_parameter('scaling_ramp_sec'):
+            self.declare_parameter('scaling_ramp_sec', 2.0)
+
+        # Ramp state. _ramp_from is the per-waypoint scaling in effect when the
+        # change arrived; the target is recomputed every tick from the live params.
+        self._eff_scaling = None      # np.ndarray, per waypoint, what is published now
+        self._ramp_from = None
+        self._ramp_t0 = None
+        self._ramp_timer = None
+
         # get initial scaling
         self.sectors_params = self.parameters_to_dict()
         self.n_sectors = self.sectors_params['n_sectors']
@@ -142,8 +167,37 @@ class SectorTuner(Node):
                 [rclpy.parameter.Parameter('save_params', rclpy.Parameter.Type.BOOL, False)])
 
         self.apply_phase_multiplier()
+        self._begin_ramp()
 
         self.get_logger().info(str(self.sectors_params))
+
+    def _begin_ramp(self):
+        """Snapshot what is being driven now and blend from it to the new scaling."""
+        ramp = float(self.sectors_params.get('scaling_ramp_sec', 0.0) or 0.0)
+        if ramp <= 0.0 or self._eff_scaling is None:
+            self._ramp_from = None
+            self._ramp_t0 = None
+            return
+        # Snapshot, not a reference: _eff_scaling is written in place each tick.
+        self._ramp_from = np.copy(self._eff_scaling)
+        self._ramp_t0 = self.get_clock().now()
+        # The steady-state tick is 0.5 s, which would make a "ramp" three coarse
+        # steps -- still a jolt. Run a fine timer for the duration of the ramp
+        # only, so the smoothing costs nothing once the car is settled.
+        if self._ramp_timer is None:
+            self._ramp_timer = self.create_timer(0.05, self.timer_callback)
+        self.get_logger().warn(
+            f'scaling changed -> ramping over {ramp:.1f} s (no step change to the wheels)')
+
+    def _ramp_alpha(self):
+        """0 at the start of a ramp, 1 when it is done. 1 when not ramping."""
+        if self._ramp_from is None or self._ramp_t0 is None:
+            return 1.0
+        ramp = float(self.sectors_params.get('scaling_ramp_sec', 0.0) or 0.0)
+        if ramp <= 0.0:
+            return 1.0
+        dt = (self.get_clock().now() - self._ramp_t0).nanoseconds / 1e9
+        return min(1.0, max(0.0, dt / ramp))
 
     def apply_phase_multiplier(self):
         """
@@ -269,10 +323,26 @@ class SectorTuner(Node):
             self.glb_wpnts_sp_scaled = deepcopy(self.glb_wpnts_sp_og)
             self.update_map = False
 
+        n = len(self.glb_wpnts_og.wpnts)
+        target = np.array([self.get_vel_scaling(i) for i in range(n)], dtype=float)
+
+        alpha = self._ramp_alpha()
+        if self._ramp_from is not None and len(self._ramp_from) == n and alpha < 1.0:
+            eff = self._ramp_from * (1.0 - alpha) + target * alpha
+        else:
+            eff = target
+            if self._ramp_from is not None and alpha >= 1.0:
+                # Ramp finished: drop back to the cheap 0.5 s tick.
+                self._ramp_from = None
+                self._ramp_t0 = None
+                if self._ramp_timer is not None:
+                    self._ramp_timer.cancel()
+                    self.destroy_timer(self._ramp_timer)
+                    self._ramp_timer = None
+
+        self._eff_scaling = eff
         for i, wpnt in enumerate(self.glb_wpnts_og.wpnts):
-            vel_scaling = self.get_vel_scaling(i)
-            new_vel = wpnt.vx_mps * vel_scaling
-            self.glb_wpnts_scaled.wpnts[i].vx_mps = new_vel
+            self.glb_wpnts_scaled.wpnts[i].vx_mps = wpnt.vx_mps * eff[i]
 
     def timer_callback(self):
         if (self.glb_wpnts_og is None):

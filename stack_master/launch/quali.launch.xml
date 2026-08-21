@@ -73,7 +73,7 @@
   <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
   <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
-  <arg name="speed_scale" default="0.5"
+  <arg name="speed_scale" default="0.6"
        description="Flat scaling (0.0-2.0) used over the WHOLE lap for the first fast_after_laps laps, sectors ignored: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. After the switch it is gone -- the map's speed_scaling.yaml drives on its own."/>
   <arg name="fast_after_laps" default="7"
        description="Completed laps (lap_analyser /lap_data) after which the flat speed_scale gives way to the map's speed_scaling.yaml. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
@@ -92,6 +92,13 @@
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
   <!-- 위 헤더 참고: 동적 플래너는 안 띄우지만 static_otwpnts 구독 게이트 때문에 필요. -->
   <let name="ot_planner" value="lane_change"/>
+
+  <!-- quali 의 speed_scale 을 include 전에 다른 이름으로 붙잡아 둔다.
+       아래 include 안에서 speed_scale 을 1.0 으로 덮어쓰는 순간, 같은 블록의
+       $(var speed_scale) 도 1.0 이 되어 버린다 (arg 는 그 자리에서 즉시
+       launch configuration 을 바꾼다). 이름을 분리하지 않으면 오프닝 랩 속도가
+       조용히 1.0 으로 올라간다. -->
+  <let name="opening_scale" value="$(var speed_scale)"/>
 
   <!-- ===== Base system: sensors/sim + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
@@ -122,7 +129,7 @@
          Verify with: ros2 run stack_master check_scaling.py
          (phase_multiplier must read 1.0). -->
     <arg name="speed_scale"     value="1.0"/>
-    <arg name="default_scaling" value="$(var speed_scale)"/>
+    <arg name="default_scaling" value="$(var opening_scale)"/>
     <arg name="sector_scaling"  value="$(var start_sector_scaling)"/>
     <arg name="debug"        value="$(var debug)"/>
   </include>
