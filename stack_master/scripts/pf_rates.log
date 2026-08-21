@@ -1,0 +1,378 @@
+
+=== rate_check  t=   2.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    94.1    24.0   298.8      42ms      84  WARN
+/pf/pose/odom            40    47.2    15.8    20.2      63ms      81  BAD   <-- 드롭아웃
+/car_state/odom          50    52.8    22.8    18.0      44ms     101  BAD   <-- 드롭아웃
+/local_waypoints         80    44.1     8.2    15.8     122ms      75  BAD   <-- 드롭아웃
+
+=== rate_check  t=   4.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    68.7    24.0   215.6      42ms     163  WARN
+/pf/pose/odom            40    46.0    15.8    18.1      63ms     161  BAD   <-- 드롭아웃
+/car_state/odom          50    52.0    36.1    13.5      28ms     201  WARN
+/local_waypoints         80    43.1     5.6    16.0     179ms     143  BAD   <-- 드롭아웃
+
+=== rate_check  t=   6.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.1    24.4     9.6      41ms     243  WARN
+/pf/pose/odom            40    45.2    18.4    17.8      54ms     241  BAD   <-- 드롭아웃
+/car_state/odom          50    52.4    27.4    18.5      36ms     301  WARN
+/local_waypoints         80    42.5     5.6    16.7     179ms     214  BAD   <-- 드롭아웃
+
+=== rate_check  t=   8.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.0    24.4     9.1      41ms     324  WARN
+/pf/pose/odom            40    46.7    14.7    19.7      68ms     321  BAD   <-- 드롭아웃
+/car_state/odom          50    52.7    27.4    19.1      36ms     401  WARN
+/local_waypoints         80    42.1     5.6    16.8     179ms     287  BAD   <-- 드롭아웃
+
+=== rate_check  t=  10.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    58.9    11.8   127.2      85ms     403  BAD   <-- 드롭아웃
+/pf/pose/odom            40    47.5     9.9    22.0     101ms     396  BAD   <-- 드롭아웃
+/car_state/odom          50    60.9    12.0    68.2      83ms     498  BAD   <-- 드롭아웃
+/local_waypoints         80    42.5     8.1    26.4     123ms     347  BAD   <-- 드롭아웃
+
+=== rate_check  t=  12.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    58.9    11.8   127.2      85ms     483  BAD   <-- 드롭아웃
+/pf/pose/odom            40    50.8     9.9    31.3     101ms     480  BAD   <-- 드롭아웃
+/car_state/odom          50    64.4    12.0    83.9      83ms     598  BAD   <-- 드롭아웃
+/local_waypoints         80    41.0     8.4    27.0     119ms     398  BAD   <-- 드롭아웃
+
+=== rate_check  t=  14.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    59.1    11.8   127.2      85ms     563  BAD   <-- 드롭아웃
+/pf/pose/odom            40    50.4     9.9    30.9     101ms     560  BAD   <-- 드롭아웃
+/car_state/odom          50    55.3    28.0    50.8      36ms     698  WARN
+/local_waypoints         80    38.0     8.4    25.0     119ms     461  BAD   <-- 드롭아웃
+
+=== rate_check  t=  16.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.2    22.9    10.2      44ms     643  WARN
+/pf/pose/odom            40    45.5    16.3    17.6      61ms     639  BAD   <-- 드롭아웃
+/car_state/odom          50    51.4    35.1    10.6      29ms     798  WARN
+/local_waypoints         80    35.1     8.4    24.6     119ms     515  BAD   <-- 드롭아웃
+
+=== rate_check  t=  18.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    41.8    27.8     9.1      36ms     723  WARN
+/pf/pose/odom            40    45.7    17.5    18.8      57ms     719  BAD   <-- 드롭아웃
+/car_state/odom          50    50.7    35.1     6.3      29ms     898  WARN
+/local_waypoints         80    30.5     4.6    12.2     218ms     545  BAD   <-- 드롭아웃
+
+=== rate_check  t=  20.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    41.7    26.7     8.7      38ms     803  WARN
+/pf/pose/odom            40    53.8    14.3    88.3      70ms     799  BAD   <-- 드롭아웃
+/car_state/odom          50    50.9    35.5     7.0      28ms     998  WARN
+/local_waypoints         80    31.0     4.6    11.7     218ms     602  BAD   <-- 드롭아웃
+
+=== rate_check  t=  22.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    41.8    26.7     8.9      38ms     883  WARN
+/pf/pose/odom            40    54.8    14.3    88.9      70ms     879  BAD   <-- 드롭아웃
+/car_state/odom          50    52.0    22.1    12.8      45ms    1098  BAD   <-- 드롭아웃
+/local_waypoints         80    31.1     4.6    12.6     218ms     664  BAD   <-- 드롭아웃
+
+=== rate_check  t=  24.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.1    24.8    10.1      40ms     963  WARN
+/pf/pose/odom            40    47.1    19.2    22.9      52ms     959  BAD   <-- 드롭아웃
+/car_state/odom          50    53.0    30.0    15.7      33ms    1198  WARN
+/local_waypoints         80    31.7     7.0    12.2     142ms     720  BAD   <-- 드롭아웃
+
+=== rate_check  t=  26.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.4    23.1    11.7      43ms    1043  WARN
+/pf/pose/odom            40    47.0    16.6    22.5      60ms    1039  BAD   <-- 드롭아웃
+/car_state/odom          50    52.6    25.8    15.1      39ms    1298  WARN
+/local_waypoints         80    34.1     6.3    12.0     159ms     776  BAD   <-- 드롭아웃
+
+=== rate_check  t=  28.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.4    23.1    11.7      43ms    1122  WARN
+/pf/pose/odom            40    48.0    16.6    24.7      60ms    1119  BAD   <-- 드롭아웃
+/car_state/odom          50    51.5    35.4    10.6      28ms    1398  WARN
+/local_waypoints         80    34.7     6.3    12.7     159ms     839  BAD   <-- 드롭아웃
+
+=== rate_check  t=  30.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    41.9    24.9     9.3      40ms    1202  WARN
+/pf/pose/odom            40    49.4    17.4    27.4      57ms    1199  BAD   <-- 드롭아웃
+/car_state/odom          50    55.3    26.3    57.1      38ms    1498  WARN
+/local_waypoints         80    35.1     6.3    13.8     159ms     899  BAD   <-- 드롭아웃
+
+=== rate_check  t=  32.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    58.2     5.4   172.9     187ms    1279  BAD   <-- 드롭아웃
+/pf/pose/odom            40    50.3     5.6    27.5     178ms    1275  BAD   <-- 드롭아웃
+/car_state/odom          50    56.4    26.3    59.7      38ms    1598  WARN
+/local_waypoints         80    36.4     2.2    14.0     452ms     944  BAD   <-- 드롭아웃
+
+=== rate_check  t=  34.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   111.3     1.0   377.2    1034ms    1321  BAD   <-- 드롭아웃
+/pf/pose/odom            40    49.3     1.0    25.6    1042ms    1317  BAD   <-- 드롭아웃
+/car_state/odom          50    52.3    26.3    21.3      38ms    1674  WARN
+/local_waypoints         80    35.4     2.0    14.5     507ms     955  BAD   <-- 드롭아웃
+
+=== rate_check  t=  36.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   192.7     1.0   517.1    1034ms    1346  BAD   <-- 드롭아웃
+/pf/pose/odom            40    48.8     1.0    24.0    1042ms    1338  BAD   <-- 드롭아웃
+/car_state/odom          50    56.0     1.7    84.7     599ms    1753  BAD   <-- 드롭아웃
+/local_waypoints         80    33.8     1.0    15.1     988ms     969  BAD   <-- 드롭아웃
+
+=== rate_check  t=  38.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   301.5     1.0   638.3    1034ms    1399  BAD   <-- 드롭아웃
+/pf/pose/odom            40    48.9     1.0    22.9    1042ms    1382  BAD   <-- 드롭아웃
+/car_state/odom          50    60.8     1.5   110.7     660ms    1839  BAD   <-- 드롭아웃
+/local_waypoints         80    32.6     0.9    15.8    1147ms     988  BAD   <-- 드롭아웃
+
+=== rate_check  t=  40.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   301.6     1.0   638.3    1034ms    1435  BAD   <-- 드롭아웃
+/pf/pose/odom            40    48.6     1.0    21.9    1042ms    1420  BAD   <-- 드롭아웃
+/car_state/odom          50    55.8     1.5    72.1     660ms    1919  BAD   <-- 드롭아웃
+/local_waypoints         80    31.2     0.9    15.3    1147ms    1008  BAD   <-- 드롭아웃
+
+=== rate_check  t=  42.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   340.1     0.9   672.3    1123ms    1442  BAD   <-- 드롭아웃
+/pf/pose/odom            40    49.6     0.9    23.7    1129ms    1425  BAD   <-- 드롭아웃
+/car_state/odom          50    59.4     0.5    89.6    2221ms    1930  BAD   <-- 드롭아웃
+/local_waypoints         80    30.6     0.4    15.3    2666ms    1011  BAD   <-- 드롭아웃
+
+=== rate_check  t=  44.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   368.9     0.3   678.1    3641ms    1450  BAD   <-- 드롭아웃
+/pf/pose/odom            40    50.8     0.3    25.4    3605ms    1431  BAD   <-- 드롭아웃
+/car_state/odom          50    59.4     0.5    89.6    2221ms    1950  BAD   <-- 드롭아웃
+/local_waypoints         80    30.6     0.4    15.3    2666ms    1013  BAD   <-- 드롭아웃
+
+=== rate_check  t=  46.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   473.9     0.3   746.6    3641ms    1470  BAD   <-- 드롭아웃
+/pf/pose/odom            40    52.3     0.3    30.5    3605ms    1442  BAD   <-- 드롭아웃
+/car_state/odom          50    65.3     0.5   121.0    2221ms    2019  BAD   <-- 드롭아웃
+/local_waypoints         80    29.7     0.4    15.3    2666ms    1029  BAD   <-- 드롭아웃
+
+=== rate_check  t=  48.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   641.3     0.3   834.2    3641ms    1508  BAD   <-- 드롭아웃
+/pf/pose/odom            40    53.8     0.3    31.9    3605ms    1476  BAD   <-- 드롭아웃
+/car_state/odom          50    71.5     0.5   151.3    2087ms    2119  BAD   <-- 드롭아웃
+/local_waypoints         80    28.4     0.4    15.1    2666ms    1050  BAD   <-- 드롭아웃
+
+=== rate_check  t=  50.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   416.4     0.3   708.9    3641ms    1584  BAD   <-- 드롭아웃
+/pf/pose/odom            40    55.4     0.3    34.4    3605ms    1546  BAD   <-- 드롭아웃
+/car_state/odom          50    57.4    30.5    92.5      33ms    2219  WARN
+/local_waypoints         80    28.0     0.4    15.4    2666ms    1094  BAD   <-- 드롭아웃
+
+=== rate_check  t=  52.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   446.9     0.3   720.9    3641ms    1637  BAD   <-- 드롭아웃
+/pf/pose/odom            40    62.0     0.3    72.8    3605ms    1601  BAD   <-- 드롭아웃
+/car_state/odom          50    51.0    25.3     9.2      40ms    2318  WARN
+/local_waypoints         80    26.3     0.4    13.6    2666ms    1117  BAD   <-- 드롭아웃
+
+=== rate_check  t=  54.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   394.7     1.0   693.2    1004ms    1658  BAD   <-- 드롭아웃
+/pf/pose/odom            40    64.6     0.3    73.5    3605ms    1622  BAD   <-- 드롭아웃
+/car_state/odom          50    55.1     1.4    63.6     720ms    2384  BAD   <-- 드롭아웃
+/local_waypoints         80    26.6     0.4    14.1    2666ms    1123  BAD   <-- 드롭아웃
+
+=== rate_check  t=  56.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   372.2     0.4   664.6    2284ms    1667  BAD   <-- 드롭아웃
+/pf/pose/odom            40    64.4     0.4    73.3    2251ms    1628  BAD   <-- 드롭아웃
+/car_state/odom          50    55.1     1.4    63.5     720ms    2400  BAD   <-- 드롭아웃
+/local_waypoints         80    26.6     0.4    14.1    2666ms    1130  BAD   <-- 드롭아웃
+
+=== rate_check  t=  58.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   372.2     0.4   664.6    2284ms    1667  BAD   <-- 드롭아웃
+/pf/pose/odom            40    64.4     0.4    73.3    2251ms    1628  BAD   <-- 드롭아웃
+/car_state/odom          50    59.0     0.4    86.1    2750ms    2448  BAD   <-- 드롭아웃
+/local_waypoints         80    26.6     0.4    14.1    2666ms    1130  BAD   <-- 드롭아웃
+
+=== rate_check  t=  60.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   372.2     0.4   664.6    2284ms    1667  BAD   <-- 드롭아웃
+/pf/pose/odom            40    64.4     0.4    73.3    2251ms    1628  BAD   <-- 드롭아웃
+/car_state/odom          50    59.0     0.4    86.1    2750ms    2453  BAD   <-- 드롭아웃
+/local_waypoints         80    35.2     0.2    21.2    4726ms    1170  BAD   <-- 드롭아웃
+
+=== rate_check  t=  62.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   392.5     0.2   696.0    4460ms    1683  BAD   <-- 드롭아웃
+/pf/pose/odom            40    64.1     0.2    73.2    4415ms    1639  BAD   <-- 드롭아웃
+/car_state/odom          50    59.4     0.3    86.5    2867ms    2501  BAD   <-- 드롭아웃
+/local_waypoints         80    36.1     0.2    21.5    4726ms    1183  BAD   <-- 드롭아웃
+
+=== rate_check  t=  64.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   587.3     0.2   799.1    4460ms    1733  BAD   <-- 드롭아웃
+/pf/pose/odom            40    68.1     0.2    98.4    4415ms    1676  BAD   <-- 드롭아웃
+/car_state/odom          50    61.9     0.3   102.8    2867ms    2599  BAD   <-- 드롭아웃
+/local_waypoints         80    35.3     0.2    22.1    4726ms    1202  BAD   <-- 드롭아웃
+
+=== rate_check  t=  66.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   554.8     0.2   789.2    4460ms    1813  BAD   <-- 드롭아웃
+/pf/pose/odom            40    71.0     0.2   115.0    4415ms    1757  BAD   <-- 드롭아웃
+/car_state/odom          50    62.2     5.3   100.9     189ms    2699  BAD   <-- 드롭아웃
+/local_waypoints         80    36.9     0.2    21.5    4726ms    1251  BAD   <-- 드롭아웃
+
+=== rate_check  t=  68.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   253.0     2.5   562.3     406ms    1893  BAD   <-- 드롭아웃
+/pf/pose/odom            40    60.2     1.8    96.2     558ms    1837  BAD   <-- 드롭아웃
+/car_state/odom          50    56.4    17.5    57.0      57ms    2799  BAD   <-- 드롭아웃
+/local_waypoints         80    36.6     0.2    21.2    4726ms    1306  BAD   <-- 드롭아웃
+
+=== rate_check  t=  70.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.8    24.8    16.0      40ms    1973  WARN
+/pf/pose/odom            40    48.3    15.1    25.1      66ms    1918  BAD   <-- 드롭아웃
+/car_state/odom          50    52.7    28.5    17.4      35ms    2899  WARN
+/local_waypoints         80    31.4     0.7    15.8    1381ms    1361  BAD   <-- 드롭아웃
+
+=== rate_check  t=  72.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    45.1    18.8    26.1      53ms    2052  BAD   <-- 드롭아웃
+/pf/pose/odom            40    56.8    14.3    75.7      70ms    1998  BAD   <-- 드롭아웃
+/car_state/odom          50    54.7    27.8    30.6      36ms    2998  WARN
+/local_waypoints         80    36.2     8.1    18.4     124ms    1426  BAD   <-- 드롭아웃
+
+=== rate_check  t=  74.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    45.0    18.8    25.5      53ms    2132  BAD   <-- 드롭아웃
+/pf/pose/odom            40    56.4    14.2    75.9      71ms    2077  BAD   <-- 드롭아웃
+/car_state/odom          50    53.8    27.8    28.0      36ms    3099  WARN
+/local_waypoints         80    38.1     8.1    19.3     124ms    1488  BAD   <-- 드롭아웃
+
+=== rate_check  t=  76.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    44.6    18.8    25.2      53ms    2212  BAD   <-- 드롭아웃
+/pf/pose/odom            40    55.5    14.2    75.1      71ms    2157  BAD   <-- 드롭아웃
+/car_state/odom          50    52.9    24.2    30.2      41ms    3199  BAD   <-- 드롭아웃
+/local_waypoints         80    37.9     4.8    20.1     207ms    1536  BAD   <-- 드롭아웃
+
+=== rate_check  t=  78.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.5    24.3    14.9      41ms    2291  WARN
+/pf/pose/odom            40    47.2    17.2    21.1      58ms    2237  BAD   <-- 드롭아웃
+/car_state/odom          50    52.5    24.2    29.8      41ms    3299  BAD   <-- 드롭아웃
+/local_waypoints         80    37.1     3.7    20.2     268ms    1574  BAD   <-- 드롭아웃
+
+=== rate_check  t=  80.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    55.3    10.4   120.6      96ms    2370  BAD   <-- 드롭아웃
+/pf/pose/odom            40    48.7    10.0    23.8     100ms    2315  BAD   <-- 드롭아웃
+/car_state/odom          50    50.6    30.5     6.6      33ms    3399  WARN
+/local_waypoints         80    33.5     3.2    19.5     311ms    1607  BAD   <-- 드롭아웃
+
+=== rate_check  t=  82.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    54.9    10.4   120.6      96ms    2450  BAD   <-- 드롭아웃
+/pf/pose/odom            40    48.5    10.0    22.8     100ms    2395  BAD   <-- 드롭아웃
+/car_state/odom          50    50.9    30.5     7.3      33ms    3499  WARN
+/local_waypoints         80    29.5     3.2    13.0     311ms    1655  BAD   <-- 드롭아웃
+
+=== rate_check  t=  84.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.0    20.0    13.8      50ms    2530  BAD   <-- 드롭아웃
+/pf/pose/odom            40    56.2    10.4    90.3      96ms    2469  BAD   <-- 드롭아웃
+/car_state/odom          50    51.3    26.8    10.1      37ms    3599  WARN
+/local_waypoints         80    26.5     3.2    13.1     311ms    1684  BAD   <-- 드롭아웃
+
+=== rate_check  t=  86.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    42.9    23.5    12.9      43ms    2610  WARN
+/pf/pose/odom            40    55.1    10.4    90.5      96ms    2545  BAD   <-- 드롭아웃
+/car_state/odom          50    51.3    26.8    10.0      37ms    3699  WARN
+/local_waypoints         80    25.9     3.2    12.2     311ms    1731  BAD   <-- 드롭아웃
+
+=== rate_check  t=  88.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.4    23.0    16.1      44ms    2690  WARN
+/pf/pose/odom            40    47.9    12.0    23.6      83ms    2624  BAD   <-- 드롭아웃
+/car_state/odom          50    51.9    27.3    16.0      37ms    3799  WARN
+/local_waypoints         80    26.0     3.2    11.9     311ms    1780  BAD   <-- 드롭아웃
+
+=== rate_check  t=  90.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.8    23.0    16.8      44ms    2769  WARN
+/pf/pose/odom            40    47.9    12.0    22.8      83ms    2704  BAD   <-- 드롭아웃
+/car_state/odom          50    51.9    27.3    15.8      37ms    3899  WARN
+/local_waypoints         80    33.8     6.0    48.4     168ms    1840  BAD   <-- 드롭아웃
+
+=== rate_check  t=  92.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    43.9    23.1    16.5      43ms    2849  WARN
+/pf/pose/odom            40    47.0    19.1    21.0      52ms    2784  BAD   <-- 드롭아웃
+/car_state/odom          50    51.2    19.7     9.4      51ms    3999  BAD   <-- 드롭아웃
+/local_waypoints         80    35.9     6.0    47.8     168ms    1898  BAD   <-- 드롭아웃
+
+=== rate_check  t=  94.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    44.2    23.1    17.4      43ms    2929  WARN
+/pf/pose/odom            40    48.1    11.2    23.1      90ms    2863  BAD   <-- 드롭아웃
+/car_state/odom          50    51.5    33.7    10.0      30ms    4099  WARN
+/local_waypoints         80    36.0     3.9    47.9     255ms    1940  BAD   <-- 드롭아웃
+
+=== rate_check  t=  96.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    47.4    19.3    52.3      52ms    3009  BAD   <-- 드롭아웃
+/pf/pose/odom            40    47.5    11.2    22.1      90ms    2940  BAD   <-- 드롭아웃
+/car_state/odom          50    52.9    23.9    21.1      42ms    4199  BAD   <-- 드롭아웃
+/local_waypoints         80    37.3     3.9    47.9     255ms    1992  BAD   <-- 드롭아웃
+
+=== rate_check  t=  98.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    47.7    19.3    52.6      52ms    3089  BAD   <-- 드롭아웃
+/pf/pose/odom            40    50.3    15.1    26.5      66ms    3016  BAD   <-- 드롭아웃
+/car_state/odom          50    53.9    27.8    23.0      36ms    4299  WARN
+/local_waypoints         80    31.0     3.9    13.6     255ms    2029  BAD   <-- 드롭아웃
+
+=== rate_check  t= 100.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    44.2    20.2    16.4      49ms    3169  WARN
+/pf/pose/odom            40    56.5    15.1    90.9      66ms    3095  BAD   <-- 드롭아웃
+/car_state/odom          50    54.6    27.9    39.4      36ms    4399  WARN
+/local_waypoints         80    33.3     3.5    18.6     286ms    2084  BAD   <-- 드롭아웃
+
+=== rate_check  t= 102.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40    45.0    20.2    23.6      49ms    3249  WARN
+/pf/pose/odom            40    61.8    16.4   113.2      61ms    3176  BAD   <-- 드롭아웃
+/car_state/odom          50    62.7    24.8    85.5      40ms    4499  BAD   <-- 드롭아웃
+/local_waypoints         80    36.0     3.5    25.5     286ms    2139  BAD   <-- 드롭아웃
+
+=== rate_check  t= 104.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   109.0     2.6   335.1     384ms    3311  BAD   <-- 드롭아웃
+/pf/pose/odom            40    62.2     2.6   113.0     390ms    3237  BAD   <-- 드롭아웃
+/car_state/odom          50    59.7    24.8    77.1      40ms    4599  BAD   <-- 드롭아웃
+/local_waypoints         80    35.3     1.4    25.4     714ms    2169  BAD   <-- 드롭아웃
+
+=== rate_check  t= 106.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   108.9     2.6   335.1     384ms    3325  BAD   <-- 드롭아웃
+/pf/pose/odom            40    61.9     2.6   113.2     390ms    3252  BAD   <-- 드롭아웃
+/car_state/odom          50    52.0    35.9    19.4      28ms    4617  WARN
+/local_waypoints         80    34.5     1.4    25.5     714ms    2176  BAD   <-- 드롭아웃
+
+=== rate_check  t= 108.0s  (window=200) ===
+topic                expect    mean     min     std   maxgap    msgs  status
+/scan                    40   108.9     2.6   335.1     384ms    3325  BAD   <-- 드롭아웃
+/pf/pose/odom            40    61.9     2.6   113.2     390ms    3252  BAD   <-- 드롭아웃
+/car_state/odom          50    52.0    35.9    19.4      28ms    4617  WARN
+/local_waypoints         80    34.5     1.4    25.5     714ms    2176  BAD   <-- 드롭아웃
