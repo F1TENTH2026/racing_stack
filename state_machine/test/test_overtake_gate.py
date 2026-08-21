@@ -115,11 +115,16 @@ class GlobalWpnts:
 
 
 class TrailSM:
-    def __init__(self, gap, raceline_v=6.0, ramp=True):
+    def __init__(self, gap, raceline_v=6.0, ramp=True, memory=False):
         self.cur_state = StateType.TRAILING
         self.local_wpnts_src = StateType.GB_TRACK
         self.cur_gb_wpnts = Cache(gap)
         self.cur_recovery_wpnts = Cache(None)
+        self._memory = memory
+        self._last_dyn_gap_m = gap
+        self._last_dyn_seen_sec = 0.0
+        self._last_dyn_id = 7
+        self._dbg_last_memory_log_sec = 0.0
         self.emergency_break_horizon = 8.0
         self.trailing_speed_scale = 0.35
         self.trailing_min_speed_mps = 1.0
@@ -132,6 +137,21 @@ class TrailSM:
 
     def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None):
         self.applied_cap = speed_cap
+
+    def _opponent_memory_active(self):
+        return self._memory
+
+    def now_sec(self):
+        return 0.0
+
+    def get_logger(self):
+        class _L:
+            def warn(self, *a, **k):
+                pass
+        return _L()
+
+    def _dbg_log(self, msg):
+        pass
 
     _apply_trailing_speed_cap = StateMachine._apply_trailing_speed_cap
 
@@ -165,9 +185,38 @@ def test_trailing_speed_cap_step_mode_unchanged():
     assert sm.applied_cap == pytest.approx(2.1)   # 6.0 * 0.35
 
 
-def test_trailing_speed_cap_only_while_trailing():
-    sm = TrailSM(gap=4.0)
+def test_trailing_speed_cap_not_applied_outside_trailing_without_memory():
+    """No opponent seen recently and not TRAILING -> the profile is untouched."""
+    sm = TrailSM(gap=4.0, memory=False)
     sm.cur_state = StateType.OVERTAKE
+    wpnts = [Wpnt(6.0)]
+    assert sm._apply_trailing_speed_cap(wpnts) is wpnts
+    assert sm.applied_cap is None
+
+
+def test_cap_is_held_after_the_opponent_is_lost():
+    """The 2026-08-22 rear-end: obstacle list empties, state leaves TRAILING for
+    GB_TRACK, and the car used to go straight back to raceline speed. With the
+    memory window active the last known gap still caps the profile."""
+    sm = TrailSM(gap=4.0, raceline_v=6.0, memory=True)
+    sm.cur_state = StateType.GB_TRACK
+    sm._apply_trailing_speed_cap([Wpnt(6.0)])
+    # same ramp as while trailing: t = 4/8 -> scale 0.675 -> cap 4.05
+    assert sm.applied_cap == pytest.approx(4.05)
+
+
+def test_memory_cap_uses_the_last_known_gap():
+    sm = TrailSM(gap=1.0, raceline_v=6.0, memory=True)
+    sm.cur_state = StateType.GB_TRACK
+    sm._apply_trailing_speed_cap([Wpnt(6.0)])
+    # t = 1/8 = 0.125 -> scale = 0.35 + 0.65*0.125 = 0.43125 -> cap 2.5875
+    assert sm.applied_cap == pytest.approx(2.5875)
+
+
+def test_memory_expiry_releases_the_cap():
+    sm = TrailSM(gap=4.0, memory=True)
+    sm.cur_state = StateType.GB_TRACK
+    sm._memory = False          # window elapsed
     wpnts = [Wpnt(6.0)]
     assert sm._apply_trailing_speed_cap(wpnts) is wpnts
     assert sm.applied_cap is None

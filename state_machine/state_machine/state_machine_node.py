@@ -310,10 +310,17 @@ class StateMachine(Node):
         self._planner_diag = None
         self._prediction_stamp_sec = None
         self._dbg_last_dynamic_log_sec = 0.0
+        self._dbg_last_memory_log_sec = 0.0
         # Mirrors what _check_ot_sector() publishes on /ot_section_check, so the
         # decision log can report it without re-running the sector scan. Reset to
         # None at the top of every loop: None means "not evaluated this loop".
         self.ot_section_check = None
+        # Short-term memory of a dynamic opponent that was ahead and has since
+        # dropped out of /tracking/obstacles. See _update_opponent_memory.
+        self._last_dyn_seen_sec = None
+        self._last_dyn_gap_m = None
+        self._last_dyn_id = None
+        self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
@@ -1456,6 +1463,62 @@ class StateMachine(Node):
         else:
             return False
 
+    def _update_opponent_memory(self):
+        """Remember a dynamic opponent that was ahead, for a few seconds after it
+        is no longer reported.
+
+        WHY THIS EXISTS. On 2026-08-22 the car rear-ended the opponent at
+        4.6 m/s (state_machine_20260822_063122.log, t=1787348098.8-101.9). The
+        chain was:
+
+            opponent last seen at gap 5.42 m, cluster size 0.16 m -- one
+            centimetre above perception's min_size_m rejection floor of 0.15
+              -> tracker publishes nothing (ttl_dynamic is 40 frames @ 40 Hz
+                 = 1.0 s, the dropout lasted 2.6 s / 10.7 m)
+              -> len(cur_obstacles_in_interest) == 0
+              -> NonObstacleTransition -> GB_TRACK
+              -> full raceline velocity profile, 2.94 -> 4.60 m/s
+              -> impact
+
+        Nothing in the stack objected, because nothing remembers. The trailing
+        speed cap only runs in TRAILING, and the controller's AEB
+        (AEB_for_weird_local_wpnt) watches the local waypoint, not obstacles.
+
+        Deliberately a TIME window and not dead reckoning. Propagating the last
+        sighting forward on that run gives a projected gap of -0.95 m at the
+        moment of impact -- "we already passed it" -- because opp_vs was pinned
+        at a held 1.40 m/s. A position estimate that confident and that wrong is
+        worse than no estimate: this only says "something was ahead recently, do
+        not run the raceline flat out yet".
+        """
+        nearest_gap = None
+        nearest_id = None
+        for obs in self.cur_obstacles_in_interest:
+            if obs.is_static or self.track_length <= 0.0:
+                continue
+            gap = (obs.s_center - self.cur_s) % self.track_length
+            if gap > 0.5 * self.track_length:
+                continue
+            if nearest_gap is None or gap < nearest_gap:
+                nearest_gap = gap
+                nearest_id = int(obs.id)
+
+        if nearest_gap is not None:
+            self._last_dyn_seen_sec = self.now_sec()
+            self._last_dyn_gap_m = nearest_gap
+            self._last_dyn_id = nearest_id
+
+    def _opponent_memory_active(self) -> bool:
+        """True while a recently-lost opponent should still hold the speed down."""
+        if self._last_dyn_seen_sec is None or self.dynamic_opponent_memory_sec <= 0.0:
+            return False
+        if len(self.cur_obstacles_in_interest) != 0:
+            # Something is visible right now; the normal paths handle it.
+            for obs in self.cur_obstacles_in_interest:
+                if not obs.is_static:
+                    return False
+        return (self.now_sec() - self._last_dyn_seen_sec) <= self.dynamic_opponent_memory_sec
+
     def _log_dynamic_ot_decision(self):
         """One throttled line answering "why is the car not overtaking?".
 
@@ -1640,13 +1703,27 @@ class StateMachine(Node):
         mutating them in place would leak the trailing-reduced speed back into the
         shared global-waypoints message.
         """
-        if self.cur_state != StateType.TRAILING or not local_wpnts:
+        if not local_wpnts:
             return local_wpnts
 
-        if self.local_wpnts_src == StateType.GB_TRACK:
-            gap = self.cur_gb_wpnts.closest_gap
-        elif self.local_wpnts_src == StateType.RECOVERY:
-            gap = self.cur_recovery_wpnts.closest_gap
+        memory_hold = False
+        if self.cur_state == StateType.TRAILING:
+            if self.local_wpnts_src == StateType.GB_TRACK:
+                gap = self.cur_gb_wpnts.closest_gap
+            elif self.local_wpnts_src == StateType.RECOVERY:
+                gap = self.cur_recovery_wpnts.closest_gap
+            else:
+                return local_wpnts
+        elif self._opponent_memory_active():
+            # An opponent was ahead within the last dynamic_opponent_memory_sec and
+            # perception has since lost it. The state machine has already left
+            # TRAILING (no obstacle -> GB_TRACK), which is exactly how the car came
+            # to hit a stationary-ish opponent at 4.6 m/s on 2026-08-22. Keep the
+            # cap on, using the LAST KNOWN gap, until the window expires or the
+            # opponent is seen again. See _update_opponent_memory for why this does
+            # not try to estimate where the opponent went.
+            gap = self._last_dyn_gap_m
+            memory_hold = True
         else:
             return local_wpnts
 
@@ -1680,6 +1757,17 @@ class StateMachine(Node):
             t = min(max(gap / self.emergency_break_horizon, 0.0), 1.0)
             scale = self.trailing_speed_scale + (1.0 - self.trailing_speed_scale) * t
         cap = max(self.trailing_min_speed_mps, raceline_v * scale)
+
+        if memory_hold and self.now_sec() - self._dbg_last_memory_log_sec > 0.5:
+            self._dbg_last_memory_log_sec = self.now_sec()
+            line = (
+                f"[OPP_MEMORY] opponent id={self._last_dyn_id} lost "
+                f"{self.now_sec() - self._last_dyn_seen_sec:.2f}s ago at gap={gap:.2f}m -- "
+                f"holding speed cap {cap:.2f} m/s (raceline {raceline_v:.2f}) "
+                f"state={self.cur_state.value}"
+            )
+            self.get_logger().warn(line, throttle_duration_sec=0.5)
+            self._dbg_log(line)
 
         capped_wpnts = [copy.deepcopy(wp) for wp in local_wpnts]
         self.update_velocity(capped_wpnts, speed_cap=cap)
@@ -2178,6 +2266,12 @@ class StateMachine(Node):
         # evaluated yet this loop", which is different from "evaluated, no target".
         self._dyn_ot_target = None
         self.ot_section_check = None
+        # Short-term memory of a dynamic opponent that was ahead and has since
+        # dropped out of /tracking/obstacles. See _update_opponent_memory.
+        self._last_dyn_seen_sec = None
+        self._last_dyn_gap_m = None
+        self._last_dyn_id = None
+        self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()
@@ -2238,6 +2332,7 @@ class StateMachine(Node):
         else:
             self.cur_state, self.local_wpnts_src = self.state_transitions[self.cur_state](self)
 
+        self._update_opponent_memory()
         self._log_dynamic_ot_decision()
 
         if self.cur_state.value != self._dbg_last_state_value:

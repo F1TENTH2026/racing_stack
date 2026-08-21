@@ -42,6 +42,7 @@ class StateMachineParams:
         "dynamic_overtake_max_gap_m",
         "dynamic_overtake_min_rel_speed_mps",
         "dynamic_prediction_span_m",
+        "dynamic_opponent_memory_sec",
     }
 
     def __init__(self, node: "StateMachine") -> None:
@@ -340,6 +341,22 @@ class StateMachineParams:
             ),
         )
         self.dynamic_prediction_span_m: float = node.get_parameter("dynamic_prediction_span_m").value
+
+        self._declare(
+            "dynamic_opponent_memory_sec", 3.0,
+            ParameterDescriptor(
+                description=(
+                    "How long the trailing speed cap is held after perception "
+                    "loses a dynamic opponent that was ahead [s]. 0 disables the "
+                    "memory and restores the pre-2026-08-22 behaviour, in which "
+                    "the car returned to full raceline speed the instant the "
+                    "opponent stopped being reported."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=10.0, step=0.1)],
+            ),
+        )
+        self.dynamic_opponent_memory_sec: float = node.get_parameter("dynamic_opponent_memory_sec").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not

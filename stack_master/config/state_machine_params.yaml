@@ -118,6 +118,27 @@ state_machine:
     # the corridor the planner builds a path for is the one the state machine
     # validates.
     dynamic_prediction_span_m: 3.0
+    # [s] How long the trailing speed cap is held after perception LOSES a dynamic
+    # opponent that was ahead.
+    #
+    # Added after the car rear-ended the opponent at 4.6 m/s on 2026-08-22
+    # (state_machine_20260822_063122.log, t=1787348098.8-101.9). The opponent's
+    # last sighting measured 0.16 m across -- one centimetre above perception's
+    # min_size_m rejection floor of 0.15 -- and then simply stopped being
+    # reported for 2.6 s / 10.7 m. tracking ttl_dynamic is 40 frames @ 40 Hz =
+    # 1.0 s, so the track died, the obstacle list went empty, the state machine
+    # went GB_TRACK and ran the raceline profile straight into it. Nothing
+    # objected: the speed cap only runs in TRAILING, and the controller's AEB
+    # watches the local waypoint, not obstacles.
+    #
+    # 3.0 s covers the dropouts actually measured on this map (17 events in
+    # 208 s, median 2.56 s, the fatal one 2.6 s).
+    #
+    # COST: the car holds a reduced cruise ceiling for up to 3 s every time the
+    # tracker blinks, which is a direct lap-time hit. Lower it if that proves
+    # too expensive, but understand that is the trade being made. 0 disables the
+    # memory entirely and restores the old behaviour.
+    dynamic_opponent_memory_sec: 3.0
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.
