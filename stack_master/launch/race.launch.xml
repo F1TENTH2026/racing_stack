@@ -147,6 +147,17 @@
        to the same file. -->
   <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
     <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <!-- HEAD-TO-HEAD OVERLAY, and it must stay AFTER controller.yaml: the later
+         param block wins for the keys it names. It carries only the trailing
+         gains, which controller.yaml tunes for a static box and which are stiff
+         enough behind a MOVING opponent to floor the speed command at zero two
+         metres back (see that file's header for the arithmetic). quali.launch.xml
+         deliberately does not load it, because quali has static obstacles only,
+         where the base gains are the right ones. -->
+    <param from="$(find-pkg-share stack_master)/config/dynamic_controller.yaml"/>
+    <!-- Points at the BASE file, as upstream does. Note save_params writes the
+         whole L1 set, so saving while the overlay is loaded copies the H2H
+         trailing gains into controller.yaml. Leave save_params false in a race. -->
     <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
     <param name="sim" value="$(var sim)"/>
   </node>
