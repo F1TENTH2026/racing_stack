@@ -34,7 +34,33 @@ state_machine:
     # to trailing_speed_scale * raceline speed (see _apply_trailing_speed_cap).
     # Was 0.5 as a dead/unread leftover; raised now that it's actually consumed --
     # 0.5 m left no reaction time at racing speed.
-    emergency_break_horizon: 4.0
+    #
+    # 4.0 -> 8.0, MATCHED TO tracking.dist_infront (8.0 m).
+    #
+    # The tracker does not report an opponent further than dist_infront, so 8 m is
+    # everything the car will ever get. At 4.0 the car held full raceline speed for
+    # the first HALF of that -- it saw the opponent at 8 m and only began cutting
+    # cruise speed at 4 m, by which point the distance was already spent.
+    #
+    # The arithmetic (brake 4 m/s^2, 120 ms command lag, gap_should = 0.25*v + 2.5):
+    #
+    #   ego 4 m/s  vs opponent 1.5 -> needs  5.1 m   fits in 8
+    #   ego 6 m/s               -> needs  7.8 m   just fits
+    #   ego 8 m/s               -> needs 11.6 m   3.6 m SHORT
+    #   ego 10 m/s              -> needs 16.3 m   8.3 m SHORT
+    #
+    # i.e. above ~6.1 m/s closing on a slow opponent the gap CANNOT be held, the
+    # car overruns gap_should, and trailing_controller's clip(..., 0, ...) floors
+    # the command at zero -- a dead stop, followed by the slow pull-away the driver
+    # sees. No PID gain fixes that; the distance simply is not there. Starting the
+    # cap the moment the opponent becomes visible is what buys it back: braking
+    # distance is quadratic in speed, so approaching at 4 m/s instead of 6 costs
+    # 1.7 m instead of 4.2 m.
+    #
+    # 0820test1's straights run at 10.3 m/s, so this does not remove the problem
+    # outright -- it moves the threshold up. Raising tracking.dist_infront toward
+    # the UST-10LX's 10 m guaranteed range is the other half.
+    emergency_break_horizon: 8.0
     # safety
     volt_threshold: 11.0
     # dynamic (replaces dyn_statemachine_tuner.cfg)
@@ -48,7 +74,15 @@ state_machine:
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.
-    trailing_speed_scale: 0.5
+    #
+    # 0.5 -> 0.35, together with emergency_break_horizon 4 -> 8. The cap now starts
+    # twice as early, so it can afford to be deeper: the point is to be BELOW the
+    # ~6.1 m/s at which the gap stops being holdable by the time the opponent is
+    # close. Deliberately trading approach speed for never reaching a dead stop --
+    # a stop costs far more time than a slow approach, because the car has to break
+    # static friction and ramp back up through the VESC's brake-release hysteresis.
+    # trailing_min_speed_mps below still stops this crawling toward 0 in corners.
+    trailing_speed_scale: 0.35
     # [m/s] Floor under trailing_speed_scale * raceline_speed (tight corners have a
     # low raceline speed already; don't let the cap crawl toward 0 there).
     trailing_min_speed_mps: 1.0
