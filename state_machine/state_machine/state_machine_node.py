@@ -311,6 +311,7 @@ class StateMachine(Node):
         self._prediction_stamp_sec = None
         self._dbg_last_dynamic_log_sec = 0.0
         self._dbg_last_memory_log_sec = 0.0
+        self._dbg_last_memstate_log_sec = 0.0
         # Mirrors what _check_ot_sector() publishes on /ot_section_check, so the
         # decision log can report it without re-running the sector scan. Reset to
         # None at the top of every loop: None means "not evaluated this loop".
@@ -1522,6 +1523,37 @@ class StateMachine(Node):
                     return False
         return (self.now_sec() - self._last_dyn_seen_sec) <= self.dynamic_opponent_memory_sec
 
+    def _log_opponent_memory_state(self):
+        """Unconditional 1 Hz trace of every input the memory hold depends on.
+
+        [OPP_MEMORY] never appeared in the 06:54 or 07:16 runs despite 33 sampled
+        frames that should have qualified (obstacle list empty, within 3 s of a
+        dynamic sighting, state GB_TRACK/OVERTAKE/LOSTLINE) -- and the same code,
+        called directly with those values, does fire. Rather than guess at which
+        term differs on the car, print all of them.
+
+        Only while NO dynamic obstacle is visible, and only at 1 Hz, so it costs
+        nothing during normal running and stops entirely once the opponent is
+        back in view.
+        """
+        if any(not o.is_static for o in self.cur_obstacles_in_interest):
+            return
+        if self.now_sec() - self._dbg_last_memstate_log_sec < 1.0:
+            return
+        self._dbg_last_memstate_log_sec = self.now_sec()
+        age = (None if self._last_dyn_seen_sec is None
+               else self.now_sec() - self._last_dyn_seen_sec)
+        self._dbg_log(
+            f"[OPP_MEM_DBG] state={self.cur_state.value} src={self.local_wpnts_src.value} "
+            f"n_obs={len(self.cur_obstacles_in_interest)} "
+            f"last_gap={'-' if self._last_dyn_gap_m is None else f'{self._last_dyn_gap_m:.2f}'} "
+            f"age={'-' if age is None else f'{age:.2f}'} "
+            f"window={self.dynamic_opponent_memory_sec:.2f} "
+            f"ebh={self.emergency_break_horizon:.2f} "
+            f"track_len={self.track_length:.2f} "
+            f"active={int(self._opponent_memory_active())}"
+        )
+
     def _log_dynamic_ot_decision(self):
         """One throttled line answering "why is the car not overtaking?".
 
@@ -2352,6 +2384,7 @@ class StateMachine(Node):
             self.cur_state, self.local_wpnts_src = self.state_transitions[self.cur_state](self)
 
         self._update_opponent_memory()
+        self._log_opponent_memory_state()
         self._log_dynamic_ot_decision()
 
         if self.cur_state.value != self._dbg_last_state_value:
