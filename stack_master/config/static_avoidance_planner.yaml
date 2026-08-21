@@ -10,9 +10,16 @@
 # state_machine/config/planners/static_avoidance_planner.yaml and
 # state_machine/config/planners/global_tracking.yaml:
 #
-#   min_free_dist_m      >= static_avoidance_planner.lateral_width_m   (0.10)
+#   min_free_dist_m      >= static_avoidance_planner.lateral_width_m   (0.155)
 #   raceline_clearance_m >= gb_ego_width_m/2 + global_tracking.lateral_width_m
 #   min_path_end_m       >= static_avoidance_planner.max_horizon       (10.0)
+#   evasion_distance     >  ego_width_m/2 + min_free_dist_m            (0.305)
+#
+# The numbers in brackets are the values those files hold TODAY -- they have gone
+# stale before (this header still said lateral_width_m was 0.10 long after it
+# became 0.155). Do not tune against them; run the checker, which reads the files:
+#
+#   ros2 run stack_master check_avoidance_config.py --map <map>
 #                            ... and mind the short-track caveat on min_path_end_m
 #
 # Break the first and this planner publishes paths the state machine refuses.
@@ -77,8 +84,12 @@ static_avoidance_planner:
     # [m] If the obstacle's near edge is already at least this far from the
     # raceline, the line clears it and this planner publishes nothing. MUST be
     # >= what the state machine calls a blocked raceline, which is
-    # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
-    raceline_clearance_m: 0.30
+    # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295
+    # 0.35 -> 0.30 -> 0.32. 0.30 은 하한 0.295 와 5 mm 차이라 gb_ego_width_m 이나
+    # global_tracking.lateral_width_m 을 조금만 건드려도 불변식 2 가 깨졌다.
+    # 올리는 쪽이 안전한 방향이다: 이 값이 클수록 "라인이 이미 비었다" 는 판정을
+    # 덜 내리므로 플래너가 회피를 더 자주 계획한다.
+    raceline_clearance_m: 0.32
 
     # Maximum number of simultaneously visible static obstacles shaped into one
     # same-side path. The simulator supports at most three practice obstacles.
@@ -88,9 +99,25 @@ static_avoidance_planner:
 
     # ===== path shape ==================================================
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
-    # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
-    # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    evasion_distance: 0.30 #3.0
+    # The gap to the car's SIDE is this minus ego_width_m/2 (0.145), so 0.45 here
+    # means 0.305 m of actual air beside the car.
+    #
+    # MUST STAY ABOVE min_evasion_m = ego_width_m/2 + min_free_dist_m = 0.305.
+    # The ladder computes max(scale * evasion_distance, min_evasion_m), so at 0.30
+    # every clearance rung (x1.0, x0.7, x0.0) collapsed onto 0.305 and the ladder
+    # stopped relaxing clearance at all -- it only varied the return leg and the
+    # side. "Even the relaxed rungs cannot solve this corridor" was not a finding
+    # about the corridor, it was the ladder never trying anything narrower than the
+    # first rung. Lowering this below the floor cannot buy clearance; only
+    # min_free_dist_m moves the floor.
+    #
+    # 0.45 is picked from the track, not by taste: median track width is 1.60 m, so
+    # a 0.30 m box on the line leaves (1.60-0.30)/2 = 0.65 m per side, and the
+    # preferred rung needs evasion_distance + boundary_margin (0.19) <= 0.65, i.e.
+    # <= 0.46. At 0.45 the ladder reads 0.450 -> 0.315 -> 0.305: generous where
+    # there is room, down to the floor where there is not.
+    # Check after any change: ros2 run stack_master check_avoidance_config.py
+    evasion_distance: 0.45
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -175,7 +202,12 @@ static_avoidance_planner:
     # capped to 5.93-7.61 m while max_horizon stays 10.0, breaking the invariant
     # and reintroducing "stuck in TRAILING on a static obstacle beyond path end".
     # Lower max_horizon to track_length/3 before racing on any of those.
-    min_path_end_m: 10.0
+    # 10.0 -> 11.0. max_horizon(10.0) 과 정확히 같아 여유가 0 이었다. 이 값은
+    # 전역 라인 꼬리만 늘리므로(end_u = max(sample_u[-1] + tail_m, cur_s + _path_end_eff))
+    # 경로가 거부될 일이 없고, 런타임에 track/3 로 캡된다 -- 0820test2 는 12.94 m
+    # 이므로 11.0 이 그대로 선다. 짧은 맵에서는 캡이 max_horizon 아래로 내려갈 수
+    # 있으니 --map 옵션으로 체커를 돌려 확인할 것.
+    min_path_end_m: 11.0
 
     # [m] Once the car is alongside the obstacle the apex is pushed this far
     # ahead rather than the path being dropped -- an empty path here makes the
@@ -205,7 +237,25 @@ static_avoidance_planner:
     # so an under-sized frame both draws the path closer AND judges it as clear.
     # Tight obstacle-to-wall corridors can now be rejected instead of producing
     # a path with less than 0.20 m vehicle-side clearance.
-    min_free_dist_m: 0.16
+    # 0.20 -> 0.16 -> 0.10, state_machine 의 lateral_width_m(0.09) 과 짝으로 내림.
+    #
+    # 왜 내릴 수 있게 됐나: 위 주석이 0.20 을 요구한 근거는 "under-sized frame 이
+    # 경로를 장애물 쪽으로 당기면서 동시에 안전하다고 판정한다" 였고, 그 원인인
+    # size 흔들림(0.38 -> 0.25 m)은 이제 tracking 에서 잡는다 -- 20프레임 65퍼센타일
+    # 필터로 표준편차가 1/4 로 줄었다(ObstacleSD.robust_size). 노이즈를 마진으로
+    # 덮던 것을 노이즈 자체를 줄여서 해결했으므로, 마진을 실제 통로에 쓸 수 있다.
+    #
+    # 산술: 필요 통로폭 = ego_width_m/2 + min_free_dist_m + boundary_margin
+    #        0.16 -> 0.145 + 0.160 + 0.19 = 0.495 m  (실측 0.50 m 통로에 마진 5 mm)
+    #        0.10 -> 0.145 + 0.100 + 0.19 = 0.435 m  (마진 65 mm)
+    # 라이다 오차가 최대 7 cm 로 관측되므로 5 mm 마진으로는 프레임마다 판정이
+    # 뒤집힌다. boundary_margin 은 건드리지 않았다 -- 그쪽을 줄이면 벽 간격
+    # (0.19 - 0.145 = 4.5 cm)이 그대로 줄어들고, 그 값은 로컬라이제이션 오차와
+    # 맞바꾸는 것이라 더 위험하다.
+    #
+    # ** state_machine/config/planners/static_avoidance_planner.yaml 의
+    #    lateral_width_m 이하로 유지할 것 (불변식 1). 짝으로만 바꾼다. **
+    min_free_dist_m: 0.10
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can

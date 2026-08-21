@@ -209,6 +209,9 @@ class StateMachine(Node):
         self._load_sector_params()
         self.cur_volt = 11.69  # default value for sim
         self.static_overtaking_mode = False
+        # Consecutive loops _check_static_overtaking_mode said "not OVERTAKE" while
+        # the car was already in OVERTAKE. See the dwell in that method.
+        self._static_false_streak = 0
         # Per-loop slice diagnostics, set by get_splini_wpts / get_recovery_wpts,
         # reset at the top of loop() so a snapshot only shows the source actually used.
         self._splini_dbg = None
@@ -291,6 +294,10 @@ class StateMachine(Node):
         self.use_force_trailing = not self.params.use_force_trailing
 
         # spliner variables
+        # [s] How long a "no longer overtaking" verdict must hold before the state
+        # machine actually leaves OVERTAKE. 0 restores the old chattering behaviour.
+        self.static_exit_dwell_sec = float(
+            getattr(self.params, 'static_exit_dwell_sec', 0.3))
         self.splini_ttl = self.params.splini_ttl
         self.splini_ttl_counter = int(self.splini_ttl * self.rate_hz)
         self.avoidance_wpnts = None
@@ -1160,6 +1167,7 @@ class StateMachine(Node):
             and self._check_free_frenet(self.cur_avoidance_wpnts)
         ):
             self.static_overtaking_mode = False
+            self._static_false_streak = 0
             return True
         else:
             return False
@@ -1253,11 +1261,44 @@ class StateMachine(Node):
             self._dbg_last_static_log_sec = self.now_sec()
             self._dbg_log(static_ot_line)
 
+        # ASYMMETRIC DWELL: enter immediately, leave only after the negative
+        # verdict has held for static_exit_dwell_sec.
+        #
+        # `decision` was recomputed from scratch every loop with no memory, and both
+        # of its terms ride on the obstacle's measured edges (d_left/d_right =
+        # d_center +- size/2). size is the noisiest quantity in the pipeline: it is
+        # the extent of the points currently VISIBLE, so occlusion only shrinks it,
+        # and the same box measured 0.38 -> 0.25 m frame to frame.
+        # _check_free_frenet compares the resulting free_dist against
+        # lateral_width_m (0.155), so when the true clearance sits near that
+        # threshold the comparison flips with the noise and the state machine
+        # chattered OVERTAKE <-> TRAILING at the loop rate. Every flip swaps
+        # local_wpnts to a different source, so the controller is handed a different
+        # path several times a second and the avoidance is never actually driven.
+        #
+        # Entering stays instant: reacting late to an obstacle is the dangerous
+        # direction. Leaving is what needs damping.
+        #
+        # Holding OVERTAKE a fraction of a second longer is not the less safe
+        # choice. The alternative is TRAILING, which follows the raceline -- the very
+        # line the obstacle is sitting on. The controller's static standoff and AEB
+        # are untouched and still stop the car.
         if decision:
+            self._static_false_streak = 0
             self.static_overtaking_mode = True
             return True
-        else:
-            return False
+
+        if self.static_overtaking_mode and self.static_exit_dwell_sec > 0.0:
+            hold_loops = int(self.static_exit_dwell_sec * self.rate_hz)
+            self._static_false_streak += 1
+            if self._static_false_streak <= hold_loops:
+                self._dbg_log(
+                    f"[STATIC_OT] holding OVERTAKE through {reason} "
+                    f"({self._static_false_streak}/{hold_loops} loops)")
+                return True
+
+        self._static_false_streak = 0
+        return False
 
     def _check_overtaking_mode_sustainability(self) -> bool:
         if self.static_overtaking_mode:

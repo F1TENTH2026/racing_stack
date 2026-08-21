@@ -41,6 +41,23 @@ state_machine:
     lateral_width_gb_m: 0.1 # 초기값 0.3
     lateral_width_ot_m: 0.1 # 초기값 0.3
     splini_hyst_timer_sec: 0.7
+    # [s] OVERTAKE 에서 빠져나가기 전에 "더 이상 회피 아님" 판정이 유지되어야 하는 시간.
+    #
+    # _check_static_overtaking_mode 의 decision 은 매 루프 처음부터 다시 계산되고
+    # 아무 기억이 없었다. 그런데 그 판정의 두 항이 모두 장애물의 측정된 가장자리
+    # (d_left/d_right = d_center +- size/2) 에 의존한다. size 는 파이프라인에서 가장
+    # 시끄러운 값이다 -- 그 프레임에 보이는 점들의 크기라 가림이 있으면 작아지기만
+    # 하고, 같은 상자가 0.38 -> 0.25 m 로 흔들린 기록이 있다.
+    #
+    # _check_free_frenet 이 그 free_dist 를 lateral_width_m(0.155) 과 비교하므로,
+    # 실제 여유가 그 문턱 근처면 비교 결과가 노이즈를 따라 뒤집히고 상태기계가
+    # 루프 주기로 OVERTAKE <-> TRAILING 을 반복했다. 뒤집힐 때마다 local_wpnts 의
+    # 출처가 바뀌므로 컨트롤러는 초당 여러 번 다른 경로를 받고, 회피는 한 번도
+    # 제대로 실행되지 않는다. "경로 생성 -> 트레일링 -> 다시 생성" 이 이것이다.
+    #
+    # 진입은 즉시(장애물에 늦게 반응하는 쪽이 위험하다), 이탈만 지연시킨다.
+    # 0 이면 예전 동작으로 돌아간다.
+    static_exit_dwell_sec: 0.3
     splini_ttl: 2.0
     pred_splini_ttl: 2.0
     overtaking_ttl_sec: 3.0

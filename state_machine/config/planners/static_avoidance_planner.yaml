@@ -19,7 +19,35 @@ min_horizon: 0.0
 # breaks the invariant above and brings back "stuck in TRAILING/GB_TRACK on a
 # static obstacle beyond path end". Lower this to track_length/3 on those maps.
 max_horizon: 10.0
-lateral_width_m: 0.155 
+# [m] 차의 옆면과 장애물 가장자리 사이에 있어야 하는 순수 빈 공간.
+#
+# ** 차폭 반을 포함하지 않는다. ** _check_free_frenet 이
+#     free_dist = min_dist - obs.size/2 - gb_ego_width_m/2
+# 로 차 반폭을 이미 뺀 뒤에 이 값과 비교한다. 여기에 차폭 반을 더해 넣으면
+# 이중으로 계산되어, 실제로는 두 배 가까운 여유를 요구하게 된다.
+#
+#   0.155 -> 경로 중심선~장애물 가장자리 0.300 m, 필요 통로폭 0.490 m
+#   0.295 -> 경로 중심선~장애물 가장자리 0.440 m, 필요 통로폭 0.630 m
+#
+# 0.295 는 stack_master/config/static_avoidance_planner.yaml 헤더의
+# "raceline_clearance_m >= gb_ego_width_m/2 + lateral_width_m = 0.295" 를
+# 옮겨 적은 값인데, 그 식은 기준점이 다른 두 값(중심선 기준 vs 옆면 기준)을
+# 비교하기 위한 변환이지 이 파라미터에 넣으라는 뜻이 아니다.
+#
+# 이 값이 0.295 였을 때: 통로가 0.63 m 넘게 필요해지고, 그보다 좁으면
+# _check_free_frenet 이 계속 blocked 를 내서 회피가 성립하지 않는다.
+# 동시에 플래너의 min_free_dist_m(0.16) < 0.295 이므로 불변식 1 이 깨져,
+# 플래너가 만든 경로를 상태기계가 매번 거부한다 -> TRAILING 고착.
+#
+# 0.155 -> 0.09, 플래너의 min_free_dist_m(0.10) 과 짝으로 내렸다. 불변식 1 은
+# min_free_dist_m >= 이 값 이므로 플래너를 0.10 으로 내리면서 이것을 0.155 로
+# 두면 즉시 깨진다 -- 플래너가 만든 경로를 상태기계가 매번 거부해 TRAILING 에
+# 고착된다. 1 cm 여유를 두고 0.09.
+#
+# 실측 0.50 m 통로 기준 필요폭:
+#   0.155 -> 0.145 + 0.155 + 0.19 = 0.490 m  (마진 10 mm)
+#   0.090 -> 0.145 + 0.090 + 0.19 = 0.425 m  (마진 75 mm)
+lateral_width_m: 0.09
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the
 # OVERTAKE *entry* gate (_static_path_available()). 0.25 s was tuned for sim, where
