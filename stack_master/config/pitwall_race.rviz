@@ -313,6 +313,30 @@ Visualization Manager:
   - Class: rviz_common/Group
     Displays:
     - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Static/dynamic class (/tracking)
+      Namespaces: {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Filter size: 10
+        Value: /tracking/static_dynamic_marker_pub
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Detected obstacles (/detect/obstacles_markers_new)
+      Namespaces: {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Filter size: 10
+        Value: /detect/obstacles_markers_new
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
       Enabled: false
       Name: Tracked obstacles (static/dynamic)
       Namespaces: {}
