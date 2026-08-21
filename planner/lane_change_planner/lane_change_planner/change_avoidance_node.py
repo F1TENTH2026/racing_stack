@@ -1209,7 +1209,30 @@ class ChangeAvoidanceNode(Node):
         if len(considered_obs) == 0:
             reason = self._skip_reason or "NO_DYNAMIC_OBSTACLE"
         elif not self.prediction_is_fresh():
-            reason = "PREDICTION_STALE"
+            # Split "never arrived" from "went stale". They look identical from
+            # here and have completely different fixes, and the first one is not
+            # a bug at all -- it is race.launch.xml's gp_predictor defaulting to
+            # false, which leaves the three GP nodes unstarted and makes DYNAMIC
+            # overtaking structurally impossible while static avoidance keeps
+            # working (static_avoidance_node reads /tracking/obstacles directly
+            # and has no prediction dependency). Silence on this cost a race.
+            if self.last_pred_stamp is None:
+                reason = "PREDICTION_NEVER"
+                self.get_logger().warn(
+                    "[OBS Spliner] No opponent prediction has EVER arrived on "
+                    "/opponent_prediction/obstacles_pred -- dynamic overtaking is "
+                    "disabled and the car will only trail. Relaunch with "
+                    "gp_predictor:=true (race.launch.xml defaults it to false).",
+                    throttle_duration_sec=5.0,
+                )
+            else:
+                reason = "PREDICTION_STALE"
+                self.get_logger().warn(
+                    f"[OBS Spliner] Opponent prediction is stale "
+                    f"(> pred_timeout={self.pred_timeout:.2f}s) -- trailing instead "
+                    f"of overtaking.",
+                    throttle_duration_sec=5.0,
+                )
         elif self.force_trailing:
             reason = "FORCE_TRAILING"
         else:

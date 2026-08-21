@@ -1506,7 +1506,11 @@ class StateMachine(Node):
         elif self.use_force_trailing and self.force_trailing:
             decision, reason = "TRAILING", "FORCE_TRAILING"
         elif not avoid.is_init:
-            decision, reason = "TRAILING", (diag.get("reason") or "NO_PATH")
+            # No diag at all means the lane_change planner itself is not
+            # publishing -- either it is not running, or it has not reached its
+            # first loop. Say that rather than the generic NO_PATH.
+            decision, reason = "TRAILING", (diag.get("reason") or
+                                            ("NO_PATH" if self._planner_diag else "NO_PLANNER_DIAG"))
         else:
             decision, reason = "TRAILING", "PATH_BLOCKED"
 
