@@ -1,6 +1,15 @@
 detect:
   ros__parameters:
-    rate_detect: 40
+    # [Hz] 40 -> 20. 업스트림(roboracer_unita_ws)이 같은 Jetson에서 측정해
+    # 내린 값이고, 그 이유가 우리가 겪은 증상 그대로다: 40에서는 "the jetson
+    # saturated, and /tf reached the detector a full second late, which put
+    # every obstacle a metre or two behind where it really was".
+    #
+    # 20 Hz는 갱신 간격 50 ms. 정지 장애물을 3 m/s로 접근하면 15 cm이므로
+    # 올릴 이유가 없다. 올리기 전에 반드시 측정할 것:
+    #   ros2 param set /detect measure true && ros2 topic echo /detect/latency
+    # tick 주기(50 ms)에 근접하면 타이머가 못 따라가는 것이다.
+    rate_detect: 20
     min_size_n: 4
     # Obstacle is a 0.30 x 0.30 m box. min_size_m is now a real rejection floor (half the
     # box, so a partly occluded face still passes); max_size_m is the ceiling with room for
@@ -28,7 +37,11 @@ detect:
 tracking:
   ros__parameters:
     save_params: false
-    rate_tracking: 40
+    # [Hz] rate_detect와 짝. 트래커는 detect의 출력을 소비하므로 그보다
+    # 빠르게 돌 이유가 없다 -- 같은 측정을 두 번 처리할 뿐이다.
+    # 아래 min_nb_meas / 프레임 허용치가 전부 이 값 기준의 "프레임 수"라,
+    # 바꾸면 그 초 환산값이 2배로 늘어난다는 점에 주의 (40프레임 = 2.0 s).
+    rate_tracking: 20
     P_vs: 0.2
     P_d: 0.02
     P_vd: 0.2

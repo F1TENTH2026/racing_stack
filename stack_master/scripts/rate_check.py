@@ -7,10 +7,21 @@ these four means four rclpy processes competing for the very CPU being measured
 (see cpu_profile.sh's logs: 3.7% idle, load 13.8 on 6 cores). This is one node
 with four subscriptions instead.
 
-What matters here is the MINIMUM and the jitter, not the mean: a topic averaging
-40 Hz that drops to 8 Hz for 300 ms is what stops the car (controller_manager.py
-zeroes speed after ~250 ms without /local_waypoints). So `min` and `std` are the
-columns to read; `mean` alone hides exactly the failure being hunted.
+Read the `avg` column, not `inst`. `avg` is messages/elapsed over the report
+window -- the rate the topic actually sustained. `inst` is the mean of the
+per-gap 1/dt, which DIVERGES under burst delivery: when a starved subscriber
+finally gets CPU, DDS hands it a queued batch back-to-back, the gaps go to
+~0, and 1/dt shoots to hundreds of Hz. A first run of this tool printed
+/scan at 641 Hz that way while the topic was really doing 27. `inst` is kept
+only because that divergence is itself the signature of starvation.
+
+`maxgap` is the number that stops the car: controller_manager.py zeroes speed
+after ~250 ms without /local_waypoints.
+
+NOTE the counts are a LOWER BOUND. The subscriptions use sensor QoS (BEST_EFFORT,
+depth 5), so messages that arrive while this node is descheduled are dropped and
+never counted. Under heavy contention this tool under-reports every topic --
+cpu_profile.sh (a `top -b` wrapper, no ROS involved) is the ground truth.
 
 Run it ON THE CAR, not the pitwall laptop -- measuring over WiFi conflates DDS
 loss with the on-car scheduling delay this is meant to isolate.
@@ -53,6 +64,10 @@ class RateCheck(Node):
         self.log = log
         self.stamps = {t: deque(maxlen=window) for t, _, _ in TOPICS}
         self.counts = {t: 0 for t, _, _ in TOPICS}
+        # counts at the previous report, so `avg` covers the window just elapsed
+        # rather than smearing a stall across the whole session.
+        self.prev_counts = {t: 0 for t, _, _ in TOPICS}
+        self.prev_report = time.monotonic()
 
         for topic, msg_type, _ in TOPICS:
             # sensor QoS (BEST_EFFORT) matches /scan and the odometry publishers;
@@ -70,37 +85,43 @@ class RateCheck(Node):
         self.counts[topic] += 1
 
     def _report(self):
+        now = time.monotonic()
+        span = max(now - self.prev_report, 1e-6)
         rows = []
         for topic, _, expected in TOPICS:
+            avg = (self.counts[topic] - self.prev_counts[topic]) / span
+            self.prev_counts[topic] = self.counts[topic]
             s = self.stamps[topic]
-            if len(s) < 3:
-                rows.append((topic, expected, None, None, None, None, self.counts[topic]))
-                continue
-            gaps = [b - a for a, b in zip(s, list(s)[1:]) if b > a]
+            gaps = [b - a for a, b in zip(s, list(s)[1:]) if b > a] if len(s) >= 3 else []
             if not gaps:
-                rows.append((topic, expected, None, None, None, None, self.counts[topic]))
+                rows.append((topic, expected, avg, None, None, None, self.counts[topic]))
                 continue
             hz = [1.0 / g for g in gaps]
-            rows.append((topic, expected, statistics.mean(hz), min(hz),
-                         statistics.pstdev(hz), max(gaps) * 1000.0, self.counts[topic]))
+            rows.append((topic, expected, avg, statistics.mean(hz), min(hz),
+                         max(gaps) * 1000.0, self.counts[topic]))
+        self.prev_report = now
 
-        elapsed = time.monotonic() - self.t0
+        elapsed = now - self.t0
         out = [f'\n=== rate_check  t={elapsed:6.1f}s  (window={self.window}) ===',
-               f'{"topic":<20}{"expect":>7}{"mean":>8}{"min":>8}{"std":>8}{"maxgap":>9}{"msgs":>8}  status']
-        for topic, expected, mean, mn, std, maxgap, n in rows:
-            if mean is None:
-                out.append(f'{topic:<20}{expected:>7.0f}{"--":>8}{"--":>8}{"--":>8}{"--":>9}{n:>8}  NO DATA')
+               f'{"topic":<20}{"expect":>7}{"avg":>8}{"inst":>8}{"min":>8}{"maxgap":>9}{"msgs":>8}  status']
+        for topic, expected, avg, inst, mn, maxgap, n in rows:
+            if inst is None:
+                out.append(f'{topic:<20}{expected:>7.0f}{avg:>8.1f}{"--":>8}{"--":>8}{"--":>9}{n:>8}  NO DATA')
                 continue
             # Flag on the minimum, not the mean. A mean at target with a min far
             # below it is precisely the drop-out that trips the controller's
             # waypoint watchdog.
-            if mn < expected * 0.5 or maxgap > 250:
+            # Judge on avg and maxgap. inst is diagnostic only -- an inst far
+            # ABOVE expect means burst delivery, i.e. this node was descheduled.
+            if avg < expected * 0.5 or maxgap > 250:
                 status = 'BAD   <-- 드롭아웃'
-            elif mean < expected * 0.9 or std > expected * 0.1:
+            elif avg < expected * 0.9:
                 status = 'WARN'
             else:
                 status = 'ok'
-            out.append(f'{topic:<20}{expected:>7.0f}{mean:>8.1f}{mn:>8.1f}{std:>8.1f}'
+            if inst > expected * 2:
+                status += '  [버스트=기아상태]'
+            out.append(f'{topic:<20}{expected:>7.0f}{avg:>8.1f}{inst:>8.1f}{mn:>8.1f}'
                        f'{maxgap:>8.0f}ms{n:>8}  {status}')
         text = '\n'.join(out)
         print(text, flush=True)

@@ -73,7 +73,10 @@ particle_filter:
 
     # Matches the UST-10LX's guaranteed range.
     max_range: 10
-    fine_timing: 1
+    # 0 = off. 켜두면 스캔마다 time.time()을 13회 호출하고 10 iteration마다
+    # 로그 3줄을 찍는다(40 Hz에서 초당 ~12줄). 진단할 때만 1로.
+    # 업스트림도 0이다.
+    fine_timing: 0
     publish_odom: 1
 
     # sensor model constants

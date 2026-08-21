@@ -29,6 +29,8 @@
        description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
   <arg name="vis_lane_change" default="false"
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
+  <arg name="gp_predictor" default="false"
+       description="Run the 3 GP opponent-trajectory prediction nodes (~0.6 core on the Jetson). Needed ONLY for head-to-head: with no opponent there is nothing to predict. Pass gp_predictor:=true when racing an opponent."/>
   <arg name="debug" default="false"
        description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
   <arg name="auto_relocalize" default="false"
@@ -119,10 +121,25 @@
        Pipeline (README): opponent_trajectory (collect /proj_opponent_trajectory) ->
        gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
        (-> /opponent_prediction/* consumed by planner_change above).
-       opp_prediction calls the frenet_conversion_server services, launched by base. -->
-  <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
-  <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
-  <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+       opp_prediction calls the frenet_conversion_server services, launched by base.
+
+       ===== 기본값이 false다. 헤드투헤드에서는 gp_predictor:=true 로 켤 것. =====
+
+       이 세 노드는 상대차의 미래 궤적을 예측한다. 상대가 없으면 예측할 대상이
+       없으므로 타임트라이얼에서는 순수한 낭비다. 그런데 값이 싸지 않다:
+       cpu_profile 측정에서 세 노드 합계가 코어 0.6개에 해당했고
+       (OpponentHalflap 28%, opponent_propagation_predictor 27%, GP_trajectory 4%
+       평균이지만 재적합 순간 55%까지 튄다), GP_trajectory는 taskset으로 코어
+       1번을 통째로 점유한다.
+
+       그 CPU가 없어서 PF가 40 Hz를 못 내고 /local_waypoints가 목표의 21%까지
+       떨어졌으며, 컨트롤러 워치독이 걸려 차가 트랙 한복판에서 멈췄다.
+       그래서 기본값을 false로 둔다. 켜는 쪽이 의식적인 선택이어야 한다. -->
+  <group if="$(var gp_predictor)">
+    <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
+    <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
+    <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+  </group>
 
   <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
        Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd

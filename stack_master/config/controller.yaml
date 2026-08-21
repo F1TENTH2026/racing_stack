@@ -47,4 +47,17 @@ controller_manager:
     ftg_bubble_m: 0.3            # safety bubble blown at each disparity [m]
     ftg_steer_ema: 0.0           # steering low-pass 0..1 (0=off, higher=smoother)
     ftg_max_steer: 0.4           # steering command clip [rad]
+
+    # [Hz] state_machine이 /local_waypoints를 내보내는 실제 주기.
+    #
+    # 이 값은 컨트롤러의 워치독 계산에만 쓰인다 (controller_manager.py):
+    #   waypoint_safety_counter >= loop_rate/state_machine_rate * 10
+    # 즉 50/50*10 = 10 사이클 = 200 ms 동안 새 /local_waypoints가 없으면
+    # speed=0으로 하드 스톱한다.
+    #
+    # 여기 없으면 코드 기본값 40이 쓰인다. 실제 rate가 80이던 동안 이 기본값
+    # 40이 그대로 적용돼 임계가 의도의 2배(250 ms)로 늘어나 있었다.
+    # state_machine_params.yaml의 `rate`와 반드시 같은 값으로 유지할 것.
+    state_machine_rate: 50
+
     save_params: false

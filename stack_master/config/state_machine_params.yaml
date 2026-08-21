@@ -1,7 +1,18 @@
 state_machine:
   ros__parameters:
     # structural
-    rate: 80
+    # [Hz] 80 -> 50. 매 tick마다 캐시된 경로와 모든 장애물을 python으로 다시
+    # 훑는다. 실제로 조향하는 것은 50 Hz의 controller_manager이므로, 그보다
+    # 빠르게 결정하는 상태기계는 직전 결정이 반영되기도 전에 다시 결정할 뿐이다.
+    # 또 새 절대 포즈는 PF에서 40 Hz로만 온다 -- 80은 같은 입력을 두 번 계산.
+    #
+    # controller.yaml의 state_machine_rate와 반드시 짝으로 유지할 것:
+    # 컨트롤러의 워치독 임계가 loop_rate/state_machine_rate*10 이라, 어긋나면
+    # "Received no local wpnts. STOPPING!!" 발동 시점이 의도와 달라진다.
+    #
+    # 초 단위로 적힌 파생 카운터(overtaking_ttl, splini_ttl, FTG 타이머,
+    # blended-recovery grace)는 전부 `초 * rate`로 계산되므로 자동으로 따라온다.
+    rate: 50
     n_loc_wpnts: 80
     timetrials_only: false
     sim: true

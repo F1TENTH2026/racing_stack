@@ -131,6 +131,12 @@ class UpdateWaypoints(Node):
             rclpy.spin_once(self)
 
     def visualize_waypoints(self):
+        # Pure visualisation: 397 CYLINDER Markers rebuilt every second from data
+        # that only changes one element at a time. ~10 ms per call on an x86 dev
+        # box, several times that on the Jetson, and it ran with nothing
+        # subscribed. With pitwall open the output is unchanged.
+        if self.marker_pub.get_subscription_count() == 0:
+            return
         marker_array = MarkerArray()
         for i in range(len(self.wpnts_updated_msg.wpnts)):
             marker = Marker(header=Header(frame_id="map"), id=i, type=Marker.CYLINDER)

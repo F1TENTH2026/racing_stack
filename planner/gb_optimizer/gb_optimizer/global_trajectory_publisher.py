@@ -115,25 +115,45 @@ class GlobalRepublisher(Node):
     def lattice_cb(self, msg):
         self.graph_lattice = msg
 
+    @staticmethod
+    def _pub_if_watched(pub, msg):
+        """Publish a VISUALISATION message only when something is subscribed.
+
+        This timer re-sends the whole static raceline every 2 s: the four marker
+        arrays alone are ~2955 Markers (1746 of them trackbounds), which measured
+        ~80 ms to build and serialise on an x86 dev box and several times that on
+        the Jetson -- a synchronised CPU spike every other second, paid even with
+        no RViz running. The data never changes, so when nobody is watching there
+        is nothing to send.
+
+        Only markers/lattice go through here. The WpntArray topics
+        (/global_waypoints, /global_waypoints/shortest_path, /centerline_waypoints)
+        stay unconditional: their subscribers are the planners, the state machine
+        and the controller, not RViz, and several of them build their internal
+        state from the first message they receive.
+        """
+        if msg is not None and pub.get_subscription_count() > 0:
+            pub.publish(msg)
+
     def global_republisher(self):
 
         if self.glb_wpnts is not None and self.glb_markers is not None:
             self.glb_wpnts_pub.publish(self.glb_wpnts)
-            self.glb_markers_pub.publish(self.glb_markers)
+            self._pub_if_watched(self.glb_markers_pub, self.glb_markers)
         if self.glb_sp_wpnts is not None and self.glb_sp_markers is not None:
             self.glb_sp_wpnts_pub.publish(self.glb_sp_wpnts)
-            self.glb_sp_markers_pub.publish(self.glb_sp_markers)
+            self._pub_if_watched(self.glb_sp_markers_pub, self.glb_sp_markers)
         if self.centerline_wpnts is not None and self.centerline_markers is not None:
             self.centerline_wpnts_pub.publish(self.centerline_wpnts)
-            self.centerline_markers_pub.publish(self.centerline_markers)
+            self._pub_if_watched(self.centerline_markers_pub, self.centerline_markers)
         if self.track_bounds is not None:
-            self.vis_track_bnds.publish(self.track_bounds)
+            self._pub_if_watched(self.vis_track_bnds, self.track_bounds)
         if self.map_infos is not None:
             self.map_info_pub.publish(self.map_infos)
         if self.est_lap_time is not None:
             self.est_lap_time_pub.publish(self.est_lap_time)
         if self.graph_lattice is not None:
-            self.lattice_pub.publish(self.graph_lattice)
+            self._pub_if_watched(self.lattice_pub, self.graph_lattice)
 
 
 def main(args=None):

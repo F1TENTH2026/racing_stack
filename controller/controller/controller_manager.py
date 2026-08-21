@@ -462,6 +462,11 @@ class ControllerManager(Node):
 
     ############################################ VIZ ############################################
     def visualize_steering(self, theta):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.steering_pub.get_subscription_count() == 0:
+            return
         quaternions = quaternion_from_euler(0, 0, theta)
 
         lookahead_marker = Marker()
@@ -486,6 +491,11 @@ class ControllerManager(Node):
         self.steering_pub.publish(lookahead_marker)
 
     def set_lookahead_marker(self, lookahead_point, id):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.lookahead_pub.get_subscription_count() == 0:
+            return
         lookahead_marker = Marker()
         lookahead_marker.header.frame_id = "map"
         lookahead_marker.header.stamp = self.get_clock().now().to_msg()
@@ -508,6 +518,11 @@ class ControllerManager(Node):
         self.lookahead_pub.publish(lookahead_marker)
 
     def viz_future_position(self, future_position, id):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.future_position_pub.get_subscription_count() == 0:
+            return
         quaternions = quaternion_from_euler(0, 0, future_position[0, 2])
 
         future_position_marker = Marker()
@@ -532,6 +547,11 @@ class ControllerManager(Node):
         self.future_position_pub.publish(future_position_marker)
 
     def visualize_trailing_opponent(self):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.trailing_pub.get_subscription_count() == 0:
+            return
         if (self.state == "TRAILING" and (self.opponent is not None)):
             on = True
         else:
