@@ -324,9 +324,7 @@ class StateMachine(Node):
         # Force GBTRACK state
         self.force_gbtrack_state = self.params.force_GBTRACK
 
-        self.overtaking_ttl_sec = self.params.overtaking_ttl_sec
         self.overtaking_ttl_count = 0
-        self.overtaking_ttl_count_threshold = int(self.overtaking_ttl_sec * self.rate_hz)
         # Grace window (in loops) during which the OT-blended recovery path is allowed
         # as the recovery source. The blended path (OT heading -> GB) only makes sense
         # when leaving OVERTAKE; outside that window plain recovery is used, so a car
@@ -1152,6 +1150,23 @@ class StateMachine(Node):
         if self._check_availability(src_wpnts, wpnts_data) and self._check_free_frenet(wpnts_data):
             return True
         return False
+
+    @property
+    def overtaking_ttl_sec(self) -> float:
+        """[s] How long OVERTAKE is held after the obstacle stops being in front.
+
+        Read live from the parameter, not cached. It used to be snapshotted in
+        __init__ together with overtaking_ttl_count_threshold, so
+        `ros2 param set /state_machine overtaking_ttl_sec X` updated the parameter
+        the save-back writes out but NOT the number OvertakingTransition compares
+        against -- the knob looked live and was not.
+        """
+        return float(self.params.overtaking_ttl_sec)
+
+    @property
+    def overtaking_ttl_count_threshold(self) -> int:
+        """overtaking_ttl_sec expressed in main-loop iterations."""
+        return int(self.overtaking_ttl_sec * self.rate_hz)
 
     def _check_overtaking_mode(self) -> bool:
         if (

@@ -69,7 +69,23 @@ state_machine:
     splini_hyst_timer_sec: 0.7
     splini_ttl: 2.0
     pred_splini_ttl: 2.0
-    overtaking_ttl_sec: 3.0
+    # [s] 장애물이 앞에서 사라진 뒤에도 OVERTAKE 를 붙들고 있는 시간
+    # (OvertakingTransition 의 두 번째 분기). 회피 라인을 다 타고 복귀할 여유를
+    # 주는 값이지, 회피 자체의 길이가 아니다.
+    #
+    # 3.0 -> 1.0. 39.5 m 트랙(0820test1)에서 3초는 거리로:
+    #     3 m/s -> 9.0 m (랩의 23%)
+    #     5 m/s -> 15.0 m (38%)
+    #     8 m/s -> 24.0 m (61%)
+    # 정적 장애물 하나를 지나친 뒤 랩의 절반 넘게 OVERTAKE 로 남아 있었다는 뜻이고,
+    # 그동안 local_wpnts 는 회피 경로를 따르므로 레이스라인으로 복귀가 늦어진다.
+    # 1.0 은 업스트림(roboracer_unita_ws) 값이다.
+    #
+    # 주행 중 ros2 param set 으로 바꿀 수 있다. 예전에는 못 바꿨다:
+    # overtaking_ttl_count_threshold 가 __init__ 에서 한 번 계산된 뒤 갱신되지
+    # 않아서, 파라미터만 바뀌고 실제 비교값은 그대로였다. 이제 property 로
+    # 매번 파생된다.
+    overtaking_ttl_sec: 1.0
     overtake_min_closing_mps: 2.5
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
