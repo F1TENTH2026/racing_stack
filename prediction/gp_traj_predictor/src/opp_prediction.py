@@ -238,6 +238,57 @@ class OppTrajPredictor(PredictionNode):
     def state_cb(self, data: String):
         self.state = data.data
 
+    def _build_opponent_markers(self, obstacle_list):
+        """RViz cylinders for the predicted opponent poses -- ONE service call.
+
+        This used to be built inside the n_time_steps loop, and every iteration
+        called frenet2glob() for a single point. frenet2glob() is a *synchronous*
+        service round-trip (call_async + spin_until_future_complete), so a
+        200-step prediction paid 200 blocking round-trips per cycle, purely for
+        visualisation. Measured on the car (state_machine_20260822_044714.log):
+        pred_age sawtoothed 0.1 -> 1.5 s with a median of 1.00 s, i.e. the
+        predictor emitted at well under 1 Hz against its nominal 10 Hz, and the
+        lane_change planner -- whose pred_timeout is 0.5 s -- therefore refused
+        to plan on 76 % of the samples where a prediction existed at all.
+
+        Two changes, neither of which touches what is predicted:
+          * Frenet2GlobArr is an ARRAY service. Convert all the poses in one
+            call instead of one call per pose.
+          * Skip the work entirely when nothing is subscribed to the marker
+            topic, which is the normal case during a race.
+        """
+        if self.opp_marker_pub.get_subscription_count() == 0 or not obstacle_list:
+            return MarkerArray()
+
+        s_list = [obs.s_center % self.max_s_updated for obs in obstacle_list]
+        d_list = [obs.d_center for obs in obstacle_list]
+        pos = self.frenet2glob(s_list, d_list)
+        if pos is None or len(pos.x) != len(obstacle_list):
+            return MarkerArray()
+
+        stamp = self.get_clock().now().to_msg()
+        markers = MarkerArray()
+        for i, obs in enumerate(obstacle_list):
+            marker = Marker()
+            marker.header.stamp = stamp
+            marker.header.frame_id = "map"
+            marker.id = i
+            marker.type = Marker.CYLINDER
+            marker.action = Marker.ADD
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = pos.x[i]
+            marker.pose.position.y = pos.y[i]
+            marker.pose.position.z = 0.1
+            marker.scale.x = 0.15
+            marker.scale.y = 0.15
+            marker.scale.z = 0.15  # height
+            marker.color.a = 0.8
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            markers.markers.append(marker)
+        return markers
+
     def _update_learned_authorization(self, deviation_m):
         """Decide whether the opponent is on its learned trajectory, with hysteresis.
 
@@ -364,20 +415,31 @@ class OppTrajPredictor(PredictionNode):
 
     def publish_begin_end_markers(self, beginn_s, beginn_d, end_s, end_d):
         # Visualize the prediction endpoints. Watch out for wrap around.
-        stamp = self.get_clock().now().to_msg()
+        #
+        # Two synchronous frenet2glob round-trips, on the prediction hot path,
+        # for two RViz spheres. Skipped when nobody is looking, and batched into
+        # one call when they are -- same reasoning as _build_opponent_markers.
+        if (self.marker_pub_beginn.get_subscription_count() == 0
+                and self.marker_pub_end.get_subscription_count() == 0):
+            return
 
-        position_beginn = self.frenet2glob([beginn_s % self.max_s_updated], [beginn_d])
+        stamp = self.get_clock().now().to_msg()
+        pos = self.frenet2glob(
+            [beginn_s % self.max_s_updated, end_s % self.max_s_updated],
+            [beginn_d, end_d])
+        if pos is None or len(pos.x) != 2:
+            return
+
         self.marker_beginn.header.stamp = stamp
         self.marker_beginn.action = Marker.ADD
-        self.marker_beginn.pose.position.x = position_beginn.x[0]
-        self.marker_beginn.pose.position.y = position_beginn.y[0]
+        self.marker_beginn.pose.position.x = pos.x[0]
+        self.marker_beginn.pose.position.y = pos.y[0]
         self.marker_pub_beginn.publish(self.marker_beginn)
 
-        position_end = self.frenet2glob([end_s % self.max_s_updated], [end_d])
         self.marker_end.header.stamp = stamp
         self.marker_end.action = Marker.ADD
-        self.marker_end.pose.position.x = position_end.x[0]
-        self.marker_end.pose.position.y = position_end.y[0]
+        self.marker_end.pose.position.x = pos.x[1]
+        self.marker_end.pose.position.y = pos.y[1]
         self.marker_pub_end.publish(self.marker_end)
 
     def delete_all(self) -> None:
@@ -471,29 +533,9 @@ class OppTrajPredictor(PredictionNode):
                         pds.pred_d = obs.d_center
                         prediction_list.append(pds)
 
-                        marker = Marker()
-                        marker.header.stamp = self.get_clock().now().to_msg()
-                        marker.header.frame_id = "map"
-                        marker.id = i
-                        marker.type = Marker.CYLINDER
-                        marker.action = Marker.ADD
-                        marker.pose.orientation.w = 1.0
-
-                        pos = self.frenet2glob([obs.s_center % self.max_s_updated], [obs.d_center])
-                        marker.pose.position.x = pos.x[0]
-                        marker.pose.position.y = pos.y[0]
-                        marker.pose.position.z = 0.1
-
-                        marker.scale.x = 0.15
-                        marker.scale.y = 0.15
-                        marker.scale.z = 0.15  # height
-                        marker.color.a = 0.8
-                        marker.color.r = 0.0
-                        marker.color.g = 1.0
-                        marker.color.b = 0.0
-
-                        opp_marker_array.markers.append(marker)
                         
+                    opp_marker_array = self._build_opponent_markers(obstacle_list)
+
                     prediction_obs_arr = ObstacleArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'), obstacles=obstacle_list)
                     self.prediction_obs_pub.publish(prediction_obs_arr)
 
@@ -559,30 +601,10 @@ class OppTrajPredictor(PredictionNode):
                         pds.pred_d = opponent_d
                         prediction_list.append(pds)
 
-                        marker = Marker()
-                        marker.header.stamp = self.get_clock().now().to_msg()
-                        marker.header.frame_id = "map"
-                        marker.id = i
-                        marker.type = Marker.CYLINDER
-                        marker.action = Marker.ADD
-                        marker.pose.orientation.w = 1.0
-
-                        pos = self.frenet2glob([obs.s_center % self.max_s_updated], [obs.d_center])
-                        marker.pose.position.x = pos.x[0]
-                        marker.pose.position.y = pos.y[0]
-                        marker.pose.position.z = 0.1
-
-                        marker.scale.x = 0.15
-                        marker.scale.y = 0.15
-                        marker.scale.z = 0.15  # height
-                        marker.color.a = 0.8
-                        marker.color.r = 0.0
-                        marker.color.g = 1.0
-                        marker.color.b = 0.0
-
-                        opp_marker_array.markers.append(marker)
 
                         
+                    opp_marker_array = self._build_opponent_markers(obstacle_list)
+
                     # Find the end of the prediction
                     if (beginn == True and end == False):
                         end_s = current_opponent_s
