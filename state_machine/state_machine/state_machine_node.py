@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile
 
 import transforms3d
 from ament_index_python.packages import get_package_share_directory
@@ -305,6 +305,15 @@ class StateMachine(Node):
         # Last dynamic-overtake candidate, filled by _check_getting_closer for the
         # [DYNAMIC_OT] decision log. None means "no candidate in range this loop".
         self._dyn_ot_target = None
+        # Latest /planner/avoidance/dynamic_diag payload, and when the last
+        # non-empty prediction arrived. Both feed the [DYNAMIC_OT] line only.
+        self._planner_diag = None
+        self._prediction_stamp_sec = None
+        self._dbg_last_dynamic_log_sec = 0.0
+        # Mirrors what _check_ot_sector() publishes on /ot_section_check, so the
+        # decision log can report it without re-running the sector scan. Reset to
+        # None at the top of every loop: None means "not evaluated this loop".
+        self.ot_section_check = None
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
@@ -414,6 +423,9 @@ class StateMachine(Node):
         if self.ot_planner == "sqp" or self.ot_planner == "lane_change":
             self.create_subscription(Float32MultiArray, "/planner/avoidance/merger", self.merger_cb, qos)
             self.create_subscription(Bool, "/opponent_prediction/force_trailing", self.force_trailing_cb, qos)
+            self.create_subscription(
+                String, "/planner/avoidance/dynamic_diag", self.dynamic_diag_cb,
+                QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
             self.create_subscription(Bool, "planner/avoidance/fail_trailing", self.fail_trailing_cb, qos)
 
         if not self.params.sim:
@@ -813,6 +825,7 @@ class StateMachine(Node):
         if len(data.predictions) != 0:
             self.obstacles_prediction_id = data.id
             self.obstacles_prediction = data.predictions
+            self._prediction_stamp_sec = time_to_float(data.header.stamp)
             # Time step between consecutive predictions, carried on the message so the
             # ttc->prediction-index conversion in _check_free_frenet stays in sync with
             # the predictor's dt (falls back to the last known dt if a msg omits it).
@@ -840,7 +853,19 @@ class StateMachine(Node):
         self.merger = data.data
 
     def force_trailing_cb(self, data):
-        self.force_trailing = data.data if self.use_force_trailing else False
+        self.force_trailing = bool(data.data)
+
+    def dynamic_diag_cb(self, data):
+        """Side-availability / no-path reason from the lane_change planner.
+
+        The planner republishes only on change, so this is a handful of messages
+        per race, not a 20 Hz stream. Parsed here rather than in the log line so
+        a malformed payload cannot take down the main loop.
+        """
+        try:
+            self._planner_diag = json.loads(data.data)
+        except (ValueError, TypeError):
+            self._planner_diag = None
 
     def fail_trailing_cb(self, data):
         self.fail_trailing = data.data
@@ -876,8 +901,10 @@ class StateMachine(Node):
         # (An empty overtake_zones means overtaking is suppressed, as in ROS1.)
         for sector in self.overtake_zones:
             if sector[0] <= self.cur_s / self.waypoints_dist <= sector[1]:
+                self.ot_section_check = True
                 self.ot_section_check_pub.publish(Bool(data=True))
                 return True
+        self.ot_section_check = False
         self.ot_section_check_pub.publish(Bool(data=False))
         return False
 
@@ -1429,6 +1456,75 @@ class StateMachine(Node):
         else:
             return False
 
+    def _log_dynamic_ot_decision(self):
+        """One throttled line answering "why is the car not overtaking?".
+
+        Only emitted while there is a dynamic opponent in range, so a clear track
+        and a purely static-obstacle run stay silent. Throttled to 5 Hz on a node
+        that loops at 50: everything below the throttle -- including the two
+        refreshes -- runs at most five times a second.
+        """
+        # Throttle FIRST, so the refresh below runs at 5 Hz, not at the loop's 50.
+        if self.now_sec() - self._dbg_last_dynamic_log_sec <= 0.2:
+            return
+
+        # loop() clears these each iteration, because the transition path does not
+        # always reach the gate: ObstacleTransition returns GB_TRACK early when the
+        # raceline is free, _check_ot_sector() short-circuits _check_overtaking_mode
+        # before the target is picked, and NonObstacleTransition never calls either.
+        # Without the refresh this line would print the previous loop's target and
+        # sector -- worst of all in the out-of-sector case, which is exactly the one
+        # the log exists to explain. Both are cheap: a scan of the handful of
+        # obstacles in interest, and a scan of the overtake zones.
+        if self._dyn_ot_target is None:
+            self._check_getting_closer(threshold_m=self.dynamic_overtake_max_gap_m)
+        if self.ot_section_check is None:
+            self._check_ot_sector()
+
+        target = self._dyn_ot_target
+        if target is None:
+            return
+        self._dbg_last_dynamic_log_sec = self.now_sec()
+
+        avoid = self.cur_avoidance_wpnts
+        path_age = (None if avoid.stamp is None
+                    else self.now_sec() - time_to_float(avoid.stamp))
+        pred_age = (None if self._prediction_stamp_sec is None
+                    else self.now_sec() - self._prediction_stamp_sec)
+        pred_valid = int(len(self.obstacles_prediction) != 0
+                         and self.obstacles_prediction_id == target["id"])
+        diag = self._planner_diag or {}
+
+        # First failing precondition, in the order _check_overtaking_mode applies
+        # them -- the answer to "which gate stopped it", not a list of every gate.
+        if self.cur_state == StateType.OVERTAKE:
+            decision, reason = "OVERTAKE", None
+        elif not self.ot_section_check:
+            decision, reason = "TRAILING", "NOT_OT_SECTOR"
+        elif not target["rel_ok"]:
+            decision, reason = "TRAILING", "REL_SPEED"
+        elif self.use_force_trailing and self.force_trailing:
+            decision, reason = "TRAILING", "FORCE_TRAILING"
+        elif not avoid.is_init:
+            decision, reason = "TRAILING", (diag.get("reason") or "NO_PATH")
+        else:
+            decision, reason = "TRAILING", "PATH_BLOCKED"
+
+        line = (
+            f"[DYNAMIC_OT] target={target['id']} gap={target['gap']:.2f} "
+            f"ego_v={self.cur_vs:.2f} opp_v={target['opp_vs']:.2f} rel_v={target['rel_v']:.2f} "
+            f"sector={int(self.ot_section_check)} force_trailing={int(self.force_trailing)} "
+            f"pred_age={'-' if pred_age is None else f'{pred_age:.2f}'} pred_valid={pred_valid} "
+            f"path={int(avoid.is_init)} "
+            f"path_age={'-' if path_age is None else f'{path_age:.2f}'} "
+            f"safe={int(bool((avoid.free_dbg or {}).get('is_free', False)))} "
+            f"left={diag.get('left', '-')} right={diag.get('right', '-')} "
+            f"state={self.cur_state.value} decision={decision}"
+            + (f" reason={reason}" if reason else "")
+        )
+        self.get_logger().info(line, throttle_duration_sec=0.2)
+        self._dbg_log(line)
+
     def _check_overtaking_mode_sustainability(self) -> bool:
         """Whether to STAY in OVERTAKE. Intentionally does not read force_trailing:
         that flag vetoes entry, not continuation (see _check_overtaking_mode)."""
@@ -1818,8 +1914,19 @@ class StateMachine(Node):
 
             #--------------- 주은 추가
             "static_free": static_avoid.free_dbg,
-            "getting_closer_static": self._check_getting_closer(threshold_m=7.0),
-            #--------------- 
+            #---------------
+
+            # The dynamic overtake candidate this loop (nearest opponent ahead
+            # within dynamic_overtake_max_gap_m, plus the relative-speed verdict),
+            # or None when there is none. Replaces "getting_closer_static", which
+            # called _check_getting_closer(7.0) for its value: that name never
+            # matched what it measured, and now that the selector skips static
+            # obstacles it would read False for every static-only run. Nothing in
+            # this workspace consumed it. No extra work -- the value is whatever
+            # _check_overtaking_mode already computed this loop.
+            "dynamic_ot_target": self._dyn_ot_target,
+            "planner_diag": self._planner_diag,
+
 
             "recovery_free": self.cur_recovery_wpnts.free_dbg,
         }
@@ -2063,6 +2170,10 @@ class StateMachine(Node):
     def loop(self):
         self._splini_dbg = None
         self._recovery_dbg = None
+        # Per-loop, not persistent: see _log_dynamic_ot_decision. None means "not
+        # evaluated yet this loop", which is different from "evaluated, no target".
+        self._dyn_ot_target = None
+        self.ot_section_check = None
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()
@@ -2122,6 +2233,8 @@ class StateMachine(Node):
             self.get_logger().warn(f"[{self.name}] FTGONLY sector !!!")
         else:
             self.cur_state, self.local_wpnts_src = self.state_transitions[self.cur_state](self)
+
+        self._log_dynamic_ot_decision()
 
         if self.cur_state.value != self._dbg_last_state_value:
             self._dbg_log(

@@ -3,7 +3,26 @@ hyst_timer_sec: 6.0
 is_closed: false
 killing_timer_sec: 10.0
 lateral_width_m: 0.2
-latest_threshold: 0.1
+# [s] How old a /planner/avoidance/otwpnts message may be and still count as
+# fresh (_check_latest_wpnts -> the OVERTAKE entry gate).
+#
+# 0.1 -> 0.25. The lane_change planner's loop timer is 1/20 s, so 0.10 s is TWO
+# nominal cycles: one skipped solver frame, or one scheduling hiccup under load
+# on the Jetson, and a perfectly good path reads as stale. The state machine
+# itself runs at 50 Hz, so it re-asks 2-3 times per planner cycle and every one
+# of those asks had to land inside that 2-cycle window.
+#
+# 0.25 s = 5 planner cycles, matching upstream roboracer_unita_ws. What it costs
+# is bounded: at 2 m/s of closing speed a 0.25 s old path is 0.5 m out of date,
+# and the geometry is NOT taken on trust -- _check_free_frenet re-validates
+# clearance against the obstacle's CURRENT position every single loop, and
+# hyst_timer_sec/killing_timer_sec below already hold a path far longer than
+# this once it is the active source.
+#
+# Do NOT raise this toward the static planner's 1.5 s. That value is safe only
+# because a static obstacle does not move; a moving opponent's avoidance path
+# really does go stale, and this file is the dynamic one.
+latest_threshold: 0.25
 max_horizon: 10.0
 min_horizon: 0.0
 on_spline_front_horizon_thres_m: 2.0
