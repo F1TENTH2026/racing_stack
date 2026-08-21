@@ -2316,13 +2316,6 @@ class StateMachine(Node):
         # evaluated yet this loop", which is different from "evaluated, no target".
         self._dyn_ot_target = None
         self.ot_section_check = None
-        # Short-term memory of a dynamic opponent that was ahead and has since
-        # dropped out of /tracking/obstacles. See _update_opponent_memory.
-        self._last_dyn_seen_sec = None
-        self._last_dyn_gap_m = None
-        self._last_dyn_id = None
-        self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
-        self.overtake_speed_scale = self.params.overtake_speed_scale
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()
