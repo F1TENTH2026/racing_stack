@@ -46,8 +46,13 @@ max_horizon: 10.0
 #
 # 실측 0.50 m 통로 기준 필요폭:
 #   0.155 -> 0.145 + 0.155 + 0.19 = 0.490 m  (마진 10 mm)
+#   0.120 -> 0.145 + 0.120 + 0.19 = 0.455 m  (마진 45 mm)   <- 현재
 #   0.090 -> 0.145 + 0.090 + 0.19 = 0.425 m  (마진 75 mm)
-lateral_width_m: 0.09
+#
+# 0.09 에서 0.12 로 올렸다. 플래너의 min_free_dist_m 을 0.10 -> 0.13 으로
+# 되돌리면서 짝을 맞춘 것이다 (실차가 통로가 충분치 않은 쪽으로 회피를
+# 시도했다). 이 값은 플래너 값 이하로만 유지하면 되고, 1 cm 여유를 둔다.
+lateral_width_m: 0.12
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the
 # OVERTAKE *entry* gate (_static_path_available()). 0.25 s was tuned for sim, where

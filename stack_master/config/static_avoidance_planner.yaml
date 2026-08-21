@@ -247,7 +247,16 @@ static_avoidance_planner:
     #
     # 산술: 필요 통로폭 = ego_width_m/2 + min_free_dist_m + boundary_margin
     #        0.16 -> 0.145 + 0.160 + 0.19 = 0.495 m  (실측 0.50 m 통로에 마진 5 mm)
+    #        0.13 -> 0.145 + 0.130 + 0.19 = 0.465 m  (마진 35 mm)   <- 현재
     #        0.10 -> 0.145 + 0.100 + 0.19 = 0.435 m  (마진 65 mm)
+    #
+    # 0.16 -> 0.10 을 한 번에 갔다가 0.13 으로 되돌린 이유: 0.10 에서는 실차가
+    # 통로가 충분치 않은 쪽으로도 회피를 시도했다. 판정 기준을 6 cm 낮추면
+    # 예전에 거부하던 좁은 쪽이 통과 가능으로 바뀌고, 완화 사다리의 최하단도
+    # 0.305 -> 0.245 로 내려가 예전 어느 단보다 장애물에 붙여서 계획한다.
+    # side_commit(한 번 튼 방향 유지) 과 겹치면 그 선택에서 빠져나오지도 못한다.
+    # 0.13 은 그 절반만 되돌린 값이다 -- 0.50 m 통로는 여전히 마진 35 mm 로
+    # 지나가고, 그보다 좁은 곳은 다시 거부한다.
     # 라이다 오차가 최대 7 cm 로 관측되므로 5 mm 마진으로는 프레임마다 판정이
     # 뒤집힌다. boundary_margin 은 건드리지 않았다 -- 그쪽을 줄이면 벽 간격
     # (0.19 - 0.145 = 4.5 cm)이 그대로 줄어들고, 그 값은 로컬라이제이션 오차와
@@ -255,7 +264,7 @@ static_avoidance_planner:
     #
     # ** state_machine/config/planners/static_avoidance_planner.yaml 의
     #    lateral_width_m 이하로 유지할 것 (불변식 1). 짝으로만 바꾼다. **
-    min_free_dist_m: 0.10
+    min_free_dist_m: 0.13
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can
