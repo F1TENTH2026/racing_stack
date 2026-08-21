@@ -195,34 +195,6 @@ class ObstacleSD:
     min_std = None
     max_std = None
 
-    # --- size estimation (see measurments_size in __init__) ---
-    # [frames] History used for the robust size estimate. Matches the 20 frames
-    # s/d already keep. At rate_tracking 20 Hz that is 1.0 s.
-    size_window = 20
-    # [0-100] Percentile of that history taken as THE size.
-    #
-    # 50 (median) is the stable middle of the measurements. Higher is more
-    # conservative -- it trusts the larger readings, which are the ones closer to
-    # the truth because occlusion can only shrink the fit, never inflate it, and it
-    # is the under-sized frames that let a path be drawn too close to the box.
-    # 100 (plain max) is NOT used: one spurious merge with a wall fragment would
-    # latch the obstacle oversized for the whole window.
-    #
-    # Set from opponent_tracker_params.yaml (tracking.size_percentile).
-    size_percentile = 65.0
-
-    @staticmethod
-    def robust_size(history):
-        """One number for the box's width, from the last `size_window` readings.
-
-        Returns the raw value until there are a few samples: a percentile of two
-        readings is just one of them, and a fresh obstacle should not be held back
-        waiting for a window to fill.
-        """
-        if len(history) < 3:
-            return history[-1]
-        return float(np.percentile(history, ObstacleSD.size_percentile))
-
     def __init__(self, id, s_meas, d_meas, lap, size, isVisible):
         """
         Initialize the static/dynamic obstacle
@@ -240,21 +212,6 @@ class ObstacleSD:
         self.current_lap = lap
         self.staticFlag = None
         self.size = size
-        # size gets the same treatment s and d already get (measurments_s/_d +
-        # update_mean). It did not, and it is the ONE field that sets the edges the
-        # planners plan against: detect.cpp writes d_left = d + size/2,
-        # d_right = d - size/2, so every wobble in size moves both edges.
-        #
-        # rect_size in detect.cpp is max(width, height) of the L-shape fit over the
-        # points currently VISIBLE, so occlusion and viewing angle shrink it: the
-        # error is one-sided DOWNWARD, not symmetric noise. A tracked box measured
-        # 0.38 -> 0.25 m frame to frame (logfile/state_machine_20260815_155720.log).
-        #
-        # Unfiltered, that made the static planner accept and reject the same
-        # corridor several times a second: an over-sized frame fails the free-gap
-        # check and the car stops, an under-sized one passes it AND draws the path
-        # closer than it should. Both are wrong, and they alternate.
-        self.measurments_size = [size]
         self.nb_detection = 0
         self.isVisible = isVisible
 
@@ -413,10 +370,6 @@ class StaticDynamic(Node):
         ObstacleSD.min_nb_meas = self.min_nb_meas
         ObstacleSD.min_std = self.min_std
         ObstacleSD.max_std = self.max_std
-        # size smoothing (see ObstacleSD.robust_size). Set in BOTH places so it is
-        # live-tunable: ros2 param set /tracking size_percentile 80.0
-        ObstacleSD.size_window = int(self._get_param("size_window"))
-        ObstacleSD.size_percentile = float(self._get_param("size_percentile"))
         self.vs_reset = self.vs_reset
 
         # save-back path (ROS1 dynamic_tracker_server wrote both detect + tracking
@@ -480,10 +433,6 @@ class StaticDynamic(Node):
         ObstacleSD.min_nb_meas = self.min_nb_meas
         ObstacleSD.min_std = self.min_std
         ObstacleSD.max_std = self.max_std
-        # size smoothing (see ObstacleSD.robust_size). Set in BOTH places so it is
-        # live-tunable: ros2 param set /tracking size_percentile 80.0
-        ObstacleSD.size_window = int(self._get_param("size_window"))
-        ObstacleSD.size_percentile = float(self._get_param("size_percentile"))
 
         obstacle_params = [ObstacleSD.ttl, ObstacleSD.min_nb_meas, ObstacleSD.min_std, ObstacleSD.max_std]
         print(f'[Tracking] Dynamic reconf triggered new tracking params: Tracking TTL: {Opponent_state.ttl}, Ratio to glob path: {Opponent_state.ratio_to_glob_path}\n'
@@ -660,10 +609,7 @@ class StaticDynamic(Node):
         tracked_obstacle.isInFront = True
         tracked_obstacle.isVisible = True
         tracked_obstacle.current_lap = self.current_lap
-        tracked_obstacle.measurments_size.append(meas_obstacle.size)
-        tracked_obstacle.measurments_size = \
-            tracked_obstacle.measurments_size[-ObstacleSD.size_window:]
-        tracked_obstacle.size = ObstacleSD.robust_size(tracked_obstacle.measurments_size)
+        tracked_obstacle.size = meas_obstacle.size
         tracked_obstacle.isStatic(self.track_length)
         tracked_obstacle.ttl = ObstacleSD.ttl
 
