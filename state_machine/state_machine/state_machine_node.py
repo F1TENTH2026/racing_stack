@@ -289,6 +289,12 @@ class StateMachine(Node):
         self.merger = None
         self.force_trailing = False
         self.use_force_trailing = not self.params.use_force_trailing
+        # Dynamic-overtake gating (see _check_getting_closer / _check_overtaking_mode).
+        self.dynamic_overtake_max_gap_m = self.params.dynamic_overtake_max_gap_m
+        self.dynamic_overtake_min_rel_speed_mps = self.params.dynamic_overtake_min_rel_speed_mps
+        # Last dynamic-overtake candidate, filled by _check_getting_closer for the
+        # [DYNAMIC_OT] decision log. None means "no candidate in range this loop".
+        self._dyn_ot_target = None
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
@@ -865,14 +871,70 @@ class StateMachine(Node):
         self.ot_section_check_pub.publish(Bool(data=False))
         return False
 
+    def _nearest_dynamic_opponent_ahead(self, threshold_m):
+        """The closest NON-static obstacle ahead of the ego, within `threshold_m`.
+
+        Returns ``(obstacle, forward_gap_m)`` or ``(None, None)``.
+
+        This replaces the old ``obstacles_in_interest[0]`` pick, which was
+        whatever order perception happened to publish in -- an opponent already
+        BEHIND the car, or the further of two cars ahead, could become the
+        overtake target.
+
+        `forward_gap` is measured on s_center modulo track_length, so the
+        start/finish seam is handled: ego at ``track_length - 0.5`` and an
+        opponent at ``0.5`` is 1 m AHEAD, not a lap behind. The search window is
+        additionally capped at half the lap, because past that a "gap" of nearly
+        one track_length is really a car behind us -- on the short maps in this
+        workspace (0804test is 17.79 m) an uncapped 10 m window would reach
+        round to the car's own tail.
+        """
+        if self.track_length <= 0.0:
+            return None, None
+        window = min(float(threshold_m), 0.5 * self.track_length)
+        best_obs = None
+        best_gap = None
+        for obs in self.obstacles_in_interest:
+            if obs.is_static:
+                continue
+            gap = (obs.s_center - self.cur_s) % self.track_length
+            if gap > window:
+                continue
+            if best_gap is None or gap < best_gap:
+                best_obs = obs
+                best_gap = gap
+        return best_obs, best_gap
+
     def _check_getting_closer(self, threshold_m=3.0) -> bool:
-        if (
-            len(self.obstacles_in_interest) != 0
-            and self.cur_vs - self.obstacles_in_interest[0].vs > -0.5
-        ):
-            return True
-        else:
+        """Is there a dynamic overtake candidate inside `threshold_m` right now?
+
+        Two independent conditions, deliberately kept apart:
+
+        * **range** -- ``0 <= forward_gap <= threshold_m``. `threshold_m` used to
+          be an argument the body never read, so every caller got the same
+          "any obstacle in the 20 m interest horizon" answer regardless of the
+          number it passed. It is a real gate now.
+        * **relative speed** -- ``ego_vs - opp_vs > dynamic_overtake_min_rel_speed_mps``
+          (default -0.5), i.e. the ego may be marginally SLOWER than the opponent
+          and still qualify. This is racing_stack behaviour and is kept as-is; it
+          is explicitly *not* the same thing as "the gap is actually shrinking",
+          which is why it no longer shares a name with it.
+        """
+        obs, gap = self._nearest_dynamic_opponent_ahead(threshold_m)
+        if obs is None:
+            self._dyn_ot_target = None
             return False
+
+        relative_speed = self.cur_vs - obs.vs
+        relative_speed_ok = relative_speed > self.dynamic_overtake_min_rel_speed_mps
+        self._dyn_ot_target = {
+            "id": int(obs.id),
+            "gap": float(gap),
+            "opp_vs": float(obs.vs),
+            "rel_v": float(relative_speed),
+            "rel_ok": bool(relative_speed_ok),
+        }
+        return bool(relative_speed_ok)
 
     def _check_enemy_in_front(self) -> bool:
         horizon = self.gb_horizon_m
@@ -1171,7 +1233,7 @@ class StateMachine(Node):
     def _check_overtaking_mode(self) -> bool:
         if (
             self._check_ot_sector()
-            and self._check_getting_closer(threshold_m=10.0)
+            and self._check_getting_closer(threshold_m=self.dynamic_overtake_max_gap_m)
             and self._check_latest_wpnts(self.avoidance_wpnts, self.cur_avoidance_wpnts)
             and self._check_free_frenet(self.cur_avoidance_wpnts)
         ):

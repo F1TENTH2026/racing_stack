@@ -87,6 +87,18 @@ state_machine:
     # 매번 파생된다.
     overtaking_ttl_sec: 1.0
     overtake_min_closing_mps: 2.5
+    # [m] DYNAMIC overtake entry gate: the nearest opponent AHEAD must be within
+    # this forward gap (Frenet s, wrap-around handled) before OVERTAKE is even
+    # considered. _check_getting_closer() used to take this as an argument and
+    # never read it, so the effective gate was "any obstacle inside the 20 m
+    # interest_horizon_m, in perception's publish order" -- including a car
+    # already behind us. Capped at half the lap at runtime.
+    # Static-obstacle avoidance does not go through this gate at all.
+    dynamic_overtake_max_gap_m: 10.0
+    # [m/s] Min (ego_vs - opponent_vs) for that candidate to count. Kept negative,
+    # as in the original code: the ego may be slightly slower than the opponent and
+    # still be allowed to set up an overtake. This is NOT a "closing" test.
+    dynamic_overtake_min_rel_speed_mps: -0.5
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.

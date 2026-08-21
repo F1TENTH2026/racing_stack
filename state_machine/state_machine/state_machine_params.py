@@ -39,6 +39,8 @@ class StateMachineParams:
         "interest_horizon_m",
         "overtaking_horizon_m",
         "overtake_min_closing_mps",
+        "dynamic_overtake_max_gap_m",
+        "dynamic_overtake_min_rel_speed_mps",
     }
 
     def __init__(self, node: "StateMachine") -> None:
@@ -280,6 +282,36 @@ class StateMachineParams:
 
         self._declare("use_force_trailing", False)
         self.use_force_trailing: bool = node.get_parameter("use_force_trailing").value
+
+        self._declare(
+            "dynamic_overtake_max_gap_m", 10.0,
+            ParameterDescriptor(
+                description=(
+                    "Max forward gap to the nearest opponent ahead for it to be a "
+                    "DYNAMIC overtake candidate [m]. Capped at half the lap at "
+                    "runtime so a short track can't wrap the window onto a car "
+                    "behind. Does not affect static-obstacle avoidance."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=1.0, to_value=20.0, step=0.1)],
+            ),
+        )
+        self.dynamic_overtake_max_gap_m: float = node.get_parameter("dynamic_overtake_max_gap_m").value
+
+        self._declare(
+            "dynamic_overtake_min_rel_speed_mps", -0.5,
+            ParameterDescriptor(
+                description=(
+                    "Min (ego_vs - opponent_vs) for a dynamic overtake candidate "
+                    "[m/s]. Negative on purpose: racing_stack allows starting an "
+                    "overtake while marginally slower than the opponent."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=-3.0, to_value=3.0, step=0.05)],
+            ),
+        )
+        self.dynamic_overtake_min_rel_speed_mps: float = node.get_parameter(
+            "dynamic_overtake_min_rel_speed_mps").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not
