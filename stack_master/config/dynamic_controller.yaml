@@ -57,10 +57,38 @@
 #   them here would be config that silently does nothing. Port the code first.
 controller_manager:
   ros__parameters:
-    # [m] Standing gap. 2.5 -> 2.0: a car driving away needs less buffer than a
-    # box that will not move, and every extra metre here is a metre the command
-    # has to give back before it can floor at zero.
-    trailing_gap: 2.0
+    # [m] Standing gap. 2.5 -> 2.0 -> 1.5.
+    #
+    # A car driving away needs less buffer than a box that will not move, and
+    # every extra metre here is a metre the command has to give back before it
+    # can floor at zero.
+    #
+    # 2.0 -> 1.5 is measured, not a guess. In state_machine_20260822_051509.log
+    # the dynamic overtake succeeds far more often from close in:
+    #
+    #     gap band      OVERTAKE / blocked    success
+    #     < 1.5 m            7 /   6            53 %
+    #     1.5 - 2.0 m       34 /  32            51 %
+    #     2.0 - 2.5 m       19 /  79            19 %
+    #     2.5 - 3.0 m       30 / 105            22 %
+    #     3.0 - 4.0 m       28 / 119            19 %
+    #
+    # Inside 2 m the manoeuvre is about 2.5x more likely to be allowed, because
+    # the segment of the opponent's predicted path that has to be clear is the
+    # near part, where the track is the piece the car can already see.
+    #
+    # It also makes the DEAD STOP strictly less likely, not more. The command
+    # floors at zero at gap_should - opponent_vs / trailing_p_gain:
+    #
+    #     opponent   trailing_gap 2.0   trailing_gap 1.5
+    #       0.5 m/s      1.15 m             0.65 m
+    #       1.0 m/s      0.20 m             never
+    #       1.5 m/s      never              never
+    #
+    # NOTE trailing_vel_gain below is only 0.10, so the speed-dependent part of
+    # the target gap spans 0 to 0.8 m across the car's whole speed range: this
+    # constant is what sets the trailing distance, not the speed term.
+    trailing_gap: 1.5
 
     # Speed-proportional part of the target gap. 0.25 -> 0.10. The base value
     # makes gap_should grow fast with speed, which is what pushes the car into
