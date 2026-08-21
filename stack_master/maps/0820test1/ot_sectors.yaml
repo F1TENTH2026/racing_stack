@@ -12,7 +12,7 @@ ot_sector_tuner:
     Overtaking_sector1:
       start: 66
       end: 331
-      ot_flag: false
+      ot_flag: true
     Overtaking_sector2:
       start: 332
       end: 397
