@@ -130,7 +130,14 @@ def main():
               f'{"  OK" if good else "  <-- 불일치"}')
 
     print()
-    if ok:
+    # phase_multiplier != 1.0 은 "공식은 맞지만 yaml 대로 달리고 있지 않다"는 뜻이다.
+    # 첫 판에서 이 경우에 OK 만 찍는 바람에, 0.84 로 달리는 차를 정상으로 오독했다.
+    if ok and use_sec and phase is not None and abs(phase - 1.0) > 1e-6:
+        print(f'  => 공식은 맞지만 phase_multiplier 가 {phase} 라서 yaml 값대로 달리지 않습니다.')
+        print(f'     yaml 의 scaling 이 전부 {phase} 배로 줄어듭니다 (1.2 -> {1.2*phase:.2f}).')
+        print('     quali 라면 launch 의 speed_scale 누수를 확인하세요 (base_system 과 이름이 같음).')
+        print('     즉시 교정: ros2 param set /speed_sector_tuner phase_multiplier 1.0')
+    elif ok:
         print('  => 맵의 speed_scaling.yaml 이 그대로 반영되고 있습니다.')
     elif use_sec and all(abs(r - (dflt or 0)) < 0.02 for r in ratios if r == r):
         print('  => use_sector_scaling 은 True 인데 실측이 default_scaling 과 같습니다.')
