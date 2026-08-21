@@ -308,6 +308,7 @@ class StateMachine(Node):
         self.emergency_break_d = 0.12  # [m]
         self.trailing_speed_scale = self.params.trailing_speed_scale
         self.trailing_min_speed_mps = self.params.trailing_min_speed_mps
+        self.trailing_speed_ramp = bool(getattr(self.params, 'trailing_speed_ramp', True))
 
         # Graph based variables
         self.graph_based_wpts = None
@@ -1385,7 +1386,29 @@ class StateMachine(Node):
 
         idx = int(self.cur_s / self.wpnt_dist + 0.5) % self.num_glb_wpnts
         raceline_v = self.gb_wpnts.wpnts[idx].vx_mps
-        cap = max(self.trailing_min_speed_mps, raceline_v * self.trailing_speed_scale)
+
+        # RAMP THE CAP WITH THE GAP, do not step it.
+        #
+        # This used to apply trailing_speed_scale in full the instant the gap
+        # crossed emergency_break_horizon: at 8.01 m the car ran the raceline
+        # flat out, at 7.99 m it was capped to 35% of it. On a 10.3 m/s straight
+        # that is a 10.3 -> 3.6 m/s cliff triggered by a centimetre of gap, which
+        # reads from the driver's seat as "it slows down hard, far too early" --
+        # and a gap that noisy sits right on the edge and toggles.
+        #
+        # Now the scale interpolates: 1.0 (no cut at all) at the horizon, down to
+        # trailing_speed_scale as the gap closes to zero. The car starts easing
+        # off the moment the opponent is visible, which is the point of the wide
+        # horizon, but the deep cut is spent where it is actually needed. Braking
+        # distance is quadratic in speed, so most of the benefit is already there
+        # by the time the scale is halfway down.
+        #
+        # Set trailing_speed_ramp false for the old step behaviour.
+        scale = self.trailing_speed_scale
+        if self.trailing_speed_ramp and self.emergency_break_horizon > 1e-6:
+            t = min(max(gap / self.emergency_break_horizon, 0.0), 1.0)
+            scale = self.trailing_speed_scale + (1.0 - self.trailing_speed_scale) * t
+        cap = max(self.trailing_min_speed_mps, raceline_v * scale)
 
         capped_wpnts = [copy.deepcopy(wp) for wp in local_wpnts]
         self.update_velocity(capped_wpnts, speed_cap=cap)

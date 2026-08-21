@@ -83,6 +83,19 @@ state_machine:
     # static friction and ramp back up through the VESC's brake-release hysteresis.
     # trailing_min_speed_mps below still stops this crawling toward 0 in corners.
     trailing_speed_scale: 0.35
+    # 캡을 간격에 비례해 서서히 적용할지(true), 지평을 넘는 순간 한 번에
+    # 적용할지(false, 예전 동작).
+    #
+    # false 였을 때: 간격 8.01 m 에서는 레이스라인 전속, 7.99 m 에서는 즉시 35%.
+    # 직선(10.3 m/s)에서 10.3 -> 3.6 m/s 절벽이 1 cm 간격 차이로 발생했고,
+    # 노이즈가 그 경계에 걸리면 토글까지 났다. 운전석에서는 "너무 멀리서부터
+    # 심하게 느려진다" 로 보인다.
+    #
+    # true 면 지평에서 스케일 1.0(감속 없음), 간격 0 에서 trailing_speed_scale
+    # 까지 선형 보간한다. 상대가 보이는 순간부터 완만히 빼기 시작하되 깊은
+    # 감속은 실제로 필요한 근거리에 쓴다. 제동거리는 속도의 제곱이라, 스케일이
+    # 절반만 내려가도 이득의 대부분이 확보된다.
+    trailing_speed_ramp: true
     # [m/s] Floor under trailing_speed_scale * raceline_speed (tight corners have a
     # low raceline speed already; don't let the cap crawl toward 0 there).
     trailing_min_speed_mps: 1.0
