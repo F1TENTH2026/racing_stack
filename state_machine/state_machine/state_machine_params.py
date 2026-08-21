@@ -280,7 +280,18 @@ class StateMachineParams:
         self._declare("force_GBTRACK", False)
         self.force_GBTRACK: bool = node.get_parameter("force_GBTRACK").value
 
-        self._declare("use_force_trailing", False)
+        self._declare(
+            "use_force_trailing", True,
+            ParameterDescriptor(
+                description=(
+                    "Honour /opponent_prediction/force_trailing as an OVERTAKE "
+                    "ENTRY veto. Set false to ignore the predictor's authorization "
+                    "and gate dynamic overtaking on path freshness/safety alone. "
+                    "No effect on OVERTAKE sustain, and none on static obstacles."
+                ),
+                type=ParameterType.PARAMETER_BOOL,
+            ),
+        )
         self.use_force_trailing: bool = node.get_parameter("use_force_trailing").value
 
         self._declare(

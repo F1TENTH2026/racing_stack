@@ -66,6 +66,29 @@ class OppTrajPredictor(PredictionNode):
         self.min_a = 5 # m/s^2
         self.max_expire_counter = 10
 
+        # --- learned-trajectory authorization (force_trailing) ---
+        # The old test was a bare, memoryless comparison:
+        #     abs(opp_d - raceline_d) > 0.25 or lap_count < 1
+        # One threshold, evaluated fresh every 10 Hz frame, so an opponent
+        # hovering near 0.25 m off the learned line toggled force_trailing on and
+        # off frame by frame -- and each toggle flipped the planner between
+        # "publish an evasion path" and "publish nothing", which the state machine
+        # sees as the avoidance path appearing and vanishing.
+        #
+        # Replaced with a two-threshold, frame-confirmed hysteresis. Same purpose,
+        # same meaning of the output: True == "the prediction is only a
+        # constant-velocity fallback, do not authorize a new overtake".
+        self.min_training_laps = 0.5
+        self.learned_deviation_enter_threshold = 0.35   # [m] enter learned (authorize)
+        self.learned_deviation_exit_threshold = 0.55    # [m] leave learned (veto)
+        self.learned_ready_confirm_frames = 3
+        self.learned_reject_confirm_frames = 5
+        # Start vetoing: a predictor that has just come up has not seen the
+        # opponent run a lap yet, so it cannot have a learned trajectory.
+        self.force_trailing = True
+        self._learned_ready_frames = 0
+        self._learned_reject_frames = 0
+
         # ROS 2 parameters replace ROS 1 dynamic_reconfigure.  They can be
         # changed at runtime with `ros2 param set /opponent_propagation_predictor ...`.
         for name, default in {
@@ -73,7 +96,13 @@ class OppTrajPredictor(PredictionNode):
                 'dt': self.dt,
                 'save_distance_front': self.save_distance_front,
                 'max_expire_counter': self.max_expire_counter,
-                'speed_offset': self.speed_offset}.items():
+                'speed_offset': self.speed_offset,
+                # --- learned-trajectory authorization hysteresis (see _update_learned_authorization) ---
+                'min_training_laps': self.min_training_laps,
+                'learned_deviation_enter_threshold': self.learned_deviation_enter_threshold,
+                'learned_deviation_exit_threshold': self.learned_deviation_exit_threshold,
+                'learned_ready_confirm_frames': self.learned_ready_confirm_frames,
+                'learned_reject_confirm_frames': self.learned_reject_confirm_frames}.items():
             self.declare_parameter(name, default)
         self.dyn_param_cb(None)
         self.add_on_set_parameters_callback(self._on_parameter_update)
@@ -209,6 +238,61 @@ class OppTrajPredictor(PredictionNode):
     def state_cb(self, data: String):
         self.state = data.data
 
+    def _update_learned_authorization(self, deviation_m):
+        """Decide whether the opponent is on its learned trajectory, with hysteresis.
+
+        `deviation_m` is |opponent_d - learned_trajectory_d| at the opponent's s.
+
+        Returns True when the prediction must be treated as a constant-velocity
+        fallback (i.e. publish force_trailing=True and do not authorize a new
+        overtake), False when the learned GP trajectory is trusted.
+
+        Two thresholds and two frame counters, so the answer cannot chatter:
+
+          authorize (force_trailing -> False)
+              training >= min_training_laps AND deviation <= enter_threshold,
+              held for learned_ready_confirm_frames consecutive frames
+          veto (force_trailing -> True)
+              deviation >= exit_threshold,
+              held for learned_reject_confirm_frames consecutive frames
+
+        Between the two thresholds nothing changes -- whichever state is current
+        is held. That band (0.35 to 0.55 m) is where the old single 0.25 m test
+        did all of its flapping.
+
+        Not enough training laps is an immediate, unconfirmed veto: there is no
+        learned trajectory to be near, so waiting frames to say so would be
+        pretending to a confidence we do not have.
+        """
+        laps = self.opponent_lap_count
+        # opponent_lap_count is None until the first /opponent_trajectory message.
+        # The old expression evaluated `None < 1` on any frame where the deviation
+        # test short-circuited to False -- a TypeError that killed the loop.
+        if laps is None or float(laps) < float(self.min_training_laps):
+            self.force_trailing = True
+            self._learned_ready_frames = 0
+            self._learned_reject_frames = 0
+            return self.force_trailing
+
+        if deviation_m <= float(self.learned_deviation_enter_threshold):
+            self._learned_ready_frames += 1
+            self._learned_reject_frames = 0
+            if self._learned_ready_frames >= int(self.learned_ready_confirm_frames):
+                self.force_trailing = False
+        elif deviation_m >= float(self.learned_deviation_exit_threshold):
+            self._learned_reject_frames += 1
+            self._learned_ready_frames = 0
+            if self._learned_reject_frames >= int(self.learned_reject_confirm_frames):
+                self.force_trailing = True
+        else:
+            # Inside the hysteresis band: hold the current decision, and reset both
+            # counters so a run that drifts in and out of the band does not
+            # accumulate credit toward a flip it never actually earned.
+            self._learned_ready_frames = 0
+            self._learned_reject_frames = 0
+
+        return self.force_trailing
+
         # Callback triggered by dynamic spline reconf
     def dyn_param_cb(self, _params):
         """
@@ -219,6 +303,15 @@ class OppTrajPredictor(PredictionNode):
         self.save_distance_front = self.get_parameter('save_distance_front').value
         self.max_expire_counter = self.get_parameter('max_expire_counter').value
         self.speed_offset = self.get_parameter('speed_offset').value
+        self.min_training_laps = self.get_parameter('min_training_laps').value
+        self.learned_deviation_enter_threshold = self.get_parameter(
+            'learned_deviation_enter_threshold').value
+        self.learned_deviation_exit_threshold = self.get_parameter(
+            'learned_deviation_exit_threshold').value
+        self.learned_ready_confirm_frames = self.get_parameter(
+            'learned_ready_confirm_frames').value
+        self.learned_reject_confirm_frames = self.get_parameter(
+            'learned_reject_confirm_frames').value
 
         print(
             f"[Opp. Pred.] Dynamic reconf triggered new params:\n"
@@ -240,6 +333,16 @@ class OppTrajPredictor(PredictionNode):
                 self.max_expire_counter = parameter.value
             elif parameter.name == 'speed_offset':
                 self.speed_offset = parameter.value
+            elif parameter.name == 'min_training_laps':
+                self.min_training_laps = parameter.value
+            elif parameter.name == 'learned_deviation_enter_threshold':
+                self.learned_deviation_enter_threshold = parameter.value
+            elif parameter.name == 'learned_deviation_exit_threshold':
+                self.learned_deviation_exit_threshold = parameter.value
+            elif parameter.name == 'learned_ready_confirm_frames':
+                self.learned_ready_confirm_frames = parameter.value
+            elif parameter.name == 'learned_reject_confirm_frames':
+                self.learned_reject_confirm_frames = parameter.value
         return SetParametersResult(successful=True)
 
 
@@ -330,7 +433,11 @@ class OppTrajPredictor(PredictionNode):
                 
                 start = time.process_time()
 
-                if abs(current_opponent_d - opponent_approx_raceline_d) > 0.25 or self.opponent_lap_count < 1:
+                # Hysteresis, not a bare threshold: see _update_learned_authorization.
+                # The published value keeps its original meaning -- True means the
+                # prediction below is the constant-velocity fallback.
+                learned_deviation = abs(current_opponent_d - opponent_approx_raceline_d)
+                if self._update_learned_authorization(learned_deviation):
                     self.force_trailing_pub.publish(Bool(data=True))
                     
                     obstacle_list = []

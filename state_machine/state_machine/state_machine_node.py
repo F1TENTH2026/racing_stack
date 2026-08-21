@@ -287,8 +287,17 @@ class StateMachine(Node):
         self.obstacle_was_here = True
         self.side_by_side_threshold = 0.6
         self.merger = None
+        # force_trailing: published by the GP predictor, True while the opponent
+        # prediction is only a constant-velocity fallback. Used as an OVERTAKE
+        # *ENTRY* veto (_check_overtaking_mode) and deliberately NOT consulted by
+        # _check_overtaking_mode_sustainability -- see the comment there.
         self.force_trailing = False
-        self.use_force_trailing = not self.params.use_force_trailing
+        # Was `not self.params.use_force_trailing`, while the live-update callback
+        # in state_machine_params.py assigned the value straight through: the flag
+        # meant the opposite of itself depending on how it was set. It never
+        # showed, because self.force_trailing was written by the callback and then
+        # read by nothing at all.
+        self.use_force_trailing = bool(self.params.use_force_trailing)
         # Dynamic-overtake gating (see _check_getting_closer / _check_overtaking_mode).
         self.dynamic_overtake_max_gap_m = self.params.dynamic_overtake_max_gap_m
         self.dynamic_overtake_min_rel_speed_mps = self.params.dynamic_overtake_min_rel_speed_mps
@@ -1231,9 +1240,28 @@ class StateMachine(Node):
         return int(self.overtaking_ttl_sec * self.rate_hz)
 
     def _check_overtaking_mode(self) -> bool:
+        """DYNAMIC OVERTAKE *entry* gate.
+
+            OT sector
+            AND a dynamic opponent ahead within dynamic_overtake_max_gap_m
+            AND the relative-speed condition
+            AND the avoidance path is fresh
+            AND the avoidance path is safe
+            AND NOT force_trailing
+            -> OVERTAKE
+
+        force_trailing is an entry veto only. Once the car is in OVERTAKE,
+        _check_overtaking_mode_sustainability decides whether to stay, and it
+        does not look at force_trailing: a single frame in which the predictor
+        drops back to its constant-velocity fallback must not abort a manoeuvre
+        already underway and pull a car that is side by side back in behind the
+        opponent. Leaving OVERTAKE stays governed by the existing path
+        availability / free-frenet / overtaking_ttl logic.
+        """
         if (
             self._check_ot_sector()
             and self._check_getting_closer(threshold_m=self.dynamic_overtake_max_gap_m)
+            and not (self.use_force_trailing and self.force_trailing)
             and self._check_latest_wpnts(self.avoidance_wpnts, self.cur_avoidance_wpnts)
             and self._check_free_frenet(self.cur_avoidance_wpnts)
         ):
@@ -1338,6 +1366,8 @@ class StateMachine(Node):
             return False
 
     def _check_overtaking_mode_sustainability(self) -> bool:
+        """Whether to STAY in OVERTAKE. Intentionally does not read force_trailing:
+        that flag vetoes entry, not continuation (see _check_overtaking_mode)."""
         if self.static_overtaking_mode:
             if (
                 self._check_availability(self.static_avoidance_wpnts, self.cur_static_avoidance_wpnts)

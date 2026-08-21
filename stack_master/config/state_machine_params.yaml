@@ -131,4 +131,16 @@ state_machine:
     ftg_timer_sec: 3.0
     ftg_active: false
     force_GBTRACK: false
-    use_force_trailing: false
+    # Honour /opponent_prediction/force_trailing (published by opp_prediction) as
+    # a DYNAMIC OVERTAKE **entry** veto: while the predictor says the opponent is
+    # not on a learned trajectory, do not start a new overtake. Entry only -- an
+    # overtake already in progress is never aborted by this flag.
+    #
+    # false -> the veto is off; dynamic overtaking is then gated on path
+    # freshness/safety alone, which is what the lane_change planner already does
+    # internally with the same flag.
+    #
+    # The predictor only runs with race.launch.xml gp_predictor:=true. Without it
+    # the topic is silent, force_trailing stays at its init value False, and this
+    # parameter changes nothing.
+    use_force_trailing: true
