@@ -72,9 +72,9 @@ Detect::Detect() : rclcpp::Node("detect"), car_s_(0),
   GridFilter_.setErosionKernelSize(filter_kernel_size_);
 
   // Publishers
-  breakpoints_markers_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/detect/breakpoints_markers", 5);
+  breakpoints_markers_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/detect/breakpoints_markers", rclcpp::SensorDataQoS().keep_last(1));
   obstacles_msg_pub_ = this->create_publisher<f110_msgs::msg::ObstacleArray>("/detect/raw_obstacles", 5);
-  obstacles_marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/detect/obstacles_markers_new", 5);
+  obstacles_marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/detect/obstacles_markers_new", rclcpp::SensorDataQoS().keep_last(1));
 
   if (measuring_) {
     latency_pub_ = this->create_publisher<std_msgs::msg::Float32>("/detect/latency", 5);
@@ -781,7 +781,9 @@ void Detect::timerCallback()
   // Clustering
   std::vector<std::vector<std::pair<double, double>>> objects_pointcloud_list = clustering(scan_msgs);
 
-  publishBreakpoints(objects_pointcloud_list);
+  if (breakpoints_markers_pub_->get_subscription_count() > 0) {
+    publishBreakpoints(objects_pointcloud_list);
+  }
 
   std::vector<Obstacle> current_obstacles = fittingLShape(objects_pointcloud_list);
   checkObstacles(current_obstacles);
@@ -794,7 +796,9 @@ void Detect::timerCallback()
   }
 
   publishObstaclesMessage();
-  publishObstaclesMarkers();
+  if (obstacles_marker_pub_->get_subscription_count() > 0) {
+    publishObstaclesMarkers();
+  }
 }
 
 int main(int argc, char **argv)

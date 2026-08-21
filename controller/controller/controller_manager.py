@@ -5,7 +5,7 @@ import time
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
 from rcl_interfaces.msg import SetParametersResult, ParameterDescriptor
 import yaml
 
@@ -65,6 +65,8 @@ class ControllerManager(Node):
 
         self.name = "controller_manager"
         self.loop_rate = 50  # rate in hertz
+        self.visualization_rate_hz = float(self._get_param('visualization_rate_hz', 10.0))
+        self._last_visualization_time = float('-inf')
         self.scan = None
         self._save_requested = False
 
@@ -123,14 +125,15 @@ class ControllerManager(Node):
             setattr(self, p, self._get_param(p))
 
         # Publishers (ROS1 topic names kept)
-        self.lookahead_pub = self.create_publisher(Marker, 'lookahead_point', 10)
+        vis_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.lookahead_pub = self.create_publisher(Marker, 'lookahead_point', vis_qos)
         # steering-direction arrow on its own topic (was on lookahead_point with the
         # point marker; RViz2's singular-Marker display drops one of two ids at 100Hz)
-        self.steering_pub = self.create_publisher(Marker, 'lookahead_steering', 10)
-        self.future_position_pub = self.create_publisher(Marker, 'future_position', 10)
-        self.trailing_pub = self.create_publisher(Marker, 'trailing_opponent_marker', 10)
-        self.l1_pub = self.create_publisher(Point, 'l1_distance', 10)
-        self.predict_pub = self.create_publisher(MarkerArray, '/controller_prediction/markers', 10)
+        self.steering_pub = self.create_publisher(Marker, 'lookahead_steering', vis_qos)
+        self.future_position_pub = self.create_publisher(Marker, 'future_position', vis_qos)
+        self.trailing_pub = self.create_publisher(Marker, 'trailing_opponent_marker', vis_qos)
+        self.l1_pub = self.create_publisher(Point, 'l1_distance', vis_qos)
+        self.predict_pub = self.create_publisher(MarkerArray, '/controller_prediction/markers', vis_qos)
         self.publish_topic = self._get_param('drive_topic', '/vesc/high_level/ackermann_cmd')
         self.drive_pub = self.create_publisher(AckermannDriveStamped, self.publish_topic, 10)
         if self.measuring:
@@ -481,17 +484,21 @@ class ControllerManager(Node):
                 throttle_duration_sec=0.5)
             return 0.0, 0.0, 0.0, self.last_finite_steering
 
-        if self.lookahead_pub.get_subscription_count() > 0:
+        now = time.monotonic()
+        publish_visualization = now - self._last_visualization_time >= 1.0 / max(0.1, self.visualization_rate_hz)
+        if publish_visualization:
+            self._last_visualization_time = now
+        if publish_visualization and self.lookahead_pub.get_subscription_count() > 0:
             self.set_lookahead_marker(L1_point, 100)
-        if self.steering_pub.get_subscription_count() > 0:
+        if publish_visualization and self.steering_pub.get_subscription_count() > 0:
             self.visualize_steering(steering_angle)
-        if self.trailing_pub.get_subscription_count() > 0:
+        if publish_visualization and self.trailing_pub.get_subscription_count() > 0:
             self.visualize_trailing_opponent()
-        if self.future_position_pub.get_subscription_count() > 0:
+        if publish_visualization and self.future_position_pub.get_subscription_count() > 0:
             self.viz_future_position(future_position, 200)
 
         self.curvature_waypoints = curvature_waypoints
-        if self.l1_pub.get_subscription_count() > 0:
+        if publish_visualization and self.l1_pub.get_subscription_count() > 0:
             self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
 
         return speed, acceleration, jerk, steering_angle

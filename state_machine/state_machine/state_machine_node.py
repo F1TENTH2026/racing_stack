@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 import transforms3d
 from ament_index_python.packages import get_package_share_directory
@@ -190,6 +190,10 @@ class StateMachine(Node):
         if not self.has_parameter("debug_log_enabled"):
             self.declare_parameter("debug_log_enabled", False)
         self.debug_log_enabled = bool(self.get_parameter("debug_log_enabled").value)
+        if not self.has_parameter("visualization_rate_hz"):
+            self.declare_parameter("visualization_rate_hz", 10.0)
+        self.visualization_rate_hz = float(self.get_parameter("visualization_rate_hz").value)
+        self._last_visualization_sec = float("-inf")
         self._setup_debug_log_file()
 
         self.cur_s = 0.0
@@ -411,16 +415,17 @@ class StateMachine(Node):
 
         # PUBLICATIONS
         self.behavior_strategy_pub = self.create_publisher(BehaviorStrategy, "behavior_strategy", 1)
-        self.trailing_marker_pub = self.create_publisher(Marker, "/state_machine/trailing_target", 10)
-        self.overtaking_marker_pub = self.create_publisher(Marker, "/state_machine/overtaking_target", 10)
+        vis_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.trailing_marker_pub = self.create_publisher(Marker, "/state_machine/trailing_target", vis_qos)
+        self.overtaking_marker_pub = self.create_publisher(Marker, "/state_machine/overtaking_target", vis_qos)
         self.loc_wpnt_pub = self.create_publisher(WpntArray, "local_waypoints", 1)
-        self.vis_loc_wpnt_pub = self.create_publisher(MarkerArray, "local_waypoints/markers", 10)
+        self.vis_loc_wpnt_pub = self.create_publisher(MarkerArray, "local_waypoints/markers", vis_qos)
         self.state_pub = self.create_publisher(String, "state_machine", 1)
         # Per-loop diagnostic snapshot (JSON) for offline/live debugging of the
         # local_wpnts source selection and stale-cache leaks.
-        self.debug_pub = self.create_publisher(String, "/state_machine/debug", 10)
-        self.state_mrk = self.create_publisher(Marker, "/state_marker", 10)
-        self.emergency_pub = self.create_publisher(Marker, "/emergency_marker", 5)
+        self.debug_pub = self.create_publisher(String, "/state_machine/debug", vis_qos)
+        self.state_mrk = self.create_publisher(Marker, "/state_marker", vis_qos)
+        self.emergency_pub = self.create_publisher(Marker, "/emergency_marker", vis_qos)
         self.ot_section_check_pub = self.create_publisher(Bool, "/ot_section_check", 1)
         # ROS1 published this from dynamic_statemachine_server when the save_start_traj
         # rqt button was pressed; re-homed here as a momentary param (see loop()).
@@ -1553,6 +1558,8 @@ class StateMachine(Node):
     # VIZ #
     #######
     def _publish_debug(self, local_wpnts):
+        if self.debug_pub.get_subscription_count() == 0:
+            return
         # Emit a per-loop JSON snapshot on /state_machine/debug capturing the
         # full local_wpnts source-selection state. Purpose: catch a stale source
         # cache (e.g. cur_recovery_wpnts frozen at an old snapshot while the raw
@@ -1648,21 +1655,23 @@ class StateMachine(Node):
         }
         self.debug_pub.publish(String(data=json.dumps(snap)))
 
-    def _pub_local_wpnts(self, wpts):
+    def _pub_local_wpnts(self, wpts, publish_markers=False):
         # DELETEALL as the first element of the SAME array (atomic clear+draw in
         # one message) instead of a separate publish, so RViz2 doesn't flicker.
         # Net result matches ROS1 (clear stale markers, then draw the new ones).
-        loc_markers = MarkerArray()
-        del_mrk = Marker()
-        del_mrk.header.stamp = self.get_clock().now().to_msg()
-        del_mrk.action = Marker.DELETEALL
-        loc_markers.markers.append(del_mrk)
-
         loc_wpnts = WpntArray()
         loc_wpnts.wpnts = wpts if wpts is not None else []
         loc_wpnts.header.stamp = self.get_clock().now().to_msg()
         loc_wpnts.header.frame_id = "map"
 
+        self.loc_wpnt_pub.publish(loc_wpnts)
+        if not publish_markers or self.vis_loc_wpnt_pub.get_subscription_count() == 0:
+            return
+        loc_markers = MarkerArray()
+        del_mrk = Marker()
+        del_mrk.header.stamp = loc_wpnts.header.stamp
+        del_mrk.action = Marker.DELETEALL
+        loc_markers.markers.append(del_mrk)
         for i, wpnt in enumerate(loc_wpnts.wpnts):
             mrk = Marker()
             mrk.header.frame_id = "map"
@@ -1679,7 +1688,6 @@ class StateMachine(Node):
             mrk.pose.orientation.w = 1.0
             loc_markers.markers.append(mrk)
 
-        self.loc_wpnt_pub.publish(loc_wpnts)
         self.vis_loc_wpnt_pub.publish(loc_markers)
 
     def visualize_state(self, state: str):
@@ -1854,6 +1862,11 @@ class StateMachine(Node):
     # MAIN LOOP #
     #############
     def loop(self):
+        now_sec = self.now_sec()
+        viz_period = 1.0 / max(0.1, self.visualization_rate_hz)
+        publish_visualization = now_sec - self._last_visualization_sec >= viz_period
+        if publish_visualization:
+            self._last_visualization_sec = now_sec
         self._splini_dbg = None
         self._recovery_dbg = None
         self._handle_momentary_params()
@@ -1972,7 +1985,8 @@ class StateMachine(Node):
 
         local_wpnts = self._apply_trailing_speed_cap(local_wpnts)
 
-        self._publish_debug(local_wpnts)
+        if publish_visualization:
+            self._publish_debug(local_wpnts)
 
         if self.cur_state == StateType.LOSTLINE:
             self.cur_state = StateType.GB_TRACK
@@ -1986,12 +2000,19 @@ class StateMachine(Node):
         self.behavior_strategy_pub.publish(self.behavior_strategy)
 
         self.state_pub.publish(String(data=self.cur_state.value))
-        self.visualize_state(state=self.cur_state.value)
+        if publish_visualization and self.state_mrk.get_subscription_count() > 0:
+            self.visualize_state(state=self.cur_state.value)
 
-        self._pub_local_wpnts(local_wpnts)
+        self._pub_local_wpnts(local_wpnts, publish_markers=publish_visualization)
 
         if self.cur_state != StateType.TRAILING and self.cur_state != StateType.ATTACK:
             self._ftg_low_speed_since_sec = None
+
+        if not publish_visualization:
+            if self.measuring:
+                end = time.perf_counter()
+                self.latency_pub.publish(Float32(data=1.0 / (end - start)))
+            return
 
         overtaking_target_mrk = Marker()
         overtaking_target_mrk.header.frame_id = "map"  # set always so the DELETEALL marker isn't dropped by RViz (empty frame)
@@ -2007,7 +2028,8 @@ class StateMachine(Node):
             overtaking_target_mrk.pose.orientation.w = 1.0
         else:
             overtaking_target_mrk.action = Marker.DELETEALL
-        self.overtaking_marker_pub.publish(overtaking_target_mrk)
+        if self.overtaking_marker_pub.get_subscription_count() > 0:
+            self.overtaking_marker_pub.publish(overtaking_target_mrk)
 
         trailing_target_mrk = Marker()
         trailing_target_mrk.header.frame_id = "map"  # set always so the DELETEALL marker isn't dropped by RViz (empty frame)
@@ -2023,7 +2045,8 @@ class StateMachine(Node):
             trailing_target_mrk.pose.orientation.w = 1.0
         else:
             trailing_target_mrk.action = Marker.DELETEALL
-        self.trailing_marker_pub.publish(trailing_target_mrk)
+        if self.trailing_marker_pub.get_subscription_count() > 0:
+            self.trailing_marker_pub.publish(trailing_target_mrk)
 
         if self.measuring:
             end = time.perf_counter()

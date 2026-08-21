@@ -10,7 +10,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.parameter_event_handler import ParameterEventHandler
 from rclpy.duration import Duration
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
 from ament_index_python.packages import get_package_share_directory
 
 from std_msgs.msg import Float32
@@ -320,6 +320,8 @@ class StaticDynamic(Node):
         self.current_id = 1
         self.converter = None
         self.timer = None
+        self.visualization_rate_hz = float(self._get_param("visualization_rate_hz", 10.0))
+        self._last_visualization_time = float('-inf')
         self.from_bag = self._get_param("from_bag", False)
         self.measuring = self._get_param("measure", False)
 
@@ -331,7 +333,9 @@ class StaticDynamic(Node):
         self.create_subscription(LaserScan, '/scan', self.scansCallback, qos_profile_sensor_data)
 
         # --- Publisher ---
-        self.static_dynamic_marker_pub = self.create_publisher(MarkerArray, '/tracking/static_dynamic_marker_pub', 5)
+        self.static_dynamic_marker_pub = self.create_publisher(
+            MarkerArray, '/tracking/static_dynamic_marker_pub',
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.estimated_obstacles_pub = self.create_publisher(ObstacleArray, '/tracking/obstacles', 5)
         self.raw_opponent_pub = self.create_publisher(ObstacleArray, '/tracking/raw_obstacles', 5)
         if self.measuring:
@@ -954,7 +958,11 @@ class StaticDynamic(Node):
             msg.data = float(1/(end-start))
             self.latency_pub.publish(msg)
         self.publishObstacles()
-        self.publish_Marker()
+        now = time.monotonic()
+        if (self.static_dynamic_marker_pub.get_subscription_count() > 0
+                and now - self._last_visualization_time >= 1.0 / max(0.1, self.visualization_rate_hz)):
+            self._last_visualization_time = now
+            self.publish_Marker()
 
 
 def main(args=None):

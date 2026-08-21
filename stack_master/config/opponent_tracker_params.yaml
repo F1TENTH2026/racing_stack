@@ -27,6 +27,7 @@ detect:
     save_params: false
 tracking:
   ros__parameters:
+    visualization_rate_hz: 10.0
     save_params: false
     rate_tracking: 40
     P_vs: 0.2

@@ -56,6 +56,7 @@ from grid_filter.grid_filter import GridFilter
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from scipy.interpolate import CubicSpline
 from std_msgs.msg import Float32
 from transforms3d.euler import quat2euler
@@ -173,7 +174,9 @@ class StaticObstacleSpliner(Node):
         self.create_subscription(WpntArray, "/global_waypoints_scaled", self.gb_scaled_cb, 10)
 
         self.evasion_pub = self.create_publisher(OTWpntArray, "/planner/avoidance/otwpnts", 10)
-        self.mrks_pub = self.create_publisher(MarkerArray, "/planner/avoidance/markers", 10)
+        self.mrks_pub = self.create_publisher(
+            MarkerArray, "/planner/avoidance/markers",
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.latency_pub = self.create_publisher(Float32, "/planner/avoidance/latency", 10)
 
         self.wait_for_messages()
@@ -501,7 +504,8 @@ class StaticObstacleSpliner(Node):
         self._log(dbg)
 
         self.evasion_pub.publish(path)
-        self.mrks_pub.publish(self._markers(path))
+        if self.mrks_pub.get_subscription_count() > 0:
+            self.mrks_pub.publish(self._markers(path))
         if self.measure:
             self.latency_pub.publish(Float32(data=float(time.perf_counter() - started)))
 
