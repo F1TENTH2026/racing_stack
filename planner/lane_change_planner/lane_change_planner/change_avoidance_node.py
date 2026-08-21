@@ -87,8 +87,34 @@ class ChangeAvoidanceNode(Node):
         # Solver params
         self.width_car = 0.30
         self.safety_margin = 0.1
-        self.back_to_raceline_before = 3.0
-        self.back_to_raceline_after = 3.0
+        # [m] Length of the cosine ease-in / ease-out between the raceline and the
+        # evasion lane. 3.0 -> 4.5, on both ends.
+        #
+        # The ramp length sets BOTH limits that were holding the overtake at
+        # 2.0 m/s (state_machine_20260822_065431.log: entry 1.62, peak 2.13,
+        # plateau 2.0 even on a 1.87 s episode, against a scaled raceline of 3.83).
+        #
+        # With a cosine ease of amplitude lane_offset (0.35) over length L:
+        #
+        #   path curvature  (A/2)(pi/L)^2   -> grip ceiling sqrt(ay_max / kappa)
+        #   heading offset  (A/2)(pi/L)     -> Controller.speed_adjust_heading
+        #
+        #        L     kappa    grip      heading   heading_error_thres 10 deg
+        #      3.0     0.192   3.19 m/s    10.5 deg   TRIPPED (x0.5..1.0 derate)
+        #      4.0     0.108   3.54         7.9       clear
+        #      4.5     0.086   3.65         7.0       clear
+        #      5.0     0.069   3.75         6.3       clear
+        #
+        # At 3.0 the evasion path was steep enough to trip the controller's own
+        # heading derate -- the path penalised itself. 4.5 clears the 10 deg
+        # threshold by 30 % and lifts the grip ceiling 15 %.
+        #
+        # COST: the path starts easing earlier and returns later, so an overtake
+        # is a longer commitment. At the current trailing gap (1.66 m) the ease-in
+        # asks the car to already be ~0.26 m off the raceline at entry, still well
+        # inside max_evasion_start_offset (0.8).
+        self.back_to_raceline_before = 4.5
+        self.back_to_raceline_after = 4.5
         self.obs_traj_tresh = 2.0
 
         # Dynamic sovler params
