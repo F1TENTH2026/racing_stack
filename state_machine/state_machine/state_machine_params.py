@@ -41,6 +41,7 @@ class StateMachineParams:
         "overtake_min_closing_mps",
         "dynamic_overtake_max_gap_m",
         "dynamic_overtake_min_rel_speed_mps",
+        "dynamic_prediction_span_m",
     }
 
     def __init__(self, node: "StateMachine") -> None:
@@ -323,6 +324,22 @@ class StateMachineParams:
         )
         self.dynamic_overtake_min_rel_speed_mps: float = node.get_parameter(
             "dynamic_overtake_min_rel_speed_mps").value
+
+        self._declare(
+            "dynamic_prediction_span_m", 3.0,
+            ParameterDescriptor(
+                description=(
+                    "How far ahead of the opponent's CURRENT pose the predicted "
+                    "trajectory is checked when judging whether the dynamic "
+                    "avoidance path is safe [m]. Applies to the OT path only -- "
+                    "the raceline/recovery blocked-or-free verdict still sees the "
+                    "whole prediction. 0 disables the cap."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=20.0, step=0.1)],
+            ),
+        )
+        self.dynamic_prediction_span_m: float = node.get_parameter("dynamic_prediction_span_m").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not

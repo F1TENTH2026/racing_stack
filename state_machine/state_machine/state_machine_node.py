@@ -301,6 +301,7 @@ class StateMachine(Node):
         # Dynamic-overtake gating (see _check_getting_closer / _check_overtaking_mode).
         self.dynamic_overtake_max_gap_m = self.params.dynamic_overtake_max_gap_m
         self.dynamic_overtake_min_rel_speed_mps = self.params.dynamic_overtake_min_rel_speed_mps
+        self.dynamic_prediction_span_m = self.params.dynamic_prediction_span_m
         # Last dynamic-overtake candidate, filled by _check_getting_closer for the
         # [DYNAMIC_OT] decision log. None means "no candidate in range this loop".
         self._dyn_ot_target = None
@@ -880,6 +881,28 @@ class StateMachine(Node):
         self.ot_section_check_pub.publish(Bool(data=False))
         return False
 
+    @staticmethod
+    def _obs_lateral_half_width(obs) -> float:
+        """Half the obstacle's LATERAL extent, in Frenet d.
+
+        Prefers |d_left - d_right| / 2 over size / 2, so an elongated cluster
+        whose bounding circle is much wider than the car is not treated as if it
+        blocked that whole width sideways. Falls back to size / 2 when the d
+        bounds are absent or degenerate.
+
+        NOTE for this stack specifically: perception fills d_left = d + size/2 and
+        d_right = d - size/2 (detect.cpp publishObstaclesMessage, likewise
+        multi_tracking.py), so for perception obstacles the two are identical and
+        this changes nothing today. It becomes load-bearing for any producer that
+        reports a real lateral extent -- e.g. opp_prediction, which writes
+        d_left/d_right at +/-0.25 m (a car width) while copying `size` straight
+        from the bounding circle.
+        """
+        width = abs(float(obs.d_left) - float(obs.d_right))
+        if np.isfinite(width) and width > 1e-3:
+            return 0.5 * width
+        return 0.5 * float(obs.size)
+
     def _nearest_dynamic_opponent_ahead(self, threshold_m):
         """The closest NON-static obstacle ahead of the ego, within `threshold_m`.
 
@@ -991,6 +1014,31 @@ class StateMachine(Node):
                 return True
         return False
 
+    def _prediction_span_end_idx(self, obstacle_predictions) -> int:
+        """Index one past the last prediction inside dynamic_prediction_span_m.
+
+        Measured forward in Frenet s from the FIRST predicted pose (the opponent
+        where it is now), wrap-around handled. `dynamic_prediction_span_m <= 0`
+        disables the cap.
+
+        The predictions are monotonically increasing in s (the predictor
+        integrates the opponent forward), so this is a bisect, not a scan --
+        O(log n) per obstacle per loop on the Jetson instead of O(n).
+        """
+        n = len(obstacle_predictions)
+        span = float(self.dynamic_prediction_span_m)
+        if span <= 0.0 or n < 2 or self.max_s <= 0.0:
+            return n
+        origin = float(obstacle_predictions[0].pred_s)
+        lo, hi = 0, n
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if (float(obstacle_predictions[mid].pred_s) - origin) % self.max_s <= span:
+                lo = mid + 1
+            else:
+                hi = mid
+        return max(lo, 2)
+
     def _check_free_frenet(self, wpnts_data) -> bool:
         is_free = True
         closest_obs = None
@@ -1068,6 +1116,7 @@ class StateMachine(Node):
                 else:
                     if len(obstacle_predictions) != 0 and self.obstacles_prediction_id == obs.id:
                         rec["branch"] = "dyn/pred"
+                        obs_half_width = self._obs_lateral_half_width(obs)
                         start_idx = 0
                         end_idx = len(obstacle_predictions)
                         if is_ot_wpnts:
@@ -1075,19 +1124,34 @@ class StateMachine(Node):
                                 start_idx = min(int(ttc / self.prediction_dt), len(obstacle_predictions))
                             if tt0 > 0:
                                 end_idx = min(int(tt0 / self.prediction_dt), len(obstacle_predictions))
+                            # Bound the window by DISTANCE as well as by time. The
+                            # predictor emits n_time_steps * dt = 4 s of future; on
+                            # a 20-40 m track that is most of a lap, and demanding
+                            # the candidate overtake path clear all of it is what
+                            # made the manoeuvre unreachable. The car re-decides at
+                            # 50 Hz and the planner replans at 20 Hz, so only the
+                            # stretch covered before the next decision has to hold.
+                            #
+                            # ONLY for the OT path (is_ot_wpnts). The blocked/free
+                            # verdict on the raceline and on recovery still sees the
+                            # whole prediction: shortening THAT would delay noticing
+                            # an opponent, which is the opposite of the point.
+                            end_idx = min(end_idx, self._prediction_span_end_idx(obstacle_predictions))
+                            if end_idx - start_idx < 2:
+                                end_idx = min(start_idx + 2, len(obstacle_predictions))
                         worst_fd = None
                         for obs_pred in obstacle_predictions[start_idx:end_idx]:
                             wpnt_idx = np.argmin(abs(wpnts_data.array[:, 2] - obs_pred.pred_s))
                             wpnt_d = wpnts_data.list[wpnt_idx].d_m
                             min_dist = abs(wpnt_d - obs_pred.pred_d)
-                            free_dist = min_dist - obs.size / 2 - self.gb_ego_width_m / 2
+                            free_dist = min_dist - obs_half_width - self.gb_ego_width_m / 2
                             scaling_factor = np.clip(gap / free_scaling_reference_distance_m, 0.0, 1.0)
                             if worst_fd is None or free_dist < worst_fd:
                                 worst_fd = free_dist
                             if is_ot_wpnts:
-                                self.get_logger().warn(
+                                self.get_logger().debug(
                                     f"free_dist: {free_dist}, lateral_width_m: {lateral_width_m}, "
-                                    f"scaling_factor: {scaling_factor}, obs.size: {obs.size}, "
+                                    f"scaling_factor: {scaling_factor}, obs_half_width: {obs_half_width}, "
                                     f"wpnt_d:{wpnt_d}, obs_pred.pred_d: {obs_pred.pred_d} ",
                                     throttle_duration_sec=0.5,
                                 )
@@ -1116,7 +1180,7 @@ class StateMachine(Node):
                                 avoid_wpnt_idx = np.argmin(abs(wpnts_data.array[:, 2] - obs.s_center))
                                 ot_d = wpnts_data.list[avoid_wpnt_idx].d_m
                             min_dist = abs(ot_d - obs.d_center)
-                            free_dist = min_dist - obs.size / 2 - self.gb_ego_width_m / 2
+                            free_dist = min_dist - self._obs_lateral_half_width(obs) - self.gb_ego_width_m / 2
                             scaling_factor = np.clip(gap / free_scaling_reference_distance_m, 0.0, 1.0)
                             rec["free_dist"] = round(float(free_dist), 3)
                             if free_dist < lateral_width_m * scaling_factor:

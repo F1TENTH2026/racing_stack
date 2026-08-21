@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import time
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import List
 
 import numpy as np
@@ -93,6 +93,22 @@ class ChangeAvoidanceNode(Node):
         # Dynamic sovler params
         self.down_sampled_delta_s = 0.1
 
+        # [m] How much of the opponent's PREDICTED future the feasibility check is
+        # allowed to demand. The predictor emits n_time_steps * dt = 200 * 0.02 =
+        # 4 s of future; at 3 m/s that is a ~12 m corridor, and lane_change()
+        # requires ONE side to be clear at EVERY predicted pose in it. On the maps
+        # in this workspace (17.8 - 39.5 m long, ~1-2 m wide) that is most of a lap
+        # having to be open on the same side at once, so the manoeuvre was refused
+        # almost everywhere -- and the refusal had nothing to do with the opponent.
+        #
+        # The car replans at 20 Hz, so the corridor only has to be clear over the
+        # stretch it will actually cover before the next decision, and it extends
+        # itself as the car moves. Collision safety is NOT removed: every pose
+        # inside the span is still checked, the grid filter still rejects any
+        # sample outside the eroded map, and the state machine re-validates the
+        # path against the obstacle's CURRENT position every loop.
+        self.prediction_span_m = 3.0
+
         # State variables (filled by callbacks)
         self.current_s = None
         self.current_d = None
@@ -121,6 +137,10 @@ class ChangeAvoidanceNode(Node):
         # single dropped frame doesn't make the markers flicker.
         self.no_evasion_count = 0
         self.clear_after_frames = 5
+
+        # Why obstacle_preprocessing returned nothing this loop (for the decision
+        # log). None means it did return a target.
+        self._skip_reason = None
 
         self.converter = None
         self.global_waypoints = None
@@ -202,6 +222,15 @@ class ChangeAvoidanceNode(Node):
                     type=ParameterType.PARAMETER_DOUBLE,
                     description="Symmetric perturbation of the centerline to build outer/inner lanes [m]. Live editable, regenerates lanes.",
                     floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.5, step=0.001)],
+                ),
+            },
+            {
+                'name': 'prediction_span_m',
+                'default': self.prediction_span_m,
+                'descriptor': ParameterDescriptor(
+                    type=ParameterType.PARAMETER_DOUBLE,
+                    description="How far ahead of the opponent's current pose the predicted corridor is checked for evasion feasibility [m]. 0 disables the truncation (check the full prediction).",
+                    floating_point_range=[FloatingPointRange(from_value=0.0, to_value=20.0, step=0.1)],
                 ),
             },
             {
@@ -303,6 +332,8 @@ class ChangeAvoidanceNode(Node):
                 self.obs_traj_tresh = param.value
             elif param.name == 'spline_bound_mindist':
                 self.spline_bound_mindist = param.value
+            elif param.name == 'prediction_span_m':
+                self.prediction_span_m = param.value
             elif param.name == 'lane_offset':
                 if param.value != self.lane_offset:
                     regenerate_lanes = True
@@ -326,6 +357,7 @@ class ChangeAvoidanceNode(Node):
             f" Back to raceline after: {self.back_to_raceline_after} [m],\n"
             f" Obstacle trajectory treshold: {self.obs_traj_tresh} [m]\n"
             f" Spline boundary mindist: {self.spline_bound_mindist} [m]\n"
+            f" Prediction span: {self.prediction_span_m} [m]\n"
             f" Lane offset: {self.lane_offset} [m]\n"
             f" Prediction timeout: {self.pred_timeout} [s]\n"
         )
@@ -413,17 +445,74 @@ class ChangeAvoidanceNode(Node):
         return converter
 
     def obstacle_preprocessing(self, obs: ObstacleArray):
-        obs.obstacles = sorted(obs.obstacles, key=lambda obs: obs.s_start)
+        """The one opponent to plan around, as a list of poses to keep clear of.
 
-        considered_obs = []
-        for obs in obs.obstacles:
-            if (obs.s_start - self.current_s) % self.scaled_max_s < self.lookahead and abs(obs.d_center - self.current_d) < self.obs_traj_tresh:
-                if obs.id == self.obs_prediction_pred.id and len(self.obs_prediction.obstacles) > 0:
-                    considered_obs.extend(self.obs_prediction.obstacles)
-                else:
-                    considered_obs.append(obs)
+        Either the nearest opponent AHEAD, or -- when the predictor is tracking
+        that same obstacle -- the near part of its predicted future.
 
-        return considered_obs
+        The previous version sorted on raw s_start (which is meaningless across
+        the s=0 seam), then walked every obstacle in the lookahead and, for each
+        one whose id matched the prediction, spliced the WHOLE prediction into
+        the list. So two cars in view meant two copies of the same 200-pose
+        prediction, and an opponent behind the ego could still be planned around
+        because "< lookahead" on a modulo is true for most of a short lap.
+        """
+        if self.current_s is None or not self.scaled_max_s:
+            self._skip_reason = "NOT_READY"
+            return []
+
+        candidates = [
+            o for o in obs.obstacles
+            if (o.s_center - self.current_s) % self.scaled_max_s < self.lookahead
+            and abs(o.d_center - self.current_d) < self.obs_traj_tresh
+        ]
+        if not candidates:
+            self._skip_reason = "NO_DYNAMIC_OBSTACLE"
+            return []
+
+        nearest = min(candidates, key=lambda o: (o.s_center - self.current_s) % self.scaled_max_s)
+
+        # Only the prediction that is actually ABOUT this obstacle may be used.
+        # Otherwise fall back to the perception pose, as before -- a mismatched id
+        # is a reason to stop trusting the future, not a reason to stop seeing the
+        # car that is there right now.
+        if nearest.id != self.obs_prediction_pred.id or len(self.obs_prediction.obstacles) == 0:
+            self._skip_reason = None
+            return [nearest]
+
+        self._skip_reason = None
+        return self._truncate_prediction(self.obs_prediction.obstacles)
+
+    def _truncate_prediction(self, predicted):
+        """Keep only the first `prediction_span_m` of the opponent's predicted future.
+
+        lane_change() requires one side to be clear at EVERY pose it is handed,
+        and it builds the avoidance path to span min(s_start)..max(s_end) of that
+        same list -- so the full 4 s prediction both demands a ~12 m clear
+        corridor and produces a ~12 m path. Truncating here rather than inside
+        lane_change() keeps the two consistent: what is checked is what is built.
+
+        Returns shallow copies. lane_change() unwraps and elongates s IN PLACE,
+        and the planner runs at 20 Hz against a predictor publishing at 10 Hz, so
+        without this the same prediction message was mutated twice and the
+        elongation compounded.
+        """
+        span = float(self.prediction_span_m)
+        if len(predicted) < 2:
+            return [copy(o) for o in predicted]
+        if span <= 0.0:
+            return [copy(o) for o in predicted]
+
+        origin = float(predicted[0].s_center)
+        kept = [
+            o for o in predicted
+            if (float(o.s_center) - origin) % self.scaled_max_s <= span
+        ]
+        # Never hand back a degenerate corridor: the pose the opponent is at now
+        # plus one is the minimum that still has a start and an end.
+        if len(kept) < 2:
+            kept = predicted[:2]
+        return [copy(o) for o in kept]
 
     def _apply_side_hysteresis(self, raw_side: str) -> str:
         if self.committed_side is None:

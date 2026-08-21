@@ -99,6 +99,25 @@ state_machine:
     # as in the original code: the ego may be slightly slower than the opponent and
     # still be allowed to set up an overtake. This is NOT a "closing" test.
     dynamic_overtake_min_rel_speed_mps: -0.5
+    # [m] Limited prediction corridor. The GP predictor emits n_time_steps * dt =
+    # 200 * 0.02 = 4 s of opponent future; at 3 m/s that is ~12 m of s. Requiring
+    # the candidate avoidance path to be clear of ALL of it means, on a 20-40 m
+    # track, that most of a lap has to be open on one side at once -- so the path
+    # was judged unsafe almost everywhere for reasons that had nothing to do with
+    # the opponent. The state machine re-decides at 50 Hz and the planner replans
+    # at 20 Hz, so only the stretch the car covers before the next decision has to
+    # hold, and the corridor extends itself as the car moves.
+    #
+    # Scope: the OT path check ONLY. The raceline and recovery blocked/free
+    # verdicts still see the whole prediction -- shortening those would delay
+    # noticing an opponent. Collision safety is not removed anywhere: every pose
+    # inside the span is still checked, and clearance is re-validated against the
+    # obstacle's current position every loop.
+    #
+    # Keep in step with the lane_change planner's own prediction_span_m (3.0), so
+    # the corridor the planner builds a path for is the one the state machine
+    # validates.
+    dynamic_prediction_span_m: 3.0
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.
