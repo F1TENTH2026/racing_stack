@@ -54,7 +54,10 @@ VescToOdom::VescToOdom(const rclcpp::NodeOptions & options)
   publish_tf_(false),
   x_(0.0),
   y_(0.0),
-  yaw_(0.0)
+  yaw_(0.0),
+  gyro_yaw_rate_(0.0),
+  have_gyro_(false),
+  last_imu_time_(0, 0, RCL_ROS_TIME)
 {
   // get ROS parameters
   odom_frame_ = declare_parameter("odom_frame", odom_frame_);
@@ -71,6 +74,39 @@ VescToOdom::VescToOdom(const rclcpp::NodeOptions & options)
       declare_parameter<double>("steering_angle_to_servo_offset");
     wheelbase_ = declare_parameter<double>("wheelbase");
   }
+
+  // WHERE THE YAW RATE COMES FROM.
+  //
+  // Leave this empty and the only source is the bicycle model in
+  // vescStateCallback: the servo COMMAND inverted through
+  // steering_angle_to_servo_gain/offset, i.e. how fast the car WOULD turn if
+  // the tyres never slipped and the servo tracked instantly. Measured against
+  // this car's gyro over a 36 s drive, that model ran 18.5% low on yaw rate
+  // and lagged the command by ~120 ms -- 723 deg of real rotation reported as
+  // 595.
+  //
+  // That error is systematic, not noise, and THIS node owns the
+  // odom -> base_link transform, so it integrates straight into the odom
+  // frame. map -> odom then has to grow without bound to cancel it, which is
+  // the odom frame visibly sliding off the map in RViz.
+  //
+  // The particle filter (pf.yaml imu_topic) and the EKFs (ekf_pf.yaml /
+  // ekf_cartographer.yaml imu0) were already moved onto the gyro; this node
+  // was the last place still modelling it, and the only one whose output is a
+  // transform. Point it at the bias-corrected topic, not the raw one --
+  // imu_bias_corrector_node removes the measured zero-rate offset that this
+  // node would otherwise integrate every cycle.
+  imu_topic_ = declare_parameter("imu_topic", std::string(""));
+  imu_timeout_ = declare_parameter("imu_timeout", 0.2);
+
+  // TWIST COVARIANCE. Upstream left this at zero (the @todo below) and zero is
+  // not "unknown" to a downstream filter -- robot_localization substitutes 1e-9
+  // (ekf.cpp) to keep the Kalman gain finite, i.e. it treats this twist as
+  // exact and snaps its state onto it. Everything fusing /vesc/odom was
+  // therefore trusting raw ERPM completely.
+  vx_variance_ = declare_parameter("vx_variance", 1.0e-2);
+  yaw_rate_variance_gyro_ = declare_parameter("yaw_rate_variance_gyro", 4.0e-4);
+  yaw_rate_variance_model_ = declare_parameter("yaw_rate_variance_model", 2.5e-1);
 
   publish_tf_ = declare_parameter("publish_tf", publish_tf_);
 
@@ -89,6 +125,13 @@ VescToOdom::VescToOdom(const rclcpp::NodeOptions & options)
   if (use_servo_cmd_) {
     servo_sub_ = create_subscription<Float64>(
       "sensors/servo_position_command", 10, std::bind(&VescToOdom::servoCmdCallback, this, _1));
+  }
+
+  if (!imu_topic_.empty()) {
+    imu_sub_ = create_subscription<Imu>(
+      imu_topic_, rclcpp::SensorDataQoS(), std::bind(&VescToOdom::imuCallback, this, _1));
+    RCLCPP_INFO(
+      get_logger(), "yaw rate from %s, not the steering command", imu_topic_.c_str());
   }
 
   // apply gain/offset changes at runtime (ros2 param set, or the vesc_calibration
@@ -136,6 +179,23 @@ void VescToOdom::vescStateCallback(const VescStateStamped::SharedPtr state)
     current_angular_velocity = current_speed * tan(current_steering_angle) / wheelbase_;
   }
 
+  // Measured beats modelled. The steering angle is still computed above
+  // because the odometry message reports it.
+  //
+  // A gyro that has gone quiet falls back to the model rather than freezing:
+  // holding the last yaw rate and integrating it at the 50 Hz state rate would
+  // send odom away faster than the bias this subscription exists to remove.
+  const bool gyro_fresh = have_gyro_ &&
+    (now() - last_imu_time_).seconds() < imu_timeout_;
+  if (gyro_fresh) {
+    current_angular_velocity = gyro_yaw_rate_;
+  } else if (have_gyro_) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "%s stale for more than %.2f s; yaw rate back on the steering command",
+      imu_topic_.c_str(), imu_timeout_);
+  }
+
   // use current state as last state if this is our first time here
   if (!last_state_) {
     last_state_ = state;
@@ -151,7 +211,7 @@ void VescToOdom::vescStateCallback(const VescStateStamped::SharedPtr state)
   double y_dot = current_speed * sin(yaw_);
   x_ += x_dot * dt.seconds();
   y_ += y_dot * dt.seconds();
-  if (use_servo_cmd_) {
+  if (use_servo_cmd_ || gyro_fresh) {
     yaw_ += current_angular_velocity * dt.seconds();
   }
 
@@ -183,8 +243,14 @@ void VescToOdom::vescStateCallback(const VescStateStamped::SharedPtr state)
   odom.twist.twist.linear.y = 0.0;
   odom.twist.twist.angular.z = current_angular_velocity;
 
-  // Velocity uncertainty
-  /** @todo Think about velocity uncertainty */
+  // Velocity uncertainty. Diagonal only -- vx comes from ERPM and the yaw rate
+  // from a different sensor entirely, so there is no cross term to claim.
+  // The yaw-rate entry follows the SOURCE: the measured gyro is worth far more
+  // than the servo-command model it falls back to, and saying so here is what
+  // lets a consumer degrade gracefully instead of inheriting the model's bias.
+  odom.twist.covariance[0] = vx_variance_;    ///< vx
+  odom.twist.covariance[35] =                 ///< vyaw
+    gyro_fresh ? yaw_rate_variance_gyro_ : yaw_rate_variance_model_;
 
   if (publish_tf_) {
     TransformStamped tf;
@@ -209,6 +275,18 @@ void VescToOdom::vescStateCallback(const VescStateStamped::SharedPtr state)
 void VescToOdom::servoCmdCallback(const Float64::SharedPtr servo)
 {
   last_servo_cmd_ = servo;
+}
+
+void VescToOdom::imuCallback(const Imu::SharedPtr imu)
+{
+  // No transform needed. The gyro's z axis IS the car's yaw axis whatever the
+  // mounting yaw is -- a rotation about z cannot move z -- and
+  // CAR/static_transforms.yaml describes this mounting as yaw only.
+  gyro_yaw_rate_ = imu->angular_velocity.z;
+  // Arrival time, not the header stamp: staleness here means "the samples
+  // stopped coming", which is a wall-clock question.
+  last_imu_time_ = now();
+  have_gyro_ = true;
 }
 
 }  // namespace vesc_ackermann

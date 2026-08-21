@@ -24,7 +24,12 @@ particle_filter:
     # which on this car is the servo COMMAND run through a bicycle model
     # rather than a measurement - see imuCB in particle_filter.py. Set back to
     # '' to A/B against the odom twist.
-    imu_topic: '/vesc/sensors/imu'
+    #
+    # The _corrected topic (imu_bias_corrector, started by
+    # localization.launch.xml) has the measured zero-rate offset removed. The
+    # PF has no bias estimator of its own, so pointing this at the raw topic
+    # feeds a constant into every motion step.
+    imu_topic: '/vesc/sensors/imu_corrected'
 
     publish_tf: false
     map_frame: 'map'

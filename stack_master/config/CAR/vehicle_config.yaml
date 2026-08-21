@@ -12,8 +12,8 @@ urg_node:
     # widens what pf sees for localization. detect stays narrowed to the old
     # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
     # instead of at the driver, so raising this doesn't change what it detects.
-    angle_max: 1.8
-    angle_min: -1.8
+    angle_max: 3.14
+    angle_min: -3.14
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"
@@ -46,7 +46,7 @@ vesc/**:
     servo_min: 0.0
     speed_max: 23250.0
     speed_min: -23250.0
-    speed_to_erpm_gain: 4614.0 # 초기값 4614.0
+    speed_to_erpm_gain: 4614.0 #4577.5 # 초기값 4614.0 켈리브 후 수정
     speed_to_erpm_offset: 0.0
     brake_control_enabled: true
     brake_current_max: 30.0         # 이전 값 10.0 (kHardBrakeCurrentLimit도 30으로 상향)
@@ -61,10 +61,75 @@ vesc/**:
     brake_release_speed_error: 0.05
     brake_release_speed: 0.15
     brake_odom_timeout: 0.2
-    steering_angle_to_servo_gain: -1.2135 # 좌우 반전(-)
+    steering_angle_to_servo_gain: -0.99 #-1.2216 #-1.2135 좌우 반전(-) 캘리브 후 수정함.
     steering_angle_to_servo_offset: 0.4870 # 초기값 0.5304 (음수 = 오른쪽, 양수 = 왼쪽)
     use_servo_cmd_to_calc_angular_velocity: true
 
+    # vesc_to_odom's yaw rate. Empty leaves the servo-COMMAND bicycle model in
+    # charge (v*tan(delta)/L), which measured 18.5% low and ~120 ms late on
+    # this car -- and vesc_to_odom owns odom->base_link, so that error went
+    # straight into the odom frame and map->odom had to grow without bound to
+    # cancel it. The pf (pf.yaml) and the EKFs (ekf_*.yaml) were already on the
+    # gyro; this node was the last one modelling it.
+    #
+    # _corrected, not the raw topic: imu_bias_corrector_node (started by
+    # localization.launch.xml and mapping.launch.xml) removes the measured
+    # zero-rate offset above, which this node would otherwise integrate every
+    # cycle. Set to '' to A/B against the old bicycle model.
+    imu_topic: '/vesc/sensors/imu_corrected'
+    # [s] Age past which a gyro sample is dropped and the bicycle model takes
+    # back over. Matches brake_odom_timeout; the IMU runs at 100 Hz
+    # (vesc_driver's 10 ms timer), so 0.2 s is 20 missed samples.
+    imu_timeout: 0.2
+
+    # /vesc/odom's TWIST COVARIANCE. Upstream published zeros, and zero does not
+    # mean "unknown" downstream: robot_localization replaces a zero variance
+    # with 1e-9 (ekf.cpp) purely to keep the Kalman gain finite, so the EKF was
+    # treating raw ERPM speed as exact.
+    #
+    # vx_variance: DELIBERATELY LARGER THAN THE MEASURED NOISE. The high-frequency
+    # noise on this signal measured 3.9e-4 (sigma 0.020 m/s) over the
+    # bags/rosbag2_2026_08_21-06_07_33 laps, i.e. 26x smaller than the value here.
+    # It is not lowered to match, because that measurement is a FLOOR, not the
+    # uncertainty: vx is ERPM/speed_to_erpm_gain, so its real error is dominated
+    # by wheelspin and by the gain calibration itself, both of which are slow,
+    # systematic, and therefore invisible to a high-pass estimate. Sitting at the
+    # measured floor would tell the EKF that ERPM speed is nearly exact, which is
+    # the zero-covariance mistake again in a milder form. sigma 0.1 m/s covers the
+    # ~0.8% gain spread (0.028 m/s at 3.5 m/s) plus room for slip.
+    vx_variance: 1.0e-2
+    # MEASURED WHILE DRIVING, 2026-08-21, bags/rosbag2_2026_08_21-06_07_33
+    # (2 laps + ~20 s stopped). Matches imu_bias_corrector's gyro_variance z --
+    # keep the two in step.
+    yaw_rate_variance_gyro: 3.5e-3
+    yaw_rate_variance_model: 2.5e-1
+
 imu_bias_corrector:
   ros__parameters:
-    gyro_bias: [-0.0028153, -0.0018412, 0.0040946]  # rad/s, measured stationary
+    gyro_bias: [-0.0013704, 0.0005222, 0.0003731] #[-0.0028153, -0.0018412, 0.0040946] imu calibration 후 수정 # rad/s, measured stationary
+    # [(rad/s)^2] per axis, AFTER the bias above is removed. Only z is fused.
+    #
+    # MEASURED WHILE DRIVING -- imu_gyro_noise_check.py over
+    # bags/rosbag2_2026_08_21-06_07_33 (2 laps + ~20 s stopped, same run):
+    #
+    #     driving  (|vx| > 0.5)   3.499e-3   sigma 0.0592 rad/s  (3.39 deg/s)
+    #     stopped  (|vx| < 0.05)  1.375e-4   sigma 0.0117 rad/s  (0.67 deg/s)
+    #
+    # 25x the variance -- 5x the sigma -- once the car is actually moving. That
+    # gap is chassis vibration, and it is the whole reason a stationary
+    # measurement is the wrong tool: imu_gyro_bias_check.py would have reported
+    # the 1.4e-4 floor. Use that script for the BIAS, this one for the variance.
+    #
+    # The previous provisional value here was 4.0e-4, 8.7x too small. That is not
+    # a harmless conservatism: ekf_*.yaml gates the gyro at 5 sigma, so a sigma
+    # understated 3x turned a 5-sigma gate into a 1.7-sigma one, which rejects
+    # ~9% of samples even for clean Gaussian noise and far more with vibration's
+    # heavy tails. Rejected gyro means no yaw-rate correction, which means the
+    # EKF's covariance grows -- the magenta ellipse on /car_state/odom in RViz.
+    #
+    # x and y take the z value: only z is fused in this 2D stack, and splitting
+    # per axis would just be three noisier estimates of the same vibration.
+    # Re-measure on a new surface or after a mechanical change.
+    gyro_variance: [3.5e-3, 3.5e-3, 3.5e-3]
+    # [(m/s^2)^2] Nothing fuses accel today; declared for honesty.
+    accel_variance: [9.0e-2, 9.0e-2, 9.0e-2]

@@ -9,8 +9,7 @@
     base_link_to_laser:
       parent: base_link
       child: laser
-      xyz: [0.27, 0.0, 0.11]      # 이전 값 (롤백용으로 주석 보존)
-      #xyz: [0.0, 0.0, 0.0768]     # metres
+      xyz: [0.27, 0.0, 0.11]        #  라이다 반영!
       rpy: [0.0, 0.0, 0.0]          # roll, pitch, yaw [rad]
 
     # VESC IMU mounting, split so each quantity is specified ONCE (no redundant
@@ -27,4 +26,10 @@
       parent: vesc_imu_rot
       child: vesc_imu
       xyz: [0.0, 0.0, 0.0]
-      rpy: [0.0, 0.0, -1.5707963]    # yaw -90 deg (IMU mounted rotated about Z)
+      rpy: [0.0, 0.0, -1.5707963]    # yaw -90 deg (IMU mounted rotated about Z).
+                                     # A mounting rotation about Z leaves gyro.z
+                                     # and accel.z untouched, so in this 2D stack
+                                     # the sign here is inert -- only roll/pitch
+                                     # (gravity alignment) and the translation
+                                     # above change any result. Verify roll/pitch
+                                     # with scripts/imu_mount_calibration.py.

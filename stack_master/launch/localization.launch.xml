@@ -45,6 +45,19 @@
        deliver reliably across machine boundaries. This relay re-publishes every 3 s. -->
   <node pkg="stack_master" exec="map_relay_node.py" name="map_relay_node" output="screen"/>
 
+  <!-- Remove the measured zero-rate gyro offset before anything integrates it.
+       mapping.launch.xml has always done this; localization did not, so
+       cartographer and the PF were reading the RAW topic and re-integrating the
+       offset that vehicle_config.yaml already measures. Republishes
+       /vesc/sensors/imu -> /vesc/sensors/imu_corrected, which is what the
+       cartographer remap below, pf.yaml, and the EKFs' imu0 all subscribe to.
+       Runs for every localization mode; kiss ignores it and estimates its own
+       gyro bias at startup (kiss.yaml: imu_init_samples). -->
+  <node pkg="stack_master" exec="imu_bias_corrector_node.py"
+        name="imu_bias_corrector" output="screen">
+    <param from="$(var vehicle_config)"/>
+  </node>
+
   <!-- Map server: always launched in localization mode (all algorithms need the map).
        cartographer occupancy grid is remapped to /map_carto to avoid conflict with this. -->
   <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager"
@@ -68,7 +81,7 @@
     <node pkg="cartographer_ros" exec="cartographer_node" name="cartographer_node" output="screen"
           args="-configuration_directory $(var cartographer_config_dir) -configuration_basename $(var lua_file) -load_state_filename $(var pbstream_file) -collect_metrics">
       <param name="use_sim_time" value="false"/>
-      <remap from="/imu" to="/vesc/sensors/imu"/>
+      <remap from="/imu" to="/vesc/sensors/imu_corrected"/>
       <remap from="/odom" to="/vesc/odom"/>
     </node>
 

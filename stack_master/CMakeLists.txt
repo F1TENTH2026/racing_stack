@@ -44,6 +44,7 @@ install(PROGRAMS
   scripts/vesc_calibration_node.py
   scripts/imu_mount_calibration.py
   scripts/imu_gyro_bias_check.py
+  scripts/imu_gyro_noise_check.py
   scripts/imu_bias_corrector_node.py
   scripts/make_pgm_for_kiss.py
   scripts/race_phase_speed_node.py
