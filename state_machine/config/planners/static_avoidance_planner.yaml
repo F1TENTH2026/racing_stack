@@ -19,7 +19,7 @@ min_horizon: 0.0
 # breaks the invariant above and brings back "stuck in TRAILING/GB_TRACK on a
 # static obstacle beyond path end". Lower this to track_length/3 on those maps.
 max_horizon: 10.0
-lateral_width_m: 0.1 
+lateral_width_m: 0.155 
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the
 # OVERTAKE *entry* gate (_static_path_available()). 0.25 s was tuned for sim, where
