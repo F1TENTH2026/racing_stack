@@ -71,7 +71,7 @@ lateral_width_m: 0.18
 # Do NOT raise this toward the static planner's 1.5 s. That value is safe only
 # because a static obstacle does not move; a moving opponent's avoidance path
 # really does go stale, and this file is the dynamic one.
-latest_threshold: 0.25
+latest_threshold: 0.3
 max_horizon: 10.0
 min_horizon: 0.0
 on_spline_front_horizon_thres_m: 2.0
