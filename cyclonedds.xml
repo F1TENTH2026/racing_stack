@@ -22,31 +22,7 @@
             <AllowMulticast>spdp</AllowMulticast>
         </General>
         <Discovery>
-            <!-- 'none'은 유니캐스트 포트가 임의값이 되어 아래 Peers가 찾아갈 수
-                 없다. 'auto'는 포트를 participant index로 결정적으로 만들어
-                 피어가 계산해서 찔러볼 수 있게 한다. -->
-            <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>4</MaxAutoParticipantIndex>
-            <!-- 아이폰 개인용 핫스팟(172.20.10.0/28)은 클라이언트 간 멀티캐스트를
-                 전달하지 않는다. ping/SSH(유니캐스트)는 되는데 SPDP(멀티캐스트)만
-                 죽어서 pitwall과 차량이 서로를 못 본다. 유니캐스트 피어를 명시해
-                 우회한다. 멀티캐스트가 정상인 공유기에서는 이 목록이 있어도
-                 무해하다(양쪽 경로를 다 쓴다). 핫스팟 대역이 바뀌면 여기도 수정. -->
-            <Peers>
-                <Peer address="172.20.10.2"/>
-                <Peer address="172.20.10.3"/>
-                <Peer address="172.20.10.4"/>
-                <Peer address="172.20.10.5"/>
-                <Peer address="172.20.10.6"/>
-                <Peer address="172.20.10.7"/>
-                <Peer address="172.20.10.8"/>
-                <Peer address="172.20.10.9"/>
-                <Peer address="172.20.10.10"/>
-                <Peer address="172.20.10.11"/>
-                <Peer address="172.20.10.12"/>
-                <Peer address="172.20.10.13"/>
-                <Peer address="172.20.10.14"/>
-            </Peers>
+            <ParticipantIndex>none</ParticipantIndex>
         </Discovery>
         <Internal>
             <!-- OS 기본값(보통 208 KB)은 40 Hz x 8.5 KB의 /scan에 마커까지
