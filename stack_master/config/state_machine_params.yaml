@@ -151,6 +151,21 @@ state_machine:
     # The 2026-08-22 rear-end this all exists for still qualifies: last seen
     # 5.42 m ahead, gone 2.6 s, previous OVERTAKE 8.4 s earlier.
     overtake_pass_grace_sec: 2.0
+    # [m] Floor on the half-width used for a DYNAMIC obstacle.
+    #
+    # A dynamic obstacle is a known object -- another RoboRacer, 0.30 m wide.
+    # Perception's fitted rectangle is not: over 172 dynamic observations in
+    # state_machine_20260822_091939.log the size ranged 0.16-0.56 m and 37 % came
+    # in NARROWER than the real car. Each of those frames gave away clearance,
+    # and the bias runs the wrong way -- an overtake commits on whichever frame
+    # passes the check, so a frame where the opponent looks narrow is exactly the
+    # one that authorises the pass. The car kept clipping the opponent's wheel.
+    #
+    # With this floor, lateral_width_m in dynamic_avoidance_planner.yaml becomes
+    # exactly the edge-to-edge clearance in metres. Static obstacles are not
+    # affected -- their size genuinely varies and the static branch of
+    # _check_free_frenet does not use this at all.
+    dynamic_obstacle_min_half_width_m: 0.15
     # Multiplier on the AVOIDANCE path's velocity profile.
     #
     # The sector tuner scales the raceline (speed_scaling.yaml, 1.05-1.2 on

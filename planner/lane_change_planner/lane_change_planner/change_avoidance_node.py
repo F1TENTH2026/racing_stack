@@ -186,7 +186,19 @@ class ChangeAvoidanceNode(Node):
 
         # Symmetric lane perturbation (centerline +/- lane_offset -> outer/inner lanes).
         # Adjustable live via rqt: changing it regenerates the two lanes.
-        self.lane_offset = 0.35
+        # 0.35 -> 0.45. This is how far the evasion path is displaced from the
+        # centreline, i.e. how wide a berth the car actually gives the opponent.
+        #
+        # It has to move with lateral_width_m: the state machine now requires
+        # 0.15 + 0.145 + 0.18 = 0.475 m between the path and the opponent, and a
+        # path that can only offset 0.35 m could never satisfy it. Raised so the
+        # geometry can deliver the margin the safety check asks for.
+        #
+        # Where the track is too narrow for it the GridFilter rejects the samples
+        # and the planner reports PATH_OUTSIDE_MAP instead of publishing -- which
+        # is the correct answer there. Expect that count to rise; passes should
+        # concentrate in the wide sections and the corner exits.
+        self.lane_offset = 0.45
 
         # Require fresh GP prediction before overtaking. Without it we only trail.
         # Prediction is considered stale if the latest prediction msg is older than this.

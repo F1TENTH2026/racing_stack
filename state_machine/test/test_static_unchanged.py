@@ -96,13 +96,12 @@ class FakeSM:
         self.obstacles_prediction = list(predictions)
         self.obstacles_prediction_id = pred_id
         self.pars = {"veh_params": {"length": 0.5}}
+        self.dynamic_obstacle_min_half_width_m = 0.15
 
     def get_logger(self):
         return _Logger()
 
-    # staticmethod() so binding it onto the stub does not turn it back into
-    # an instance method (it is declared @staticmethod on the real class).
-    _obs_lateral_half_width = staticmethod(StateMachine._obs_lateral_half_width)
+    _obs_lateral_half_width = StateMachine._obs_lateral_half_width
     _prediction_span_end_idx = StateMachine._prediction_span_end_idx
     _check_free_frenet = StateMachine._check_free_frenet
 

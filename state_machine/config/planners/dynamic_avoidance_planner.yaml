@@ -33,7 +33,25 @@ killing_timer_sec: 10.0
 # STATIC avoidance is unaffected: static_avoidance_planner.yaml keeps its own
 # lateral_width_m (0.155) and the static branch of _check_free_frenet uses
 # obs.size, not the predictor's d bounds.
-lateral_width_m: 0.1
+# 0.2 -> 0.1 -> 0.18.
+#
+# With dynamic_obstacle_min_half_width_m flooring the opponent at its real
+# half-width, this value IS the edge-to-edge gap between the two cars, in metres:
+#
+#   required |path_d - opponent_d| = 0.15 (opponent) + 0.145 (ego) + this
+#   edge-to-edge at the threshold  = this
+#
+# 0.1 was set when the opponent was modelled 0.25 m wide and the arithmetic did
+# not close; in practice, with perception reading the opponent as narrow as
+# 0.16 m, the real gap fell to about 0.03 m and the car rode over the opponent's
+# wheel. 0.18 is a gap you can see.
+#
+# COST: required separation goes 0.395 -> 0.475 m, against a planner that can
+# displace the path by lane_offset (raised to 0.45 in the same change). Overtakes
+# will only happen where the track is actually wide enough for two cars plus
+# 18 cm, which on 0820test1 (0.96 m at the narrowest, 1.63 m mean) is the wider
+# half of the lap. That is the intended trade: fewer passes, no contact.
+lateral_width_m: 0.18
 # [s] How old a /planner/avoidance/otwpnts message may be and still count as
 # fresh (_check_latest_wpnts -> the OVERTAKE entry gate).
 #

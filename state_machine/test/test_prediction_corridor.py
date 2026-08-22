@@ -18,10 +18,21 @@ class Pred:
 
 
 class Obs:
-    def __init__(self, d_left, d_right, size):
+    def __init__(self, d_left, d_right, size, is_static=True):
         self.d_left = d_left
         self.d_right = d_right
         self.size = size
+        # Default static: these cases pin the raw measurement, with no floor.
+        self.is_static = is_static
+
+
+class WidthSM:
+    """Only what _obs_lateral_half_width reads."""
+
+    def __init__(self, floor=0.15):
+        self.dynamic_obstacle_min_half_width_m = floor
+
+    _obs_lateral_half_width = StateMachine._obs_lateral_half_width
 
 
 class FakeSM:
@@ -93,16 +104,34 @@ def test_uninitialised_track_length_disables_the_cap():
 
 def test_lateral_width_prefers_the_frenet_bounds():
     """A long cluster: bounding circle 1.2 m wide, real lateral extent 0.5 m."""
-    assert StateMachine._obs_lateral_half_width(Obs(0.25, -0.25, 1.2)) == pytest.approx(0.25)
+    assert WidthSM()._obs_lateral_half_width(Obs(0.25, -0.25, 1.2)) == pytest.approx(0.25)
 
 
 def test_lateral_width_falls_back_to_size():
     """Degenerate or unset d bounds -> the old size-based number, unchanged."""
-    assert StateMachine._obs_lateral_half_width(Obs(0.0, 0.0, 0.6)) == pytest.approx(0.3)
+    assert WidthSM()._obs_lateral_half_width(Obs(0.0, 0.0, 0.6)) == pytest.approx(0.3)
 
 
 def test_lateral_width_matches_size_for_perception_obstacles():
     """detect.cpp fills d_left/d_right FROM size, so nothing changes for those."""
     size = 0.5
     obs = Obs(0.1 + size / 2, 0.1 - size / 2, size)
-    assert StateMachine._obs_lateral_half_width(obs) == pytest.approx(size / 2)
+    assert WidthSM()._obs_lateral_half_width(obs) == pytest.approx(size / 2)
+
+
+def test_dynamic_obstacle_half_width_is_floored():
+    """Perception read the opponent as 0.16 m wide; it is really 0.30 m."""
+    narrow = Obs(0.08, -0.08, 0.16, is_static=False)
+    assert WidthSM()._obs_lateral_half_width(narrow) == pytest.approx(0.15)
+
+
+def test_a_wider_dynamic_reading_is_still_believed():
+    """The floor only raises an under-reading; it never shrinks a real one."""
+    wide = Obs(0.28, -0.28, 0.56, is_static=False)
+    assert WidthSM()._obs_lateral_half_width(wide) == pytest.approx(0.28)
+
+
+def test_static_obstacles_are_not_floored():
+    """A genuinely small static obstacle keeps its measured size."""
+    small = Obs(0.08, -0.08, 0.16, is_static=True)
+    assert WidthSM()._obs_lateral_half_width(small) == pytest.approx(0.08)

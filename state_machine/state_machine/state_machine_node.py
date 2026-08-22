@@ -324,6 +324,7 @@ class StateMachine(Node):
         self._last_overtake_sec = None
         self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
         self.overtake_pass_grace_sec = self.params.overtake_pass_grace_sec
+        self.dynamic_obstacle_min_half_width_m = self.params.dynamic_obstacle_min_half_width_m
         self.overtake_speed_scale = self.params.overtake_speed_scale
 
         # spliner variables
@@ -921,8 +922,7 @@ class StateMachine(Node):
         self.ot_section_check_pub.publish(Bool(data=False))
         return False
 
-    @staticmethod
-    def _obs_lateral_half_width(obs) -> float:
+    def _obs_lateral_half_width(self, obs) -> float:
         """Half the obstacle's LATERAL extent, in Frenet d.
 
         Prefers |d_left - d_right| / 2 over size / 2, so an elongated cluster
@@ -939,9 +939,34 @@ class StateMachine(Node):
         from the bounding circle.
         """
         width = abs(float(obs.d_left) - float(obs.d_right))
-        if np.isfinite(width) and width > 1e-3:
-            return 0.5 * width
-        return 0.5 * float(obs.size)
+        half = 0.5 * width if (np.isfinite(width) and width > 1e-3) else 0.5 * float(obs.size)
+
+        if not obs.is_static:
+            # A DYNAMIC obstacle is a known object: another RoboRacer, 0.30 m
+            # wide. Perception's fitted rectangle is not -- over 172 dynamic
+            # observations in state_machine_20260822_091939.log the size ranged
+            # 0.16 to 0.56 m, and 37 % of them came in NARROWER than the real
+            # car. Every one of those frames silently gave away clearance:
+            #
+            #   real edge-to-edge = half - 0.15 + lateral_width_m
+            #       half 0.18 (median) -> 0.13 m
+            #       half 0.15          -> 0.10 m
+            #       half 0.08 (min)    -> 0.03 m   <- contact
+            #
+            # And the bias runs the wrong way: an overtake commits on whichever
+            # frame passes the check, so the frames where the opponent happens to
+            # look narrow are exactly the ones that authorise the pass. The car
+            # kept clipping the opponent's wheel.
+            #
+            # Floor it at the real half-width. Only the measurement is floored --
+            # a genuinely wider reading is still believed. With the floor,
+            # lateral_width_m becomes exactly the edge-to-edge clearance in
+            # metres, which is what it always read as.
+            #
+            # STATIC obstacles are deliberately untouched: their size really does
+            # vary and the static branch does not call this at all.
+            half = max(half, float(self.dynamic_obstacle_min_half_width_m))
+        return half
 
     def _nearest_dynamic_opponent_ahead(self, threshold_m):
         """The closest NON-static obstacle ahead of the ego, within `threshold_m`.

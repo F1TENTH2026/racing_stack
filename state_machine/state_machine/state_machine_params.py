@@ -44,6 +44,7 @@ class StateMachineParams:
         "dynamic_prediction_span_m",
         "dynamic_opponent_memory_sec",
         "overtake_pass_grace_sec",
+        "dynamic_obstacle_min_half_width_m",
         "overtake_speed_scale",
     }
 
@@ -390,6 +391,23 @@ class StateMachineParams:
             ),
         )
         self.overtake_pass_grace_sec: float = node.get_parameter("overtake_pass_grace_sec").value
+
+        self._declare(
+            "dynamic_obstacle_min_half_width_m", 0.15,
+            ParameterDescriptor(
+                description=(
+                    "Floor on the half-width used for a DYNAMIC obstacle [m]. "
+                    "Perception's fitted size varies 0.16-0.56 m for a car that "
+                    "is really 0.30 m wide; without a floor, the frames where it "
+                    "reads narrow are the ones that authorise a pass. Static "
+                    "obstacles are unaffected."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=0.5, step=0.005)],
+            ),
+        )
+        self.dynamic_obstacle_min_half_width_m: float = node.get_parameter(
+            "dynamic_obstacle_min_half_width_m").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not
