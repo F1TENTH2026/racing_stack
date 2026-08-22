@@ -321,7 +321,9 @@ class StateMachine(Node):
         self._last_dyn_seen_sec = None
         self._last_dyn_gap_m = None
         self._last_dyn_id = None
+        self._last_overtake_sec = None
         self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
+        self.overtake_pass_grace_sec = self.params.overtake_pass_grace_sec
         self.overtake_speed_scale = self.params.overtake_speed_scale
 
         # spliner variables
@@ -1495,6 +1497,9 @@ class StateMachine(Node):
         worse than no estimate: this only says "something was ahead recently, do
         not run the raceline flat out yet".
         """
+        if self.cur_state == StateType.OVERTAKE:
+            self._last_overtake_sec = self.now_sec()
+
         nearest_gap = None
         nearest_id = None
         for obs in self.cur_obstacles_in_interest:
@@ -1513,8 +1518,33 @@ class StateMachine(Node):
             self._last_dyn_id = nearest_id
 
     def _opponent_memory_active(self) -> bool:
-        """True while a recently-lost opponent should still hold the speed down."""
+        """True while a recently-lost opponent should still hold the speed down.
+
+        Two exclusions, both learned from state_machine_20260822_091939.log, the
+        first run in which the hold actually worked. Of 136 holds, only ~17 were
+        the case this exists for:
+
+          84 fired with state=OVERTAKE, capping the car to 3.63 m/s against a
+             7.29 m/s raceline WHILE IT WAS PASSING. An opponent drawing level
+             leaves the ahead-window, which reads identically to losing it.
+          35 more fired within 2 s of leaving OVERTAKE, last seen 1.38 m ahead
+             (median) -- i.e. a car we had just successfully passed.
+
+        So: never hold while OVERTAKE is in progress -- there the committed
+        avoidance path plus the per-loop _check_free_frenet re-validation is the
+        guard, and braking mid-pass is the opposite of safe. And never hold for
+        overtake_pass_grace_sec after leaving OVERTAKE, because a car that
+        vanishes right after a pass is behind us.
+
+        The 2026-08-22 rear-end still qualifies: last seen 5.42 m ahead, gone for
+        2.6 s, and the previous OVERTAKE had ended 8.4 s earlier.
+        """
         if self._last_dyn_seen_sec is None or self.dynamic_opponent_memory_sec <= 0.0:
+            return False
+        if self.cur_state == StateType.OVERTAKE:
+            return False
+        if (self._last_overtake_sec is not None
+                and self.now_sec() - self._last_overtake_sec < self.overtake_pass_grace_sec):
             return False
         if len(self.cur_obstacles_in_interest) != 0:
             # Something is visible right now; the normal paths handle it.

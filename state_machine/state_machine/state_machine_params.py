@@ -43,6 +43,7 @@ class StateMachineParams:
         "dynamic_overtake_min_rel_speed_mps",
         "dynamic_prediction_span_m",
         "dynamic_opponent_memory_sec",
+        "overtake_pass_grace_sec",
         "overtake_speed_scale",
     }
 
@@ -375,6 +376,20 @@ class StateMachineParams:
             ),
         )
         self.overtake_speed_scale: float = node.get_parameter("overtake_speed_scale").value
+
+        self._declare(
+            "overtake_pass_grace_sec", 2.0,
+            ParameterDescriptor(
+                description=(
+                    "After leaving OVERTAKE, suppress the lost-opponent speed "
+                    "hold for this long [s]. A car that disappears right after a "
+                    "pass is behind us, not lost. 0 disables the suppression."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=10.0, step=0.1)],
+            ),
+        )
+        self.overtake_pass_grace_sec: float = node.get_parameter("overtake_pass_grace_sec").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not

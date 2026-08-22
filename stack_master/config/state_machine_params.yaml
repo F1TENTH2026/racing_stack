@@ -139,6 +139,18 @@ state_machine:
     # too expensive, but understand that is the trade being made. 0 disables the
     # memory entirely and restores the old behaviour.
     dynamic_opponent_memory_sec: 3.0
+    # [s] After leaving OVERTAKE, suppress the lost-opponent hold for this long.
+    #
+    # In state_machine_20260822_091939.log -- the first run where the hold
+    # actually worked -- only ~17 of its 136 activations were the case it exists
+    # for. 84 fired with state=OVERTAKE (capping to 3.63 m/s against a 7.29 m/s
+    # raceline WHILE PASSING: an opponent drawing level leaves the ahead-window
+    # and reads exactly like losing it), and 35 more fired within 2 s of leaving
+    # OVERTAKE, last seen a median of 1.38 m ahead -- cars we had just passed.
+    #
+    # The 2026-08-22 rear-end this all exists for still qualifies: last seen
+    # 5.42 m ahead, gone 2.6 s, previous OVERTAKE 8.4 s earlier.
+    overtake_pass_grace_sec: 2.0
     # Multiplier on the AVOIDANCE path's velocity profile.
     #
     # The sector tuner scales the raceline (speed_scaling.yaml, 1.05-1.2 on

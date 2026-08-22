@@ -29,7 +29,7 @@
        description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
   <arg name="vis_lane_change" default="false"
        description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
-  <arg name="gp_predictor" default="false"
+  <arg name="gp_predictor" default="true"
        description="Run the 3 GP opponent-trajectory prediction nodes (~0.6 core on the Jetson). Needed ONLY for head-to-head: with no opponent there is nothing to predict. Pass gp_predictor:=true when racing an opponent."/>
   <arg name="debug" default="false"
        description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>

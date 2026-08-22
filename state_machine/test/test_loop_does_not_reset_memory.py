@@ -20,6 +20,7 @@ PERSISTENT = {
     "_last_dyn_seen_sec",
     "_last_dyn_gap_m",
     "_last_dyn_id",
+    "_last_overtake_sec",
 }
 
 
