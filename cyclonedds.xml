@@ -26,7 +26,13 @@
                  없다. 'auto'는 포트를 participant index로 결정적으로 만들어
                  피어가 계산해서 찔러볼 수 있게 한다. -->
             <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>4</MaxAutoParticipantIndex>
+            <!-- 인덱스 하나 = participant 하나 = 노드 하나. 4로 두면 한 호스트에
+                 노드 5개(0~4)가 한계라, raceline_generator(노드 5개 + ros2 daemon +
+                 launch_ros 노드)처럼 조금만 큰 launch는 "Failed to find a free
+                 participant index"로 죽는다. 올리면 아래 Peers 탐색이
+                 peers x (index+1) 유니캐스트 SPDP로 늘어나지만(13 x 33 ≈ 5 KB/s),
+                 30초 주기 소형 패킷이라 주행 대역폭에는 영향이 없다. -->
+            <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
             <!-- 아이폰 개인용 핫스팟(172.20.10.0/28)은 클라이언트 간 멀티캐스트를
                  전달하지 않는다. ping/SSH(유니캐스트)는 되는데 SPDP(멀티캐스트)만
                  죽어서 pitwall과 차량이 서로를 못 본다. 유니캐스트 피어를 명시해
