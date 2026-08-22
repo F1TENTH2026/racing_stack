@@ -75,7 +75,7 @@
   <arg name="virtual"    default="$(var sim)" description="Inject virtual (static) obstacles for testing; on by default in sim, off on the real car"/>
   <arg name="speed_scale" default="0.8"
        description="Flat scaling (0.0-2.0) used over the WHOLE lap for the first fast_after_laps laps, sectors ignored: 장애물 없는 첫 3바퀴 + 정적 장애물 3바퀴 구간용. After the switch it is gone -- the map's speed_scaling.yaml drives on its own."/>
-  <arg name="fast_after_laps" default="7"
+  <arg name="fast_after_laps" default="9"
        description="Completed laps (lap_analyser /lap_data) after which the flat speed_scale gives way to the map's speed_scaling.yaml. 예선 3+3바퀴에 어택 초반 여유분을 더한 값."/>
   <arg name="auto_speed_up" default="true"
        description="Run the lap-counting flat -> sector switch. false 면 처음부터 맵의 speed_scaling.yaml 로 달리고 전환은 ros2 param set 으로 직접 한다."/>
