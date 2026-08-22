@@ -1425,3 +1425,6 @@
 [urg_node_driver-4] 1787382148.358185 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
 [urg_node_driver-4] 1787382148.358193 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
 [INFO] [urg_node_driver-4]: process has finished cleanly [pid 15765]
+[INFO] [launch]: All log files can be found below /home/fcsl/.ros/log/2026-08-22-16-07-58-933140-ubuntu-18205
+[INFO] [launch]: Default logging verbosity is set to INFO
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
