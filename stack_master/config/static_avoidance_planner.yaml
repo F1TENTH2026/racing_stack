@@ -11,7 +11,7 @@
 # state_machine/config/planners/global_tracking.yaml and
 # stack_master/config/state_machine_params.yaml:
 #
-#   min_free_dist_m       >= static_avoidance_planner.lateral_width_m  (0.12)
+#   min_free_dist_m       >= static_avoidance_planner.lateral_width_m  (0.09)
 #   0.295 <= raceline_clearance_m <= evasion_distance
 #   min_path_end_m        >= static_avoidance_planner.max_horizon      (10.0)
 #                             ... and mind the short-track caveat on min_path_end_m
@@ -41,12 +41,34 @@
 # max(scale * evasion_distance, min_evasion_m), and
 #
 #   min_evasion_m = ego_width_m/2 + max(min_free_dist_m, 0.025)
-#                 = 0.145 + 0.160 = 0.305      <-- the hard floor, no rung goes under
-#   rung 0/1 (scale 1.0) : max(0.350, 0.305) = 0.350
-#   rung 2/3 (scale 0.7 / 0.0) : max(0.245, 0.305) = 0.305
+#                 = 0.145 + 0.130 = 0.275      <-- the hard floor, no rung goes under
+#   rung 0/1 (scale 1.0) : max(0.350, 0.275) = 0.350
+#   rung 2/3 (scale 0.7 / 0.0) : max(0.245, 0.275) = 0.275
 #
-# so the corridor needed beyond the obstacle's edge is 0.350 + 0.200 = 0.550 m
-# at rung 0 and 0.305 + 0.200 = 0.505 m at the floor.
+# so the corridor needed beyond the obstacle's edge is 0.350 + 0.240 = 0.590 m
+# at rung 0 and 0.275 + 0.240 = 0.515 m at the floor.
+#
+# WHERE THE MARGIN IS SPENT (2026-08-22 evening, wall-scraping fix). The budget
+# has two consumers -- the obstacle (min_free_dist_m) and the wall
+# (boundary_margin) -- and they trade against each other one for one. The first
+# tuning pass put 0.160 on a cone whose measured `size` swings 0.34 m frame to
+# frame and 0.200 on a wall that is surveyed and does not move, which left the
+# car 0.055 m from the wall and scraping it. Replaying the 162 published paths
+# of logfile/static_avoidance_20260822_182649.log against the real
+# global_waypoints.json track bounds gives the trade explicitly (avoidance
+# success rate / resulting wall gap):
+#
+#   min_free_dist_m ->      0.10    0.12    0.13    0.14    0.16   wall gap
+#   boundary_margin 0.20   95.1%   93.2%   93.2%   92.6%   88.3%    5.5 cm
+#   boundary_margin 0.22   93.2%   92.6%   90.1%   88.3%   80.9%    7.5 cm
+#   boundary_margin 0.24   92.6%   88.3%   87.7%   80.9%   72.2%    9.5 cm
+#   boundary_margin 0.26   88.3%   80.9%   74.7%   72.2%   66.0%   11.5 cm
+#
+# 0.13 / 0.24 keeps 87.7 % against the old 88.3 % -- statistically the same
+# avoidance rate -- while the wall gap goes 5.5 -> 9.5 cm. Raising
+# boundary_margin ALONE costs about 4 points of avoidance per centimetre
+# (88.3 -> 80.9 -> 72.2 down that 0.16 column); moving the centimetre off the
+# obstacle instead costs nothing measurable.
 #
 # CONSEQUENCE, and the reason evasion_distance went 0.30 -> 0.35: min_evasion_m
 # is set by min_free_dist_m, NOT by evasion_distance. At 0.30 the floor (0.305)
@@ -254,22 +276,33 @@ static_avoidance_planner:
     min_apex_lead_m: 0.5
 
     # ===== safety ======================================================
-    # [m] How close the path's CENTRELINE may come to the track edge. Not
-    # reducible below the car's half width (0.145): at 0.20 the car passes
-    # 5.5 cm from the wall, which is about what localisation error is worth.
+    # [m] How close the path's CENTRELINE may come to the track edge. The number
+    # that matters is this minus the car's half width: 0.24 - 0.145 = 9.5 cm of
+    # air between the bodywork and the wall, which is what localisation error
+    # plus pure-pursuit tracking error is worth on this car.
     #
-    # 0.24 -> 0.20. This is the second half of the same 5 mm shortfall described
-    # under evasion_distance: _clamp_to_track pulls the apex back to
-    # (gb_d_left - boundary_margin), and if that clamp eats into the obstacle
-    # clearance the candidate is rejected as track_too_narrow. In
-    # logfile/static_avoidance_20260822_173631.log the split is exact --
-    # left_clearance <= 0.25 always failed, >= 0.29 always succeeded, and 0.24 was
-    # the boundary_margin then in force.
+    # 0.24 -> 0.20 -> 0.24. Dropped to 0.20 to make avoidance work at all, and
+    # that worked -- but 0.20 leaves only 5.5 cm and the car started scraping the
+    # wall. THE SCRAPE IS NOT NEXT TO THE OBSTACLE. _clamp_to_track is applied
+    # per sample against the LOCAL gb_d, while the obstacle clearance is only
+    # re-checked at the obstacle's own s, so a path can be accepted on a
+    # comfortable gap at the obstacle and still be pinned flat against the wall
+    # somewhere else in its span. logfile/static_avoidance_20260822_182649.log:
+    # of 165 published paths the chosen side's clearance was under
+    # boundary_margin on 86 of them (52 %) -- i.e. every one of those held
+    # centreline exactly boundary_margin from the edge through the narrow part of
+    # the approach or return. The narrow parts on 0822test are s=24-26 and
+    # s=28-30 m, where d_left bottoms out at 0.474 m against a 0.868 m median.
+    # At the obstacle itself the median wall gap was a comfortable 26 cm.
+    #
+    # Raising this alone is expensive (~4 points of avoidance success per cm), so
+    # it was paid for out of min_free_dist_m instead -- see the WHERE THE MARGIN
+    # IS SPENT table at the top of this file.
     #
     # Must stay ABOVE the map filter's effective erosion (see kernel_size below,
     # ~0.10-0.15 m at kernel_size 4) so the Frenet check remains the binding wall
     # constraint and the map filter stays the secondary catch it is meant to be.
-    boundary_margin: 0.2
+    boundary_margin: 0.24
 
     # [m] The car's width. Must match the state machine's gb_ego_width_m (0.29)
     # or the two disagree about what clears an obstacle.
@@ -277,15 +310,23 @@ static_avoidance_planner:
 
     # [m] Free gap required between the car's side and the obstacle's edge, on
     # the finished path. Must stay >= the state machine's
-    # static_avoidance_planner.lateral_width_m (0.12) so a path this planner
+    # static_avoidance_planner.lateral_width_m (0.09) so a path this planner
     # accepts is one the state machine accepts.
     #
     # THIS IS ALSO THE FLOOR ON evasion_distance. min_evasion_m in
-    # static_avoidance_node.py is ego_width_m/2 + max(this, 0.025) = 0.305, and no
+    # static_avoidance_node.py is ego_width_m/2 + max(this, 0.025) = 0.275, and no
     # relaxation rung plans closer than that. Raise this and you raise the
     # corridor width the planner needs everywhere -- 0.16 -> 0.20 would push the
-    # floor to 0.345 and put it back above evasion_distance, collapsing the ladder
-    # exactly as the 0.30 evasion_distance did. Kept at 0.16.
+    # floor to 0.345, back above evasion_distance, collapsing the ladder exactly
+    # as the 0.30 evasion_distance did.
+    #
+    # 0.16 -> 0.13, to buy the 4 cm of wall clearance under boundary_margin above.
+    # This only binds where the track is genuinely tight: in a wide section rung 0
+    # still plans at evasion_distance (0.35, i.e. 0.205 m of bodywork-to-cone
+    # air), and this floor is only reached once the clamp has already pulled the
+    # path in. So the car passes 13 cm from a cone in a pinch instead of 16 cm,
+    # and that 3 cm is far inside the measurement noise on the cone anyway --
+    # the wall it was traded for is surveyed and does not move.
     #
     # The agreement margin against the state machine is what was actually wrong:
     # logfile/state_machine_20260815_155720.log shows the same tracked obstacle's
@@ -295,8 +336,8 @@ static_avoidance_planner:
     # d_left = d_center + size/2), into this check, and into the state machine's
     # own re-check on a DIFFERENT frame's snapshot. 0.160 here against 0.155 there
     # left 5 mm of tolerance for a +-0.17 m measurement -- hence the state machine
-    # lateral_width_m drop to 0.12, which buys 0.04 m of it.
-    min_free_dist_m: 0.16
+    # lateral_width_m, held 0.04 m below this value (now 0.09).
+    min_free_dist_m: 0.13
 
     # [m] Path length from the car over which the boundary check is relaxed to
     # the car's own current offset. Where the car IS is a fact no path can
