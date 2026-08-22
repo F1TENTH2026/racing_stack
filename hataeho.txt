@@ -1,0 +1,1427 @@
+[INFO] [launch]: All log files can be found below /home/fcsl/.ros/log/2026-08-22-16-02-15-046198-ubuntu-15755
+[INFO] [launch]: Default logging verbosity is set to INFO
+[WARNING] [launch_ros.actions.node]: Parameter file path is not a file: /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/maps/0822test1/speed_scaling.yaml
+[WARNING] [launch_ros.actions.node]: Parameter file path is not a file: /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/maps/0822test1/ot_sectors.yaml
+[INFO] [vesc_driver_node-1]: process started with pid [15759]
+[INFO] [ackermann_to_vesc_node-2]: process started with pid [15761]
+[INFO] [vesc_to_odom_node-3]: process started with pid [15763]
+[INFO] [urg_node_driver-4]: process started with pid [15765]
+[INFO] [scan_throttle_node.py-5]: process started with pid [15767]
+[INFO] [static_tf_publisher.py-6]: process started with pid [15769]
+[INFO] [simple_mux_node.py-7]: process started with pid [15771]
+[INFO] [map_relay_node.py-8]: process started with pid [15778]
+[INFO] [imu_bias_corrector_node.py-9]: process started with pid [15783]
+[INFO] [lifecycle_manager-10]: process started with pid [15793]
+[ERROR] [lifecycle_manager-10]: process has died [pid 15793, exit code -6, cmd '/home/fcsl/miniforge3/envs/thirdimpact/lib/nav2_lifecycle_manager/lifecycle_manager --ros-args -r __node:=lifecycle_manager_localization --params-file /tmp/launch_params_j6lcpc_w --params-file /tmp/launch_params_ne4ynul0 --params-file /tmp/launch_params_7elzj287'].
+[INFO] [map_server-11]: process started with pid [15802]
+[ERROR] [map_server-11]: process has died [pid 15802, exit code -6, cmd '/home/fcsl/miniforge3/envs/thirdimpact/lib/nav2_map_server/map_server --ros-args -r __node:=map_server --params-file /tmp/launch_params_044k0_1u --params-file /tmp/launch_params_phbgwbtg --params-file /tmp/launch_params_6ajdl8hz --params-file /tmp/launch_params_wmde3751'].
+[INFO] [particle_filter-12]: process started with pid [15829]
+[INFO] [ekf_node-13]: process started with pid [15831]
+[ERROR] [ekf_node-13]: process has died [pid 15831, exit code -6, cmd '/home/fcsl/miniforge3/envs/thirdimpact/lib/robot_localization/ekf_node --ros-args -r __node:=ekf_localization --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/ekf_pf.yaml -r odometry/filtered:=/car_state/odom'].
+[INFO] [global_trajectory_publisher-14]: process started with pid [15838]
+[INFO] [sector_tuner-15]: process started with pid [15842]
+[INFO] [ot_interpolator-16]: process started with pid [15846]
+[INFO] [frenet_conversion_server_node-17]: process started with pid [15852]
+[INFO] [frenet_odom_republisher_node-18]: process started with pid [15859]
+[INFO] [lap_analyser-19]: process started with pid [15862]
+[INFO] [detect-20]: process started with pid [15864]
+[INFO] [tracking_node-21]: process started with pid [15866]
+[INFO] [state_machine-22]: process started with pid [15868]
+[INFO] [recovery_spliner_node-23]: process started with pid [15870]
+[INFO] [start_spline_node_v2-24]: process started with pid [15874]
+[INFO] [static_avoidance_node-25]: process started with pid [15876]
+[INFO] [change_avoidance_node-26]: process started with pid [15878]
+[INFO] [update_waypoints-27]: process started with pid [15880]
+[INFO] [opponent_trajectory-28]: process started with pid [15882]
+[INFO] [taskset-29]: process started with pid [15884]
+[INFO] [opp_prediction-30]: process started with pid [15886]
+[INFO] [controller_manager-31]: process started with pid [15888]
+[vesc_driver_node-1] 1787382136.940769 [1] vesc_drive: wlo1: optional interface was not found.
+[vesc_driver_node-1] 1787382136.940791 [1] vesc_drive: wlp0s20f3: optional interface was not found.
+[vesc_driver_node-1] 1787382136.940794 [1] vesc_drive: wlp9s0: optional interface was not found.
+[vesc_driver_node-1] 1787382136.940796 [1] vesc_drive: wlp67s0: optional interface was not found.
+[vesc_driver_node-1] 1787382136.949654 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949676 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949680 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949746 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949758 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949764 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949770 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949775 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949779 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949783 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949786 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949790 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949793 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949796 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949800 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949803 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949807 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949811 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949814 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949817 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949820 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949823 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949826 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949830 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949833 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949836 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949839 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949842 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949845 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949849 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949852 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949855 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949858 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949861 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949864 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949867 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949871 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949874 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949880 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949883 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949887 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949890 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949893 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949896 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949899 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949902 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949905 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949908 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949912 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949915 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949918 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382136.949921 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[vesc_driver_node-1] [INFO] [1787382136.952688994] [IoContext::IoContext]: Thread(s) Created: 2
+[vesc_driver_node-1] [INFO] [1787382136.982638036] [vesc.vesc_driver_node]: -=60_MK6=- hardware paired 0
+[vesc_driver_node-1] [INFO] [1787382137.001954551] [vesc.vesc_driver_node]: Connected to VESC with firmware version 7.0
+[vesc_driver_node-1] [INFO] [1787382137.002503440] [vesc.vesc_driver_node]: -=60_MK6=- hardware paired 0
+[vesc_driver_node-1] 1787382137.043005 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043027 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043033 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043036 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043040 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043043 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043047 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043050 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043054 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043057 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043061 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043064 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043067 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043071 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043074 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043077 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043081 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043085 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043088 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043092 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043095 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043098 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043101 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043107 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043111 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043114 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043117 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043121 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043124 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043127 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043130 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043134 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043137 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043141 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043144 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043147 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043151 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043154 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043157 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043160 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043164 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043168 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043171 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043174 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043178 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043181 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043184 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043188 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043191 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043194 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043198 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382137.043201 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.958299 [1] ackermann_: wlo1: optional interface was not found.
+[ackermann_to_vesc_node-2] 1787382136.958320 [1] ackermann_: wlp0s20f3: optional interface was not found.
+[ackermann_to_vesc_node-2] 1787382136.958323 [1] ackermann_: wlp9s0: optional interface was not found.
+[ackermann_to_vesc_node-2] 1787382136.958326 [1] ackermann_: wlp67s0: optional interface was not found.
+[ackermann_to_vesc_node-2] 1787382136.964634 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964655 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964660 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964663 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964667 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964670 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964674 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964677 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964681 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964684 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964687 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964691 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964695 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964698 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964702 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964705 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964709 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964712 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964715 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964719 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964722 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964725 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964728 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964732 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964735 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964738 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964741 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964744 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964748 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964751 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964754 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964757 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964761 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964764 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964767 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964770 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964773 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.964777 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970305 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970354 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970360 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970364 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970368 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970371 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970374 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970377 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970381 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970384 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970388 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970391 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970395 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382136.970398 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059654 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059676 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059681 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059684 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059688 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059691 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059695 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059698 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059702 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059705 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059709 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059712 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059715 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059719 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059722 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059725 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059729 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059732 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059735 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059739 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059742 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059745 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059748 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059751 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059755 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059758 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059765 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059768 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059772 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059775 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059778 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059781 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059786 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059789 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059792 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059795 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059799 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059802 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059805 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059808 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059812 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059815 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059818 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059821 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059825 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059828 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059831 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059834 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059837 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059841 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059844 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382137.059847 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.967964 [1] vesc_to_od: wlo1: optional interface was not found.
+[vesc_to_odom_node-3] 1787382136.967984 [1] vesc_to_od: wlp0s20f3: optional interface was not found.
+[vesc_to_odom_node-3] 1787382136.967987 [1] vesc_to_od: wlp9s0: optional interface was not found.
+[vesc_to_odom_node-3] 1787382136.967990 [1] vesc_to_od: wlp67s0: optional interface was not found.
+[vesc_to_odom_node-3] 1787382136.980045 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980068 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980072 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980076 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980079 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980083 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980086 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980089 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980093 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980096 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980099 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980103 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980106 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980109 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980112 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980116 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980120 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980123 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980127 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980130 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980133 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980137 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980140 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980143 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980146 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980149 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980152 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980155 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980159 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980162 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980165 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980168 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980172 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980176 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980179 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980182 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980185 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980189 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980194 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980197 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980201 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980204 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980207 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980210 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980213 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980216 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980219 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980222 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980226 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980229 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980232 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382136.980235 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[vesc_to_odom_node-3] [INFO] [1787382136.989645082] [vesc.vesc_to_odom_node]: yaw rate from /vesc/sensors/imu_corrected, not the steering command
+[vesc_to_odom_node-3] 1787382137.069383 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069410 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069414 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069417 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069421 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069425 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069428 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069431 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069434 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069438 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069441 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069444 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069447 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069451 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069454 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069457 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069461 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069464 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069467 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069470 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069473 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069477 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069480 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069483 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069486 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069493 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069497 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069500 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069503 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069506 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069509 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069513 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069516 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069519 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069522 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069526 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069529 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069532 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069535 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069539 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069542 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069545 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069548 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069551 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069555 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069558 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069561 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069564 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069568 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069571 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069574 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382137.069577 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.956236 [1] urg_node_d: wlo1: optional interface was not found.
+[urg_node_driver-4] 1787382136.956256 [1] urg_node_d: wlp0s20f3: optional interface was not found.
+[urg_node_driver-4] 1787382136.956260 [1] urg_node_d: wlp9s0: optional interface was not found.
+[urg_node_driver-4] 1787382136.956262 [1] urg_node_d: wlp67s0: optional interface was not found.
+[urg_node_driver-4] 1787382136.971917 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.971939 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.971944 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.971947 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.971951 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.971954 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.971958 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.971961 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.971964 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.971968 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.971971 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.971974 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.971977 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.971981 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.971984 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.971988 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.971992 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.971995 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.971998 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972001 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972005 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972008 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972012 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972015 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972019 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972022 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972025 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972028 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972032 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972035 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972038 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972042 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972046 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972049 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972052 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972056 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972059 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972062 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972068 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972071 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972074 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972078 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972081 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972084 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972088 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972091 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972094 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972097 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[urg_node_driver-4] 1787382136.972101 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[urg_node_driver-4] 1787382136.972104 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[urg_node_driver-4] 1787382136.972107 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[urg_node_driver-4] 1787382136.972111 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[urg_node_driver-4] [INFO] [1787382137.015855358] [urg_node]: Connected to network device with ID: B2244584
+[urg_node_driver-4] 1787382137.057752 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057774 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057778 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057782 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057786 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057789 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057792 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057796 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057800 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057803 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057807 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057810 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057813 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057817 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057820 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057824 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057827 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057831 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057834 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057837 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057840 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057844 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057847 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057851 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057854 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057860 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057863 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057867 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057870 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057873 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057877 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057880 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057884 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057887 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057890 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057894 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057897 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057900 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057904 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057907 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057911 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057914 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057917 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057920 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057924 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057927 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057930 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057934 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[urg_node_driver-4] 1787382137.057937 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[urg_node_driver-4] 1787382137.057940 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[urg_node_driver-4] 1787382137.057944 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[urg_node_driver-4] 1787382137.057947 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[urg_node_driver-4] [INFO] [1787382137.166015186] [urg_node]: Streaming data.
+[lifecycle_manager-10] 1787382137.040318 [1] lifecycle_: wlo1: optional interface was not found.
+[lifecycle_manager-10] 1787382137.040341 [1] lifecycle_: wlp0s20f3: optional interface was not found.
+[lifecycle_manager-10] 1787382137.040345 [1] lifecycle_: wlp9s0: optional interface was not found.
+[lifecycle_manager-10] 1787382137.040347 [1] lifecycle_: wlp67s0: optional interface was not found.
+[lifecycle_manager-10] 1787382137.040687 [1] lifecycle_: Failed to find a free participant index for domain 1
+[lifecycle_manager-10] [ERROR] [1787382137.040755942] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[lifecycle_manager-10] terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+[lifecycle_manager-10]   what():  failed to initialize rcl node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[map_server-11] 1787382137.099454 [1] map_server: wlo1: optional interface was not found.
+[map_server-11] 1787382137.099475 [1] map_server: wlp0s20f3: optional interface was not found.
+[map_server-11] 1787382137.099478 [1] map_server: wlp9s0: optional interface was not found.
+[map_server-11] 1787382137.099481 [1] map_server: wlp67s0: optional interface was not found.
+[map_server-11] 1787382137.099802 [1] map_server: Failed to find a free participant index for domain 1
+[map_server-11] [ERROR] [1787382137.099872168] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[map_server-11] terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+[map_server-11]   what():  failed to initialize rcl node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ekf_node-13] 1787382137.142949 [1]   ekf_node: wlo1: optional interface was not found.
+[ekf_node-13] 1787382137.142972 [1]   ekf_node: wlp0s20f3: optional interface was not found.
+[ekf_node-13] 1787382137.142975 [1]   ekf_node: wlp9s0: optional interface was not found.
+[ekf_node-13] 1787382137.142977 [1]   ekf_node: wlp67s0: optional interface was not found.
+[ekf_node-13] 1787382137.143316 [1]   ekf_node: Failed to find a free participant index for domain 1
+[ekf_node-13] [ERROR] [1787382137.143388820] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[ekf_node-13] terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+[ekf_node-13]   what():  failed to initialize rcl node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[detect-20] 1787382137.864946 [1]     detect: wlo1: optional interface was not found.
+[detect-20] 1787382137.864969 [1]     detect: wlp0s20f3: optional interface was not found.
+[detect-20] 1787382137.864972 [1]     detect: wlp9s0: optional interface was not found.
+[detect-20] 1787382137.864975 [1]     detect: wlp67s0: optional interface was not found.
+[detect-20] 1787382137.865769 [1]     detect: Failed to find a free participant index for domain 1
+[detect-20] [ERROR] [1787382137.865848240] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[detect-20] terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+[detect-20]   what():  failed to initialize rcl node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[map_relay_node.py-8] 1787382138.102413 [1]    python3: wlo1: optional interface was not found.
+[map_relay_node.py-8] 1787382138.102446 [1]    python3: wlp0s20f3: optional interface was not found.
+[map_relay_node.py-8] 1787382138.102450 [1]    python3: wlp9s0: optional interface was not found.
+[map_relay_node.py-8] 1787382138.102454 [1]    python3: wlp67s0: optional interface was not found.
+[map_relay_node.py-8] 1787382138.102799 [1]    python3: Failed to find a free participant index for domain 1
+[map_relay_node.py-8] [ERROR] [1787382138.102885626] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[map_relay_node.py-8] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[map_relay_node.py-8]   self.__node = _rclpy.Node(
+[map_relay_node.py-8] Traceback (most recent call last):
+[map_relay_node.py-8]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/map_relay_node.py", line 70, in <module>
+[map_relay_node.py-8]     main()
+[map_relay_node.py-8]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/map_relay_node.py", line 63, in main
+[map_relay_node.py-8]     node = MapRelayNode()
+[map_relay_node.py-8]            ^^^^^^^^^^^^^^
+[map_relay_node.py-8]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/map_relay_node.py", line 21, in __init__
+[map_relay_node.py-8]     super().__init__('map_relay_node')
+[map_relay_node.py-8]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[map_relay_node.py-8]     self.__node = _rclpy.Node(
+[map_relay_node.py-8]                   ^^^^^^^^^^^^
+[map_relay_node.py-8] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [detect-20]: process has died [pid 15864, exit code -6, cmd '/home/fcsl/roboracer_ws/install/perception/lib/perception/detect --ros-args -r __node:=detect --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/opponent_tracker_params.yaml --params-file /tmp/launch_params_kl42ywfe'].
+[imu_bias_corrector_node.py-9] 1787382138.337877 [1]    python3: wlo1: optional interface was not found.
+[imu_bias_corrector_node.py-9] 1787382138.337915 [1]    python3: wlp0s20f3: optional interface was not found.
+[imu_bias_corrector_node.py-9] 1787382138.337919 [1]    python3: wlp9s0: optional interface was not found.
+[imu_bias_corrector_node.py-9] 1787382138.337922 [1]    python3: wlp67s0: optional interface was not found.
+[imu_bias_corrector_node.py-9] 1787382138.338270 [1]    python3: Failed to find a free participant index for domain 1
+[imu_bias_corrector_node.py-9] [ERROR] [1787382138.338358371] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[imu_bias_corrector_node.py-9] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[imu_bias_corrector_node.py-9]   self.__node = _rclpy.Node(
+[imu_bias_corrector_node.py-9] Traceback (most recent call last):
+[imu_bias_corrector_node.py-9]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/imu_bias_corrector_node.py", line 104, in <module>
+[imu_bias_corrector_node.py-9]     main()
+[imu_bias_corrector_node.py-9]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/imu_bias_corrector_node.py", line 93, in main
+[imu_bias_corrector_node.py-9]     node = ImuBiasCorrectorNode()
+[imu_bias_corrector_node.py-9]            ^^^^^^^^^^^^^^^^^^^^^^
+[imu_bias_corrector_node.py-9]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/imu_bias_corrector_node.py", line 33, in __init__
+[imu_bias_corrector_node.py-9]     super().__init__('imu_bias_corrector')
+[imu_bias_corrector_node.py-9]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[imu_bias_corrector_node.py-9]     self.__node = _rclpy.Node(
+[imu_bias_corrector_node.py-9]                   ^^^^^^^^^^^^
+[imu_bias_corrector_node.py-9] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[scan_throttle_node.py-5] 1787382138.406548 [1]    python3: wlo1: optional interface was not found.
+[scan_throttle_node.py-5] 1787382138.406584 [1]    python3: wlp0s20f3: optional interface was not found.
+[scan_throttle_node.py-5] 1787382138.406588 [1]    python3: wlp9s0: optional interface was not found.
+[scan_throttle_node.py-5] 1787382138.406591 [1]    python3: wlp67s0: optional interface was not found.
+[scan_throttle_node.py-5] 1787382138.406942 [1]    python3: Failed to find a free participant index for domain 1
+[scan_throttle_node.py-5] [ERROR] [1787382138.407027751] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[scan_throttle_node.py-5] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[scan_throttle_node.py-5]   self.__node = _rclpy.Node(
+[scan_throttle_node.py-5] Traceback (most recent call last):
+[scan_throttle_node.py-5]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/scan_throttle_node.py", line 113, in <module>
+[scan_throttle_node.py-5]     main()
+[scan_throttle_node.py-5]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/scan_throttle_node.py", line 103, in main
+[scan_throttle_node.py-5]     node = ScanThrottleNode()
+[scan_throttle_node.py-5]            ^^^^^^^^^^^^^^^^^^
+[scan_throttle_node.py-5]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/scan_throttle_node.py", line 47, in __init__
+[scan_throttle_node.py-5]     super().__init__('scan_throttle_node')
+[scan_throttle_node.py-5]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[scan_throttle_node.py-5]     self.__node = _rclpy.Node(
+[scan_throttle_node.py-5]                   ^^^^^^^^^^^^
+[scan_throttle_node.py-5] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [map_relay_node.py-8]: process has died [pid 15778, exit code 1, cmd '/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/map_relay_node.py --ros-args -r __node:=map_relay_node'].
+[ERROR] [imu_bias_corrector_node.py-9]: process has died [pid 15783, exit code 1, cmd '/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/imu_bias_corrector_node.py --ros-args -r __node:=imu_bias_corrector --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/CAR/vehicle_config.yaml'].
+[ERROR] [scan_throttle_node.py-5]: process has died [pid 15767, exit code 1, cmd '/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/scan_throttle_node.py --ros-args -r __node:=scan_throttle --params-file /tmp/launch_params_ij5jz7f9 --params-file /tmp/launch_params_fops6jr1 --params-file /tmp/launch_params_lfxcwpq6'].
+[simple_mux_node.py-7] 1787382138.916903 [1]    python3: wlo1: optional interface was not found.
+[simple_mux_node.py-7] 1787382138.916938 [1]    python3: wlp0s20f3: optional interface was not found.
+[simple_mux_node.py-7] 1787382138.916943 [1]    python3: wlp9s0: optional interface was not found.
+[simple_mux_node.py-7] 1787382138.916947 [1]    python3: wlp67s0: optional interface was not found.
+[simple_mux_node.py-7] 1787382138.917305 [1]    python3: Failed to find a free participant index for domain 1
+[simple_mux_node.py-7] [ERROR] [1787382138.917398634] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[simple_mux_node.py-7] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[simple_mux_node.py-7]   self.__node = _rclpy.Node(
+[simple_mux_node.py-7] Traceback (most recent call last):
+[simple_mux_node.py-7]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/simple_mux_node.py", line 163, in <module>
+[simple_mux_node.py-7]     main()
+[simple_mux_node.py-7]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/simple_mux_node.py", line 152, in main
+[simple_mux_node.py-7]     node = SimpleMuxNode()
+[simple_mux_node.py-7]            ^^^^^^^^^^^^^^^
+[simple_mux_node.py-7]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/simple_mux_node.py", line 18, in __init__
+[simple_mux_node.py-7]     super().__init__('simple_mux')
+[simple_mux_node.py-7]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[simple_mux_node.py-7]     self.__node = _rclpy.Node(
+[simple_mux_node.py-7]                   ^^^^^^^^^^^^
+[simple_mux_node.py-7] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[static_tf_publisher.py-6] 1787382139.213243 [1]    python3: wlo1: optional interface was not found.
+[static_tf_publisher.py-6] 1787382139.214654 [1]    python3: wlp0s20f3: optional interface was not found.
+[static_tf_publisher.py-6] 1787382139.215423 [1]    python3: wlp9s0: optional interface was not found.
+[static_tf_publisher.py-6] 1787382139.216146 [1]    python3: wlp67s0: optional interface was not found.
+[static_tf_publisher.py-6] 1787382139.217208 [1]    python3: Failed to find a free participant index for domain 1
+[static_tf_publisher.py-6] [ERROR] [1787382139.218018465] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[static_tf_publisher.py-6] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[static_tf_publisher.py-6]   self.__node = _rclpy.Node(
+[static_tf_publisher.py-6] Traceback (most recent call last):
+[static_tf_publisher.py-6]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/static_tf_publisher.py", line 86, in <module>
+[static_tf_publisher.py-6]     main()
+[static_tf_publisher.py-6]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/static_tf_publisher.py", line 75, in main
+[static_tf_publisher.py-6]     node = StaticTfPublisher()
+[static_tf_publisher.py-6]            ^^^^^^^^^^^^^^^^^^^
+[static_tf_publisher.py-6]   File "/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/static_tf_publisher.py", line 32, in __init__
+[static_tf_publisher.py-6]     super().__init__('static_tf_publisher',
+[static_tf_publisher.py-6]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[static_tf_publisher.py-6]     self.__node = _rclpy.Node(
+[static_tf_publisher.py-6]                   ^^^^^^^^^^^^
+[static_tf_publisher.py-6] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [simple_mux_node.py-7]: process has died [pid 15771, exit code 1, cmd '/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/simple_mux_node.py --ros-args -r __node:=simple_mux --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/CAR/vehicle_config.yaml --params-file /tmp/launch_params_ehc24mng --params-file /tmp/launch_params_rrehkckl --params-file /tmp/launch_params_7cb4hq3t --params-file /tmp/launch_params_6qoziot5 --params-file /tmp/launch_params_29jj86v1 --params-file /tmp/launch_params_m5rnt2tp'].
+[update_waypoints-27] 1787382139.574498 [1] update_way: wlo1: optional interface was not found.
+[update_waypoints-27] 1787382139.575881 [1] update_way: wlp0s20f3: optional interface was not found.
+[update_waypoints-27] 1787382139.576702 [1] update_way: wlp9s0: optional interface was not found.
+[update_waypoints-27] 1787382139.577366 [1] update_way: wlp67s0: optional interface was not found.
+[update_waypoints-27] 1787382139.578491 [1] update_way: Failed to find a free participant index for domain 1
+[update_waypoints-27] [ERROR] [1787382139.579273997] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[update_waypoints-27] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[update_waypoints-27]   self.__node = _rclpy.Node(
+[update_waypoints-27] Traceback (most recent call last):
+[update_waypoints-27]   File "/home/fcsl/roboracer_ws/install/lane_change_planner/lib/lane_change_planner/update_waypoints", line 33, in <module>
+[update_waypoints-27]     sys.exit(load_entry_point('lane-change-planner', 'console_scripts', 'update_waypoints')())
+[update_waypoints-27]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[update_waypoints-27]   File "/home/fcsl/roboracer_ws/build/lane_change_planner/lane_change_planner/update_waypoints.py", line 168, in main
+[update_waypoints-27]     node = UpdateWaypoints()
+[update_waypoints-27]            ^^^^^^^^^^^^^^^^^
+[update_waypoints-27]   File "/home/fcsl/roboracer_ws/build/lane_change_planner/lane_change_planner/update_waypoints.py", line 22, in __init__
+[update_waypoints-27]     super().__init__('waypoint_updater')
+[update_waypoints-27]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[update_waypoints-27]     self.__node = _rclpy.Node(
+[update_waypoints-27]                   ^^^^^^^^^^^^
+[update_waypoints-27] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [static_tf_publisher.py-6]: process has died [pid 15769, exit code 1, cmd '/home/fcsl/roboracer_ws/install/stack_master/lib/stack_master/static_tf_publisher.py --ros-args -r __node:=static_tf_publisher --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/CAR/static_transforms.yaml'].
+[ERROR] [update_waypoints-27]: process has died [pid 15880, exit code 1, cmd '/home/fcsl/roboracer_ws/install/lane_change_planner/lib/lane_change_planner/update_waypoints --ros-args -r __node:=waypoint_updater'].
+[particle_filter-12] 1787382140.308819 [1] particle_f: wlo1: optional interface was not found.
+[particle_filter-12] 1787382140.308851 [1] particle_f: wlp0s20f3: optional interface was not found.
+[particle_filter-12] 1787382140.308855 [1] particle_f: wlp9s0: optional interface was not found.
+[particle_filter-12] 1787382140.308859 [1] particle_f: wlp67s0: optional interface was not found.
+[particle_filter-12] 1787382140.309233 [1] particle_f: Failed to find a free participant index for domain 1
+[particle_filter-12] [ERROR] [1787382140.309317850] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[particle_filter-12] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[particle_filter-12]   self.__node = _rclpy.Node(
+[particle_filter-12] Traceback (most recent call last):
+[particle_filter-12]   File "/home/fcsl/roboracer_ws/install/particle_filter/lib/particle_filter/particle_filter", line 33, in <module>
+[particle_filter-12]     sys.exit(load_entry_point('particle-filter', 'console_scripts', 'particle_filter')())
+[particle_filter-12]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[particle_filter-12]   File "/home/fcsl/roboracer_ws/build/particle_filter/particle_filter/particle_filter.py", line 924, in main
+[particle_filter-12]     pf = ParticleFiler()
+[particle_filter-12]          ^^^^^^^^^^^^^^^
+[particle_filter-12]   File "/home/fcsl/roboracer_ws/build/particle_filter/particle_filter/particle_filter.py", line 66, in __init__
+[particle_filter-12]     super().__init__('particle_filter')
+[particle_filter-12]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[particle_filter-12]     self.__node = _rclpy.Node(
+[particle_filter-12]                   ^^^^^^^^^^^^
+[particle_filter-12] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[opp_prediction-30] 1787382140.710961 [1]    python3: wlo1: optional interface was not found.
+[opp_prediction-30] 1787382140.711000 [1]    python3: wlp0s20f3: optional interface was not found.
+[opp_prediction-30] 1787382140.711004 [1]    python3: wlp9s0: optional interface was not found.
+[opp_prediction-30] 1787382140.711007 [1]    python3: wlp67s0: optional interface was not found.
+[opp_prediction-30] 1787382140.711381 [1]    python3: Failed to find a free participant index for domain 1
+[opp_prediction-30] [ERROR] [1787382140.711469783] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[opp_prediction-30] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[opp_prediction-30]   self.__node = _rclpy.Node(
+[opp_prediction-30] Traceback (most recent call last):
+[opp_prediction-30]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opp_prediction", line 664, in <module>
+[opp_prediction-30]     node = OppTrajPredictor()
+[opp_prediction-30]            ^^^^^^^^^^^^^^^^^^
+[opp_prediction-30]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opp_prediction", line 20, in __init__
+[opp_prediction-30]     super().__init__('opponent_propagation_predictor')
+[opp_prediction-30]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[opp_prediction-30]     self.__node = _rclpy.Node(
+[opp_prediction-30]                   ^^^^^^^^^^^^
+[opp_prediction-30] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [particle_filter-12]: process has died [pid 15829, exit code 1, cmd '/home/fcsl/roboracer_ws/install/particle_filter/lib/particle_filter/particle_filter --ros-args -r __node:=particle_filter --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/pf.yaml --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/CAR/vehicle_config.yaml -r /clicked_point:=/pf_global_initialize'].
+[sector_tuner-15] 1787382140.773286 [1] sector_tun: wlo1: optional interface was not found.
+[sector_tuner-15] 1787382140.773314 [1] sector_tun: wlp0s20f3: optional interface was not found.
+[sector_tuner-15] 1787382140.773318 [1] sector_tun: wlp9s0: optional interface was not found.
+[sector_tuner-15] 1787382140.773320 [1] sector_tun: wlp67s0: optional interface was not found.
+[sector_tuner-15] 1787382140.773667 [1] sector_tun: Failed to find a free participant index for domain 1
+[sector_tuner-15] [ERROR] [1787382140.773751288] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[sector_tuner-15] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[sector_tuner-15]   self.__node = _rclpy.Node(
+[sector_tuner-15] Traceback (most recent call last):
+[sector_tuner-15]   File "/home/fcsl/roboracer_ws/install/sector_tuner/lib/sector_tuner/sector_tuner", line 33, in <module>
+[sector_tuner-15]     sys.exit(load_entry_point('sector-tuner', 'console_scripts', 'sector_tuner')())
+[sector_tuner-15]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[sector_tuner-15]   File "/home/fcsl/roboracer_ws/build/sector_tuner/sector_tuner/sector_tuner.py", line 416, in main
+[sector_tuner-15]     node = SectorTuner()
+[sector_tuner-15]            ^^^^^^^^^^^^^
+[sector_tuner-15]   File "/home/fcsl/roboracer_ws/build/sector_tuner/sector_tuner/sector_tuner.py", line 41, in __init__
+[sector_tuner-15]     super().__init__('speed_sector_tuner',
+[sector_tuner-15]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[sector_tuner-15]     self.__node = _rclpy.Node(
+[sector_tuner-15]                   ^^^^^^^^^^^^
+[sector_tuner-15] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[lap_analyser-19] 1787382140.866481 [1] lap_analys: wlo1: optional interface was not found.
+[lap_analyser-19] 1787382140.866513 [1] lap_analys: wlp0s20f3: optional interface was not found.
+[lap_analyser-19] 1787382140.866517 [1] lap_analys: wlp9s0: optional interface was not found.
+[lap_analyser-19] 1787382140.866520 [1] lap_analys: wlp67s0: optional interface was not found.
+[lap_analyser-19] 1787382140.867168 [1] lap_analys: Failed to find a free participant index for domain 1
+[lap_analyser-19] [ERROR] [1787382140.867273615] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[lap_analyser-19] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[lap_analyser-19]   self.__node = _rclpy.Node(
+[lap_analyser-19] Traceback (most recent call last):
+[lap_analyser-19]   File "/home/fcsl/roboracer_ws/install/lap_analyser/lib/lap_analyser/lap_analyser", line 33, in <module>
+[lap_analyser-19]     sys.exit(load_entry_point('lap-analyser', 'console_scripts', 'lap_analyser')())
+[lap_analyser-19]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[lap_analyser-19]   File "/home/fcsl/roboracer_ws/build/lap_analyser/lap_analyser/lap_analyser.py", line 411, in main
+[lap_analyser-19]     lap_analyser = LapAnalyser()
+[lap_analyser-19]                    ^^^^^^^^^^^^^
+[lap_analyser-19]   File "/home/fcsl/roboracer_ws/build/lap_analyser/lap_analyser/lap_analyser.py", line 23, in __init__
+[lap_analyser-19]     super().__init__('lap_analyser',
+[lap_analyser-19]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[lap_analyser-19]     self.__node = _rclpy.Node(
+[lap_analyser-19]                   ^^^^^^^^^^^^
+[lap_analyser-19] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [opp_prediction-30]: process has died [pid 15886, exit code 1, cmd '/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opp_prediction --ros-args -r __node:=opponent_propagation_predictor'].
+[ERROR] [lap_analyser-19]: process has died [pid 15862, exit code 1, cmd '/home/fcsl/roboracer_ws/install/lap_analyser/lib/lap_analyser/lap_analyser --ros-args -r __node:=lap_analyser --params-file /tmp/launch_params_u7ug9mo8'].
+[ERROR] [sector_tuner-15]: process has died [pid 15842, exit code 1, cmd '/home/fcsl/roboracer_ws/install/sector_tuner/lib/sector_tuner/sector_tuner --ros-args -r __node:=speed_sector_tuner --params-file /tmp/launch_params_syb2tb3j --params-file /tmp/launch_params_vfvu6i_g --params-file /tmp/launch_params_l0228wuc --params-file /tmp/launch_params_heowy78m'].
+[global_trajectory_publisher-14] 1787382141.688824 [1] global_tra: wlo1: optional interface was not found.
+[global_trajectory_publisher-14] 1787382141.690104 [1] global_tra: wlp0s20f3: optional interface was not found.
+[global_trajectory_publisher-14] 1787382141.690819 [1] global_tra: wlp9s0: optional interface was not found.
+[global_trajectory_publisher-14] 1787382141.691427 [1] global_tra: wlp67s0: optional interface was not found.
+[global_trajectory_publisher-14] 1787382141.692485 [1] global_tra: Failed to find a free participant index for domain 1
+[global_trajectory_publisher-14] [ERROR] [1787382141.693230057] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[global_trajectory_publisher-14] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[global_trajectory_publisher-14]   self.__node = _rclpy.Node(
+[global_trajectory_publisher-14] Traceback (most recent call last):
+[global_trajectory_publisher-14]   File "/home/fcsl/roboracer_ws/install/gb_optimizer/lib/gb_optimizer/global_trajectory_publisher", line 33, in <module>
+[global_trajectory_publisher-14]     sys.exit(load_entry_point('gb-optimizer', 'console_scripts', 'global_trajectory_publisher')())
+[global_trajectory_publisher-14]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[global_trajectory_publisher-14]   File "/home/fcsl/roboracer_ws/build/gb_optimizer/gb_optimizer/global_trajectory_publisher.py", line 161, in main
+[global_trajectory_publisher-14]     republisher = GlobalRepublisher()
+[global_trajectory_publisher-14]                   ^^^^^^^^^^^^^^^^^^^
+[global_trajectory_publisher-14]   File "/home/fcsl/roboracer_ws/build/gb_optimizer/gb_optimizer/global_trajectory_publisher.py", line 19, in __init__
+[global_trajectory_publisher-14]     super().__init__('global_republisher_node',
+[global_trajectory_publisher-14]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[global_trajectory_publisher-14]     self.__node = _rclpy.Node(
+[global_trajectory_publisher-14]                   ^^^^^^^^^^^^
+[global_trajectory_publisher-14] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[frenet_odom_republisher_node-18] 1787382142.218586 [1] frenet_odo: wlo1: optional interface was not found.
+[frenet_odom_republisher_node-18] 1787382142.218623 [1] frenet_odo: wlp0s20f3: optional interface was not found.
+[frenet_odom_republisher_node-18] 1787382142.218627 [1] frenet_odo: wlp9s0: optional interface was not found.
+[frenet_odom_republisher_node-18] 1787382142.218631 [1] frenet_odo: wlp67s0: optional interface was not found.
+[frenet_odom_republisher_node-18] 1787382142.218976 [1] frenet_odo: Failed to find a free participant index for domain 1
+[frenet_odom_republisher_node-18] [ERROR] [1787382142.219065485] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[frenet_odom_republisher_node-18] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[frenet_odom_republisher_node-18]   self.__node = _rclpy.Node(
+[frenet_odom_republisher_node-18] Traceback (most recent call last):
+[frenet_odom_republisher_node-18]   File "/home/fcsl/roboracer_ws/install/frenet_odom_republisher/lib/frenet_odom_republisher/frenet_odom_republisher_node", line 33, in <module>
+[frenet_odom_republisher_node-18]     sys.exit(load_entry_point('frenet-odom-republisher', 'console_scripts', 'frenet_odom_republisher_node')())
+[frenet_odom_republisher_node-18]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[frenet_odom_republisher_node-18]   File "/home/fcsl/roboracer_ws/build/frenet_odom_republisher/frenet_odom_republisher/frenet_odom_republisher_node.py", line 72, in main
+[frenet_odom_republisher_node-18]     frenet_odom_republisher = FrenetOdomRepublisher()
+[frenet_odom_republisher_node-18]                               ^^^^^^^^^^^^^^^^^^^^^^^
+[frenet_odom_republisher_node-18]   File "/home/fcsl/roboracer_ws/build/frenet_odom_republisher/frenet_odom_republisher/frenet_odom_republisher_node.py", line 15, in __init__
+[frenet_odom_republisher_node-18]     super().__init__('frenet_odom_republisher')
+[frenet_odom_republisher_node-18]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[frenet_odom_republisher_node-18]     self.__node = _rclpy.Node(
+[frenet_odom_republisher_node-18]                   ^^^^^^^^^^^^
+[frenet_odom_republisher_node-18] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[frenet_conversion_server_node-17] 1787382142.246565 [1] frenet_con: wlo1: optional interface was not found.
+[frenet_conversion_server_node-17] 1787382142.247891 [1] frenet_con: wlp0s20f3: optional interface was not found.
+[frenet_conversion_server_node-17] 1787382142.248638 [1] frenet_con: wlp9s0: optional interface was not found.
+[frenet_conversion_server_node-17] 1787382142.249315 [1] frenet_con: wlp67s0: optional interface was not found.
+[frenet_conversion_server_node-17] 1787382142.249809 [1] frenet_con: Failed to find a free participant index for domain 1
+[frenet_conversion_server_node-17] [ERROR] [1787382142.249904084] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[frenet_conversion_server_node-17] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[frenet_conversion_server_node-17]   self.__node = _rclpy.Node(
+[frenet_conversion_server_node-17] Traceback (most recent call last):
+[frenet_conversion_server_node-17]   File "/home/fcsl/roboracer_ws/install/frenet_conversion_server/lib/frenet_conversion_server/frenet_conversion_server_node", line 33, in <module>
+[frenet_conversion_server_node-17]     sys.exit(load_entry_point('frenet-conversion-server', 'console_scripts', 'frenet_conversion_server_node')())
+[frenet_conversion_server_node-17]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[frenet_conversion_server_node-17]   File "/home/fcsl/roboracer_ws/build/frenet_conversion_server/frenet_conversion_server/frenet_conversion_server_node.py", line 126, in main
+[frenet_conversion_server_node-17]     frenet_conversion_server = FrenetConversionServer()
+[frenet_conversion_server_node-17]                                ^^^^^^^^^^^^^^^^^^^^^^^^
+[frenet_conversion_server_node-17]   File "/home/fcsl/roboracer_ws/build/frenet_conversion_server/frenet_conversion_server/frenet_conversion_server_node.py", line 27, in __init__
+[frenet_conversion_server_node-17]     super().__init__('frenet_conversion_server')
+[frenet_conversion_server_node-17]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[frenet_conversion_server_node-17]     self.__node = _rclpy.Node(
+[frenet_conversion_server_node-17]                   ^^^^^^^^^^^^
+[frenet_conversion_server_node-17] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[controller_manager-31] 1787382142.256581 [1] controller: wlo1: optional interface was not found.
+[controller_manager-31] 1787382142.256607 [1] controller: wlp0s20f3: optional interface was not found.
+[controller_manager-31] 1787382142.256611 [1] controller: wlp9s0: optional interface was not found.
+[controller_manager-31] 1787382142.256614 [1] controller: wlp67s0: optional interface was not found.
+[controller_manager-31] 1787382142.256940 [1] controller: Failed to find a free participant index for domain 1
+[controller_manager-31] [ERROR] [1787382142.257033090] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[controller_manager-31] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[controller_manager-31]   self.__node = _rclpy.Node(
+[controller_manager-31] Traceback (most recent call last):
+[controller_manager-31]   File "/home/fcsl/roboracer_ws/install/controller/lib/controller/controller_manager", line 33, in <module>
+[controller_manager-31]     sys.exit(load_entry_point('controller', 'console_scripts', 'controller_manager')())
+[controller_manager-31]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[controller_manager-31]   File "/home/fcsl/roboracer_ws/build/controller/controller/controller_manager.py", line 603, in main
+[controller_manager-31]     node = ControllerManager()
+[controller_manager-31]            ^^^^^^^^^^^^^^^^^^^
+[controller_manager-31]   File "/home/fcsl/roboracer_ws/build/controller/controller/controller_manager.py", line 62, in __init__
+[controller_manager-31]     super().__init__('controller_manager',
+[controller_manager-31]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[controller_manager-31]     self.__node = _rclpy.Node(
+[controller_manager-31]                   ^^^^^^^^^^^^
+[controller_manager-31] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [global_trajectory_publisher-14]: process has died [pid 15838, exit code 1, cmd '/home/fcsl/roboracer_ws/install/gb_optimizer/lib/gb_optimizer/global_trajectory_publisher --ros-args -r __node:=global_republisher --params-file /tmp/launch_params_7s652_l8'].
+[opponent_trajectory-28] 1787382142.510441 [1]    python3: wlo1: optional interface was not found.
+[opponent_trajectory-28] 1787382142.510476 [1]    python3: wlp0s20f3: optional interface was not found.
+[opponent_trajectory-28] 1787382142.510480 [1]    python3: wlp9s0: optional interface was not found.
+[opponent_trajectory-28] 1787382142.510483 [1]    python3: wlp67s0: optional interface was not found.
+[opponent_trajectory-28] 1787382142.510880 [1]    python3: Failed to find a free participant index for domain 1
+[opponent_trajectory-28] [ERROR] [1787382142.510976681] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[opponent_trajectory-28] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[opponent_trajectory-28]   self.__node = _rclpy.Node(
+[opponent_trajectory-28] Traceback (most recent call last):
+[opponent_trajectory-28]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opponent_trajectory", line 507, in <module>
+[opponent_trajectory-28]     node = Opponent_Trajectory()
+[opponent_trajectory-28]            ^^^^^^^^^^^^^^^^^^^^^
+[opponent_trajectory-28]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opponent_trajectory", line 17, in __init__
+[opponent_trajectory-28]     super().__init__('opponent_trajectory')
+[opponent_trajectory-28]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[opponent_trajectory-28]     self.__node = _rclpy.Node(
+[opponent_trajectory-28]                   ^^^^^^^^^^^^
+[opponent_trajectory-28] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[static_avoidance_node-25] 1787382142.554204 [1] static_avo: wlo1: optional interface was not found.
+[static_avoidance_node-25] 1787382142.554234 [1] static_avo: wlp0s20f3: optional interface was not found.
+[static_avoidance_node-25] 1787382142.554237 [1] static_avo: wlp9s0: optional interface was not found.
+[static_avoidance_node-25] 1787382142.554239 [1] static_avo: wlp67s0: optional interface was not found.
+[static_avoidance_node-25] 1787382142.554594 [1] static_avo: Failed to find a free participant index for domain 1
+[static_avoidance_node-25] [ERROR] [1787382142.554675147] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[static_avoidance_node-25] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[static_avoidance_node-25]   self.__node = _rclpy.Node(
+[static_avoidance_node-25] Traceback (most recent call last):
+[static_avoidance_node-25]   File "/home/fcsl/roboracer_ws/install/spliner/lib/spliner/static_avoidance_node", line 33, in <module>
+[static_avoidance_node-25]     sys.exit(load_entry_point('spliner', 'console_scripts', 'static_avoidance_node')())
+[static_avoidance_node-25]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[static_avoidance_node-25]   File "/home/fcsl/roboracer_ws/build/spliner/spliner/static_avoidance_node.py", line 1181, in main
+[static_avoidance_node-25]     node = StaticObstacleSpliner()
+[static_avoidance_node-25]            ^^^^^^^^^^^^^^^^^^^^^^^
+[static_avoidance_node-25]   File "/home/fcsl/roboracer_ws/build/spliner/spliner/static_avoidance_node.py", line 108, in __init__
+[static_avoidance_node-25]     super().__init__("static_avoidance_planner")
+[static_avoidance_node-25]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[static_avoidance_node-25]     self.__node = _rclpy.Node(
+[static_avoidance_node-25]                   ^^^^^^^^^^^^
+[static_avoidance_node-25] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ot_interpolator-16] 1787382142.634097 [1] ot_interpo: wlo1: optional interface was not found.
+[ot_interpolator-16] 1787382142.634140 [1] ot_interpo: wlp0s20f3: optional interface was not found.
+[ot_interpolator-16] 1787382142.634145 [1] ot_interpo: wlp9s0: optional interface was not found.
+[ot_interpolator-16] 1787382142.634148 [1] ot_interpo: wlp67s0: optional interface was not found.
+[ot_interpolator-16] 1787382142.634658 [1] ot_interpo: Failed to find a free participant index for domain 1
+[ot_interpolator-16] [ERROR] [1787382142.634755031] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[ot_interpolator-16] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[ot_interpolator-16]   self.__node = _rclpy.Node(
+[ot_interpolator-16] Traceback (most recent call last):
+[ot_interpolator-16]   File "/home/fcsl/roboracer_ws/install/overtaking_sector_tuner/lib/overtaking_sector_tuner/ot_interpolator", line 33, in <module>
+[ot_interpolator-16]     sys.exit(load_entry_point('overtaking-sector-tuner', 'console_scripts', 'ot_interpolator')())
+[ot_interpolator-16]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[ot_interpolator-16]   File "/home/fcsl/roboracer_ws/build/overtaking_sector_tuner/overtaking_sector_tuner/ot_interpolator.py", line 472, in main
+[ot_interpolator-16]     node = OvertakingInterpolator()
+[ot_interpolator-16]            ^^^^^^^^^^^^^^^^^^^^^^^^
+[ot_interpolator-16]   File "/home/fcsl/roboracer_ws/build/overtaking_sector_tuner/overtaking_sector_tuner/ot_interpolator.py", line 34, in __init__
+[ot_interpolator-16]     super().__init__('ot_sector_tuner',
+[ot_interpolator-16]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[ot_interpolator-16]     self.__node = _rclpy.Node(
+[ot_interpolator-16]                   ^^^^^^^^^^^^
+[ot_interpolator-16] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [controller_manager-31]: process has died [pid 15888, exit code 1, cmd '/home/fcsl/roboracer_ws/install/controller/lib/controller/controller_manager --ros-args -r __node:=controller_manager --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/controller.yaml --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/dynamic_controller.yaml --params-file /tmp/launch_params_93mar51f --params-file /tmp/launch_params_tpnhuk10'].
+[ERROR] [frenet_odom_republisher_node-18]: process has died [pid 15859, exit code 1, cmd '/home/fcsl/roboracer_ws/install/frenet_odom_republisher/lib/frenet_odom_republisher/frenet_odom_republisher_node --ros-args -r __node:=frenet_odom_republisher -r /car_state/frenet/odom:=/car_state/odom_frenet'].
+[state_machine-22] 1787382142.951594 [1] state_mach: wlo1: optional interface was not found.
+[state_machine-22] 1787382142.951630 [1] state_mach: wlp0s20f3: optional interface was not found.
+[state_machine-22] 1787382142.951634 [1] state_mach: wlp9s0: optional interface was not found.
+[state_machine-22] 1787382142.951637 [1] state_mach: wlp67s0: optional interface was not found.
+[state_machine-22] 1787382142.951979 [1] state_mach: Failed to find a free participant index for domain 1
+[state_machine-22] [ERROR] [1787382142.952063611] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[state_machine-22] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[state_machine-22]   self.__node = _rclpy.Node(
+[state_machine-22] Traceback (most recent call last):
+[state_machine-22]   File "/home/fcsl/roboracer_ws/install/state_machine/lib/state_machine/state_machine", line 33, in <module>
+[state_machine-22]     sys.exit(load_entry_point('state-machine', 'console_scripts', 'state_machine')())
+[state_machine-22]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[state_machine-22]   File "/home/fcsl/roboracer_ws/build/state_machine/state_machine/state_machine_node.py", line 2557, in main
+[state_machine-22]     state_machine = StateMachine()
+[state_machine-22]                     ^^^^^^^^^^^^^^
+[state_machine-22]   File "/home/fcsl/roboracer_ws/build/state_machine/state_machine/state_machine_node.py", line 146, in __init__
+[state_machine-22]     super().__init__(
+[state_machine-22]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[state_machine-22]     self.__node = _rclpy.Node(
+[state_machine-22]                   ^^^^^^^^^^^^
+[state_machine-22] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [frenet_conversion_server_node-17]: process has died [pid 15852, exit code 1, cmd '/home/fcsl/roboracer_ws/install/frenet_conversion_server/lib/frenet_conversion_server/frenet_conversion_server_node --ros-args -r __node:=frenet_conversion_server_node --params-file /tmp/launch_params_cgyu08h2'].
+[ERROR] [opponent_trajectory-28]: process has died [pid 15882, exit code 1, cmd '/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/opponent_trajectory --ros-args -r __node:=OpponentHalflap'].
+[ERROR] [static_avoidance_node-25]: process has died [pid 15876, exit code 1, cmd '/home/fcsl/roboracer_ws/install/spliner/lib/spliner/static_avoidance_node --ros-args -r __node:=static_avoidance_planner --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/static_avoidance_planner.yaml --params-file /tmp/launch_params_s48ro7p7 -r /planner/avoidance/otwpnts:=/planner/avoidance/static_otwpnts'].
+[ERROR] [ot_interpolator-16]: process has died [pid 15846, exit code 1, cmd '/home/fcsl/roboracer_ws/install/overtaking_sector_tuner/lib/overtaking_sector_tuner/ot_interpolator --ros-args -r __node:=ot_sector_tuner --params-file /tmp/launch_params_hx27rwze'].
+[ERROR] [state_machine-22]: process has died [pid 15868, exit code 1, cmd '/home/fcsl/roboracer_ws/install/state_machine/lib/state_machine/state_machine --ros-args -r __node:=state_machine --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/state_machine_params.yaml --params-file /tmp/launch_params_fy76ko5t --params-file /tmp/launch_params_7lclsu5z --params-file /tmp/launch_params_d2mh9jbn --params-file /tmp/launch_params_7yiks31x --params-file /tmp/launch_params__692fxt8 --params-file /tmp/launch_params_j_9nubbp'].
+[start_spline_node_v2-24] 1787382143.528548 [1] start_spli: wlo1: optional interface was not found.
+[start_spline_node_v2-24] 1787382143.528577 [1] start_spli: wlp0s20f3: optional interface was not found.
+[start_spline_node_v2-24] 1787382143.528580 [1] start_spli: wlp9s0: optional interface was not found.
+[start_spline_node_v2-24] 1787382143.528583 [1] start_spli: wlp67s0: optional interface was not found.
+[start_spline_node_v2-24] 1787382143.528922 [1] start_spli: Failed to find a free participant index for domain 1
+[start_spline_node_v2-24] [ERROR] [1787382143.528999088] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[start_spline_node_v2-24] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[start_spline_node_v2-24]   self.__node = _rclpy.Node(
+[start_spline_node_v2-24] Traceback (most recent call last):
+[start_spline_node_v2-24]   File "/home/fcsl/roboracer_ws/install/spliner/lib/spliner/start_spline_node_v2", line 33, in <module>
+[start_spline_node_v2-24]     sys.exit(load_entry_point('spliner', 'console_scripts', 'start_spline_node_v2')())
+[start_spline_node_v2-24]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[start_spline_node_v2-24]   File "/home/fcsl/roboracer_ws/build/spliner/spliner/start_spline_node_v2.py", line 458, in main
+[start_spline_node_v2-24]     spliner = ObstacleSpliner()
+[start_spline_node_v2-24]               ^^^^^^^^^^^^^^^^^
+[start_spline_node_v2-24]   File "/home/fcsl/roboracer_ws/build/spliner/spliner/start_spline_node_v2.py", line 56, in __init__
+[start_spline_node_v2-24]     super().__init__('start_spline_node_v2')
+[start_spline_node_v2-24]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[start_spline_node_v2-24]     self.__node = _rclpy.Node(
+[start_spline_node_v2-24]                   ^^^^^^^^^^^^
+[start_spline_node_v2-24] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[tracking_node-21] 1787382143.635347 [1]    python3: wlo1: optional interface was not found.
+[tracking_node-21] 1787382143.636764 [1]    python3: wlp0s20f3: optional interface was not found.
+[tracking_node-21] 1787382143.637514 [1]    python3: wlp9s0: optional interface was not found.
+[tracking_node-21] 1787382143.638202 [1]    python3: wlp67s0: optional interface was not found.
+[tracking_node-21] 1787382143.639345 [1]    python3: Failed to find a free participant index for domain 1
+[tracking_node-21] [ERROR] [1787382143.640133684] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[tracking_node-21] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[tracking_node-21]   self.__node = _rclpy.Node(
+[tracking_node-21] Traceback (most recent call last):
+[tracking_node-21]   File "/home/fcsl/roboracer_ws/install/perception/lib/perception/tracking_node", line 1030, in <module>
+[tracking_node-21]     main()
+[tracking_node-21]   File "/home/fcsl/roboracer_ws/install/perception/lib/perception/tracking_node", line 1020, in main
+[tracking_node-21]     node = StaticDynamic()
+[tracking_node-21]            ^^^^^^^^^^^^^^^
+[tracking_node-21]   File "/home/fcsl/roboracer_ws/install/perception/lib/perception/tracking_node", line 297, in __init__
+[tracking_node-21]     super().__init__('tracking',
+[tracking_node-21]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[tracking_node-21]     self.__node = _rclpy.Node(
+[tracking_node-21]                   ^^^^^^^^^^^^
+[tracking_node-21] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[taskset-29] 1787382143.781022 [1]    python3: wlo1: optional interface was not found.
+[taskset-29] 1787382143.781055 [1]    python3: wlp0s20f3: optional interface was not found.
+[taskset-29] 1787382143.781059 [1]    python3: wlp9s0: optional interface was not found.
+[taskset-29] 1787382143.781063 [1]    python3: wlp67s0: optional interface was not found.
+[taskset-29] 1787382143.781426 [1]    python3: Failed to find a free participant index for domain 1
+[taskset-29] [ERROR] [1787382143.781518948] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[taskset-29] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[taskset-29]   self.__node = _rclpy.Node(
+[taskset-29] Traceback (most recent call last):
+[taskset-29]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/gaussian_process_opp_traj", line 470, in <module>
+[taskset-29]     node = GaussianProcessOppTraj()
+[taskset-29]            ^^^^^^^^^^^^^^^^^^^^^^^^
+[taskset-29]   File "/home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/gaussian_process_opp_traj", line 22, in __init__
+[taskset-29]     super().__init__('gaussian_process_opp_traj')
+[taskset-29]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[taskset-29]     self.__node = _rclpy.Node(
+[taskset-29]                   ^^^^^^^^^^^^
+[taskset-29] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [start_spline_node_v2-24]: process has died [pid 15874, exit code 1, cmd '/home/fcsl/roboracer_ws/install/spliner/lib/spliner/start_spline_node_v2 --ros-args -r __node:=start_planner'].
+[recovery_spliner_node-23] 1787382143.951446 [1] recovery_s: wlo1: optional interface was not found.
+[recovery_spliner_node-23] 1787382143.951482 [1] recovery_s: wlp0s20f3: optional interface was not found.
+[recovery_spliner_node-23] 1787382143.951486 [1] recovery_s: wlp9s0: optional interface was not found.
+[recovery_spliner_node-23] 1787382143.951488 [1] recovery_s: wlp67s0: optional interface was not found.
+[recovery_spliner_node-23] 1787382143.951865 [1] recovery_s: Failed to find a free participant index for domain 1
+[recovery_spliner_node-23] [ERROR] [1787382143.951949001] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[recovery_spliner_node-23] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[recovery_spliner_node-23]   self.__node = _rclpy.Node(
+[recovery_spliner_node-23] Traceback (most recent call last):
+[recovery_spliner_node-23]   File "/home/fcsl/roboracer_ws/install/recovery_spliner/lib/recovery_spliner/recovery_spliner_node", line 33, in <module>
+[recovery_spliner_node-23]     sys.exit(load_entry_point('recovery-spliner', 'console_scripts', 'recovery_spliner_node')())
+[recovery_spliner_node-23]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[recovery_spliner_node-23]   File "/home/fcsl/roboracer_ws/build/recovery_spliner/recovery_spliner/recovery_spliner_node.py", line 759, in main
+[recovery_spliner_node-23]     spliner = ObstacleSpliner()
+[recovery_spliner_node-23]               ^^^^^^^^^^^^^^^^^
+[recovery_spliner_node-23]   File "/home/fcsl/roboracer_ws/build/recovery_spliner/recovery_spliner/recovery_spliner_node.py", line 55, in __init__
+[recovery_spliner_node-23]     super().__init__(self.name)
+[recovery_spliner_node-23]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[recovery_spliner_node-23]     self.__node = _rclpy.Node(
+[recovery_spliner_node-23]                   ^^^^^^^^^^^^
+[recovery_spliner_node-23] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [tracking_node-21]: process has died [pid 15866, exit code 1, cmd '/home/fcsl/roboracer_ws/install/perception/lib/perception/tracking_node --ros-args -r __node:=tracking --params-file /home/fcsl/roboracer_ws/install/stack_master/share/stack_master/config/opponent_tracker_params.yaml -r /tracking/obstacles:=/tracking/obstacles'].
+[ERROR] [taskset-29]: process has died [pid 15884, exit code 1, cmd 'taskset -c 1 /home/fcsl/roboracer_ws/install/gp_traj_predictor/lib/gp_traj_predictor/gaussian_process_opp_traj --ros-args -r __node:=GP_trajectory'].
+[ERROR] [recovery_spliner_node-23]: process has died [pid 15870, exit code 1, cmd '/home/fcsl/roboracer_ws/install/recovery_spliner/lib/recovery_spliner/recovery_spliner_node --ros-args -r __node:=recovery_spliner_node'].
+[change_avoidance_node-26] 1787382144.480284 [1] change_avo: wlo1: optional interface was not found.
+[change_avoidance_node-26] 1787382144.480306 [1] change_avo: wlp0s20f3: optional interface was not found.
+[change_avoidance_node-26] 1787382144.480309 [1] change_avo: wlp9s0: optional interface was not found.
+[change_avoidance_node-26] 1787382144.480312 [1] change_avo: wlp67s0: optional interface was not found.
+[change_avoidance_node-26] 1787382144.480592 [1] change_avo: Failed to find a free participant index for domain 1
+[change_avoidance_node-26] [ERROR] [1787382144.480660518] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+[change_avoidance_node-26] /home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py:188: RuntimeWarning: Failed to fini rosout publisher: rcl node implementation is invalid, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:390
+[change_avoidance_node-26]   self.__node = _rclpy.Node(
+[change_avoidance_node-26] Traceback (most recent call last):
+[change_avoidance_node-26]   File "/home/fcsl/roboracer_ws/install/lane_change_planner/lib/lane_change_planner/change_avoidance_node", line 33, in <module>
+[change_avoidance_node-26]     sys.exit(load_entry_point('lane-change-planner', 'console_scripts', 'change_avoidance_node')())
+[change_avoidance_node-26]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[change_avoidance_node-26]   File "/home/fcsl/roboracer_ws/build/lane_change_planner/lane_change_planner/change_avoidance_node.py", line 1307, in main
+[change_avoidance_node-26]     node = ChangeAvoidanceNode()
+[change_avoidance_node-26]            ^^^^^^^^^^^^^^^^^^^^^
+[change_avoidance_node-26]   File "/home/fcsl/roboracer_ws/build/lane_change_planner/lane_change_planner/change_avoidance_node.py", line 47, in __init__
+[change_avoidance_node-26]     super().__init__('change_avoidance_node')
+[change_avoidance_node-26]   File "/home/fcsl/miniforge3/envs/thirdimpact/lib/python3.12/site-packages/rclpy/node.py", line 188, in __init__
+[change_avoidance_node-26]     self.__node = _rclpy.Node(
+[change_avoidance_node-26]                   ^^^^^^^^^^^^
+[change_avoidance_node-26] rclpy._rclpy_pybind11.RCLError: error creating node: error not set, at /home/runner/conda-bld/bld/rattler-build_ros-jazzy-rcl_1771185396/work/ros-jazzy-rcl/src/work/src/rcl/node.c:252
+[ERROR] [change_avoidance_node-26]: process has died [pid 15878, exit code 1, cmd '/home/fcsl/roboracer_ws/install/lane_change_planner/lib/lane_change_planner/change_avoidance_node --ros-args -r __node:=planner_change --params-file /tmp/launch_params_z8557rpi'].
+[vesc_driver_node-1] 1787382145.042818 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042859 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042870 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042879 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042889 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042897 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042905 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042913 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042974 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042984 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.042993 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043001 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043009 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043017 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043025 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043033 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043042 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043050 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043058 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043066 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043074 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043082 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043090 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043098 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043106 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043114 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043122 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043130 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043138 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043145 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043153 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043161 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043169 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043177 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043185 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043193 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043201 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043209 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043217 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043224 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043234 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043243 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043250 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043258 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043266 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043274 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043282 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043290 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043297 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043305 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043313 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382145.043321 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.057872 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.057910 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.057922 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.057932 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.057941 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.057950 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.057959 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.057968 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058033 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058044 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058053 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058061 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058069 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058077 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058085 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058093 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058101 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058110 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058118 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058125 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058133 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058141 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058149 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058157 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058166 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058173 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058182 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058190 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058197 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058205 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058213 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058221 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058230 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058238 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058246 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058284 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058296 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058304 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058312 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058320 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058328 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058336 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058344 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058352 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058360 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058368 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058375 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058383 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[urg_node_driver-4] 1787382145.058391 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[urg_node_driver-4] 1787382145.058399 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[urg_node_driver-4] 1787382145.058407 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[urg_node_driver-4] 1787382145.058415 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059795 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059819 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059829 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059837 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059845 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059853 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059861 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059869 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059927 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059937 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059945 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059953 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059960 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059968 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059976 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059984 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.059993 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060000 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060008 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060016 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060024 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060032 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060040 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060047 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060055 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060063 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060071 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060079 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060086 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060094 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060102 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060110 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060118 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060126 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060134 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060142 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060150 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060157 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060165 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060173 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060181 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060199 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060207 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060214 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060222 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060231 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060239 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060246 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060254 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060262 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060270 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382145.060277 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069536 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069568 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069579 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069588 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069597 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069605 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069613 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069622 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069682 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069693 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069701 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069709 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069717 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069725 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069733 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069741 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069749 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069757 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069765 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069773 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069781 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069789 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069797 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069805 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069813 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069820 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069828 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069836 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069844 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069852 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069860 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069868 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069876 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069884 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069892 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069900 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069908 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069916 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069924 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069932 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069940 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069954 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069962 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069970 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069978 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069986 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.069993 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.070001 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.070009 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.070017 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.070025 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382145.070033 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[vesc_driver_node-1] [INFO] [1787382147.453715293] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[urg_node_driver-4] [INFO] [1787382147.453707292] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ackermann_to_vesc_node-2] [INFO] [1787382147.453739646] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[vesc_to_odom_node-3] [INFO] [1787382147.453721725] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[vesc_driver_node-1] [INFO] [1787382147.469190871] [vesc.vesc_driver_node]: -=60_MK6=- hardware paired 0
+[vesc_driver_node-1] 1787382147.660710 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660770 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660783 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660792 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660801 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660809 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660817 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660825 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660896 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660905 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660913 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660921 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660929 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660937 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660945 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660953 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660961 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660969 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660977 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660984 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.660993 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661001 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661009 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661017 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661026 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661034 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661043 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661051 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661058 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661066 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661073 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661081 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661089 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661096 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661104 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661112 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661120 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661128 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661136 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661144 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661152 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661166 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661175 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661183 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661191 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661199 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661208 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661216 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661224 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661232 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661241 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_driver_node-1] 1787382147.661249 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.660949 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.660982 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.660994 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661004 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661013 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661021 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661030 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661038 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661101 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661122 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661131 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661140 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661148 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661156 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661164 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661172 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661182 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661190 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661198 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661207 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661215 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661223 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661232 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661240 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661248 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661256 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661264 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661272 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661280 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661287 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661295 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661303 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661312 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661319 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661327 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661335 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661342 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661350 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661358 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661365 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661373 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661386 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661394 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661402 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661410 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661417 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661425 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661432 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661440 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661448 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661455 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[ackermann_to_vesc_node-2] 1787382147.661463 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[INFO] [vesc_to_odom_node-3]: process has finished cleanly [pid 15763]
+[INFO] [vesc_driver_node-1]: process has finished cleanly [pid 15759]
+[INFO] [ackermann_to_vesc_node-2]: process has finished cleanly [pid 15761]
+[vesc_to_odom_node-3] 1787382147.663018 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663050 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663061 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663069 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663078 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663086 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663093 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663101 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663161 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663171 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663179 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663187 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663195 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663203 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663210 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663218 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663226 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663234 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663242 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663249 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663257 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663265 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663272 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663280 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663288 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663295 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663303 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663310 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663318 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663326 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663334 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663341 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663350 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663358 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663366 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663373 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663381 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663389 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663396 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663404 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663412 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663427 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663435 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663443 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663450 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663458 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663466 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663473 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663481 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663489 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663497 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[vesc_to_odom_node-3] 1787382147.663504 [1] vesc_to_od: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357710 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357746 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357759 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357767 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.2:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357775 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357783 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357791 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357799 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.3:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357851 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357861 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357869 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357877 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.4:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357885 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357892 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357900 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357908 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.5:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357917 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357925 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357932 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357940 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.6:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357948 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357955 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357963 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.357970 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.7:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.357979 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.357987 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.357995 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358002 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.8:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358010 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358018 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358026 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358034 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.9:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358042 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358050 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358057 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358065 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.10:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358073 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358080 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358088 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358095 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.11:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358103 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358110 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358118 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358126 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.12:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358137 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358145 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358153 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358161 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.13:7666 failed with retcode -3
+[urg_node_driver-4] 1787382148.358169 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7660 failed with retcode -3
+[urg_node_driver-4] 1787382148.358177 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7662 failed with retcode -3
+[urg_node_driver-4] 1787382148.358185 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7664 failed with retcode -3
+[urg_node_driver-4] 1787382148.358193 [1]        tev: ddsi_udp_conn_write to udp/172.20.10.14:7666 failed with retcode -3
+[INFO] [urg_node_driver-4]: process has finished cleanly [pid 15765]
