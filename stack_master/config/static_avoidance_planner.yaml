@@ -27,7 +27,10 @@ static_avoidance_planner:
     # lookahead and the path cache are. The old node ran at 40 Hz and still
     # reacted late, because it had nothing to plan around until the car was
     # nearly on top of the obstacle.
-    rate_hz: 20.0
+    # 20 -> 10. 정지 장애물을 5 cm마다 다시 계획할 필요가 없고, 이 노드는
+    # detect/tracking/이미 scan-limited인 PF와 같은 Jetson을 나눠 쓴다.
+    # (업스트림 spline_node도 같은 이유로 20 -> 10)
+    rate_hz: 10.0
     # [s] Throttle for the single-line [STATIC_AVOID] status log.
     log_period_s: 0.5
     # Publish planning-callback duration on /planner/avoidance/latency.
@@ -75,7 +78,7 @@ static_avoidance_planner:
     # raceline, the line clears it and this planner publishes nothing. MUST be
     # >= what the state machine calls a blocked raceline, which is
     # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
-    raceline_clearance_m: 0.35
+    raceline_clearance_m: 0.30
 
     # Maximum number of simultaneously visible static obstacles shaped into one
     # same-side path. The simulator supports at most three practice obstacles.
@@ -87,7 +90,7 @@ static_avoidance_planner:
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
     # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
     # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    evasion_distance: 0.40 #3.0
+    evasion_distance: 0.30 #3.0
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -183,7 +186,7 @@ static_avoidance_planner:
     # [m] How close the path's CENTRELINE may come to the track edge. Not
     # reducible below the car's half width (0.145): at 0.19 the car passes
     # 4.5 cm from the wall, which is about what localisation error is worth.
-    boundary_margin: 0.19
+    boundary_margin: 0.24
 
     # [m] The car's width. Must match the state machine's gb_ego_width_m (0.29)
     # or the two disagree about what clears an obstacle.

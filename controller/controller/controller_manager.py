@@ -112,6 +112,14 @@ class ControllerManager(Node):
             setattr(self, p, self._get_param(p))
 
         # Publishers (ROS1 topic names kept)
+        # [Hz] Drawing rate for this node's markers, independent of loop_rate.
+        # These four draws sit INSIDE the 50 Hz control loop, so with pitwall
+        # connected they were adding to steering latency 50 times a second.
+        # The subscriber gates make them free with pitwall closed; this caps
+        # what a connected pitwall can cost. 0 disables drawing.
+        self.viz_rate_hz = float(self._get_param('viz_rate_hz', 10.0))
+        self._last_viz_sec = 0.0
+
         self.lookahead_pub = self.create_publisher(Marker, 'lookahead_point', 10)
         # steering-direction arrow on its own topic (was on lookahead_point with the
         # point marker; RViz2's singular-Marker display drops one of two ids at 100Hz)
@@ -427,10 +435,17 @@ class ControllerManager(Node):
             self.acc_now,
             self.track_length)
 
-        self.set_lookahead_marker(L1_point, 100)
-        self.visualize_steering(steering_angle)
-        self.visualize_trailing_opponent()
-        self.viz_future_position(future_position, 200)
+        # Viz is rate-limited as a group: one clock check instead of four, and
+        # the whole block is skipped on most control ticks. Each function still
+        # has its own subscriber gate for the pitwall-closed case.
+        if self.viz_rate_hz > 0.0:
+            _now = time.monotonic()
+            if _now - self._last_viz_sec >= 1.0 / self.viz_rate_hz:
+                self._last_viz_sec = _now
+                self.set_lookahead_marker(L1_point, 100)
+                self.visualize_steering(steering_angle)
+                self.visualize_trailing_opponent()
+                self.viz_future_position(future_position, 200)
 
         self.curvature_waypoints = curvature_waypoints
         self.l1_pub.publish(Point(x=float(idx_nearest_waypoint), y=float(L1_distance), z=float(self.curvature_waypoints)))
@@ -462,6 +477,11 @@ class ControllerManager(Node):
 
     ############################################ VIZ ############################################
     def visualize_steering(self, theta):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.steering_pub.get_subscription_count() == 0:
+            return
         quaternions = quaternion_from_euler(0, 0, theta)
 
         lookahead_marker = Marker()
@@ -486,6 +506,11 @@ class ControllerManager(Node):
         self.steering_pub.publish(lookahead_marker)
 
     def set_lookahead_marker(self, lookahead_point, id):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.lookahead_pub.get_subscription_count() == 0:
+            return
         lookahead_marker = Marker()
         lookahead_marker.header.frame_id = "map"
         lookahead_marker.header.stamp = self.get_clock().now().to_msg()
@@ -508,6 +533,11 @@ class ControllerManager(Node):
         self.lookahead_pub.publish(lookahead_marker)
 
     def viz_future_position(self, future_position, id):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.future_position_pub.get_subscription_count() == 0:
+            return
         quaternions = quaternion_from_euler(0, 0, future_position[0, 2])
 
         future_position_marker = Marker()
@@ -532,6 +562,11 @@ class ControllerManager(Node):
         self.future_position_pub.publish(future_position_marker)
 
     def visualize_trailing_opponent(self):
+        # Viz only, and this runs INSIDE the 50 Hz control loop -- every
+        # microsecond here is added to the steering latency. Skipped when
+        # nothing is subscribed; unchanged when pitwall is open.
+        if self.trailing_pub.get_subscription_count() == 0:
+            return
         if (self.state == "TRAILING" and (self.opponent is not None)):
             on = True
         else:

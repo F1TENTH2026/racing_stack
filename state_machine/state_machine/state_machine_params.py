@@ -39,6 +39,13 @@ class StateMachineParams:
         "interest_horizon_m",
         "overtaking_horizon_m",
         "overtake_min_closing_mps",
+        "dynamic_overtake_max_gap_m",
+        "dynamic_overtake_min_rel_speed_mps",
+        "dynamic_prediction_span_m",
+        "dynamic_opponent_memory_sec",
+        "overtake_pass_grace_sec",
+        "dynamic_obstacle_min_half_width_m",
+        "overtake_speed_scale",
     }
 
     def __init__(self, node: "StateMachine") -> None:
@@ -278,8 +285,129 @@ class StateMachineParams:
         self._declare("force_GBTRACK", False)
         self.force_GBTRACK: bool = node.get_parameter("force_GBTRACK").value
 
-        self._declare("use_force_trailing", False)
+        self._declare(
+            "use_force_trailing", True,
+            ParameterDescriptor(
+                description=(
+                    "Honour /opponent_prediction/force_trailing as an OVERTAKE "
+                    "ENTRY veto. Set false to ignore the predictor's authorization "
+                    "and gate dynamic overtaking on path freshness/safety alone. "
+                    "No effect on OVERTAKE sustain, and none on static obstacles."
+                ),
+                type=ParameterType.PARAMETER_BOOL,
+            ),
+        )
         self.use_force_trailing: bool = node.get_parameter("use_force_trailing").value
+
+        self._declare(
+            "dynamic_overtake_max_gap_m", 10.0,
+            ParameterDescriptor(
+                description=(
+                    "Max forward gap to the nearest opponent ahead for it to be a "
+                    "DYNAMIC overtake candidate [m]. Capped at half the lap at "
+                    "runtime so a short track can't wrap the window onto a car "
+                    "behind. Does not affect static-obstacle avoidance."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=1.0, to_value=20.0, step=0.1)],
+            ),
+        )
+        self.dynamic_overtake_max_gap_m: float = node.get_parameter("dynamic_overtake_max_gap_m").value
+
+        self._declare(
+            "dynamic_overtake_min_rel_speed_mps", -0.5,
+            ParameterDescriptor(
+                description=(
+                    "Min (ego_vs - opponent_vs) for a dynamic overtake candidate "
+                    "[m/s]. Negative on purpose: racing_stack allows starting an "
+                    "overtake while marginally slower than the opponent."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=-3.0, to_value=3.0, step=0.05)],
+            ),
+        )
+        self.dynamic_overtake_min_rel_speed_mps: float = node.get_parameter(
+            "dynamic_overtake_min_rel_speed_mps").value
+
+        self._declare(
+            "dynamic_prediction_span_m", 3.0,
+            ParameterDescriptor(
+                description=(
+                    "How far ahead of the opponent's CURRENT pose the predicted "
+                    "trajectory is checked when judging whether the dynamic "
+                    "avoidance path is safe [m]. Applies to the OT path only -- "
+                    "the raceline/recovery blocked-or-free verdict still sees the "
+                    "whole prediction. 0 disables the cap."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=20.0, step=0.1)],
+            ),
+        )
+        self.dynamic_prediction_span_m: float = node.get_parameter("dynamic_prediction_span_m").value
+
+        self._declare(
+            "dynamic_opponent_memory_sec", 3.0,
+            ParameterDescriptor(
+                description=(
+                    "How long the trailing speed cap is held after perception "
+                    "loses a dynamic opponent that was ahead [s]. 0 disables the "
+                    "memory and restores the pre-2026-08-22 behaviour, in which "
+                    "the car returned to full raceline speed the instant the "
+                    "opponent stopped being reported."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=10.0, step=0.1)],
+            ),
+        )
+        self.dynamic_opponent_memory_sec: float = node.get_parameter("dynamic_opponent_memory_sec").value
+
+        self._declare(
+            "overtake_speed_scale", 1.2,
+            ParameterDescriptor(
+                description=(
+                    "Multiplier on the AVOIDANCE path's velocity profile, matching "
+                    "what the sector tuner does to the raceline. The avoidance "
+                    "profile is rebuilt from raw ggv and never received the sector "
+                    "scaling, so it ran at 1.0x while the raceline ran at 1.05-1.2x. "
+                    "Clipped to veh_params v_max; never raises a trailing speed cap. "
+                    "1.0 restores the previous behaviour."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.5, to_value=1.5, step=0.01)],
+            ),
+        )
+        self.overtake_speed_scale: float = node.get_parameter("overtake_speed_scale").value
+
+        self._declare(
+            "overtake_pass_grace_sec", 2.0,
+            ParameterDescriptor(
+                description=(
+                    "After leaving OVERTAKE, suppress the lost-opponent speed "
+                    "hold for this long [s]. A car that disappears right after a "
+                    "pass is behind us, not lost. 0 disables the suppression."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=10.0, step=0.1)],
+            ),
+        )
+        self.overtake_pass_grace_sec: float = node.get_parameter("overtake_pass_grace_sec").value
+
+        self._declare(
+            "dynamic_obstacle_min_half_width_m", 0.15,
+            ParameterDescriptor(
+                description=(
+                    "Floor on the half-width used for a DYNAMIC obstacle [m]. "
+                    "Perception's fitted size varies 0.16-0.56 m for a car that "
+                    "is really 0.30 m wide; without a floor, the frames where it "
+                    "reads narrow are the ones that authorise a pass. Static "
+                    "obstacles are unaffected."
+                ),
+                type=ParameterType.PARAMETER_DOUBLE,
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=0.5, step=0.005)],
+            ),
+        )
+        self.dynamic_obstacle_min_half_width_m: float = node.get_parameter(
+            "dynamic_obstacle_min_half_width_m").value
 
         # Momentary rqt buttons (ROS1: served by dynamic_statemachine_server). When set
         # true they trigger an action and reset to false (done in the node timer, not

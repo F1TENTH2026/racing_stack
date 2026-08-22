@@ -12,8 +12,8 @@ urg_node:
     # widens what pf sees for localization. detect stays narrowed to the old
     # +-1.8 rad via its own max_angle_rad param (opponent_tracker_params.yaml)
     # instead of at the driver, so raising this doesn't change what it detects.
-    angle_max: 3.14
-    angle_min: -3.14
+    angle_max: 1.8
+    angle_min: -1.8
     ip_address: "192.168.0.10"
     ip_port: 10940
     laser_frame_id: "laser"
@@ -23,7 +23,11 @@ urg_node:
     diagnostics_window_time: 5.0
     error_limit: 4
     get_detailed_status: false
-    publish_intensity: true
+    # false = /scan 메시지 크기 절반 (8.5 KB -> 4.3 KB, 40 Hz에서 350 -> 175 KB/s).
+    # 이 스택에서 intensities를 읽는 코드는 laser_proc(멀티에코 변환, 현재 경로에
+    # 없음)뿐이다. pf도 detect도 ranges만 본다. pitwall이 /scan을 구독할 때의
+    # WiFi 부하가 그대로 절반이 된다.
+    publish_intensity: false
     publish_multiecho: false
     cluster: 1
     skip: 0

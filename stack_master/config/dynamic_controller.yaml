@@ -1,0 +1,109 @@
+# dynamic_controller.yaml — head-to-head OVERLAY on top of controller.yaml.
+#
+# HOW IT LOADS
+#   race.launch.xml gives controller_manager two <param from=...> blocks:
+#       config/controller.yaml           (base: every parameter)
+#       config/dynamic_controller.yaml   (this file: only what H2H changes)
+#   The later block wins for the keys it names, so ONLY put keys here that must
+#   differ when there is a moving opponent. Everything else stays in the base.
+#   quali.launch.xml does NOT load this file: quali has static obstacles only.
+#
+# WHY IT EXISTS
+#   controller.yaml's trailing gains are tuned for TIME TRIALS, where the thing
+#   ahead is a box that never moves and the right answer is to hold station
+#   firmly. Behind a car that is driving away from us the same gains are far too
+#   stiff, and the failure is not "trails badly" -- it is a DEAD STOP.
+#
+#   trailing_controller computes
+#       command = clip(opponent_vs - P*gap_error - I - D*v_diff, 0, global_speed)
+#   so the command floors at zero as soon as P*gap_error exceeds the opponent's
+#   own speed, i.e. at a gap of
+#       gap_should - opponent_vs / trailing_p_gain
+#
+#   With the base gains (gap 2.5, vel_gain 0.25, P 1.35) against an opponent
+#   doing 1.0 m/s that is a gap of 2.01 m: the car comes to a complete stop two
+#   metres behind a car that is still moving, then has to break static friction
+#   and ramp back up through the VESC's brake-release hysteresis. That pause
+#   costs far more time than trailing slightly slower would have.
+#
+#   With the values below the same situation floors at 0.10 m -- i.e. it does
+#   not happen. Softer P and D let the command follow the opponent's speed
+#   instead of fighting the gap error.
+#
+#       opponent   base (P 1.35)   H2H (P 0.5)
+#         0.5 m/s     2.25 m          1.05 m
+#         1.0 m/s     2.01 m          0.10 m
+#         1.5 m/s     1.76 m          never
+#         2.0 m/s     1.52 m          never
+#
+#   These are the values roboracer_unita_ws uses in its own H2H overlay, whose
+#   trailing behaviour is known good on this car.
+#
+# ** SAVE-BACK TRAP **
+#   race.launch.xml points save_yaml_path at controller.yaml (matching upstream),
+#   and save_params writes the WHOLE L1 parameter set to it. Triggering a save
+#   while this overlay is active therefore copies these H2H gains into the
+#   time-trial base. save_params defaults to false; do not set it true during a
+#   head-to-head run. Tune here by hand instead.
+#
+# NOT YET IMPLEMENTED (deliberately absent, so this file stays honest)
+#   Upstream also carries trailing_accel_limit / trailing_decel_limit /
+#   trailing_emergency_gap / trailing_rate_limit_enabled (a rate limiter on the
+#   command, so it ramps down at 3 m/s^2 instead of stepping to zero, with an
+#   emergency gap that bypasses the limiter) and opponent_speed_hold_sec /
+#   opponent_speed_valid_min_mps / opponent_speed_valid_max_mps (hold the last
+#   valid opponent speed for 0.75 s, so one noisy tracking frame cannot collapse
+#   the feed-forward term). Our Controller.py reads none of those yet -- adding
+#   them here would be config that silently does nothing. Port the code first.
+controller_manager:
+  ros__parameters:
+    # [m] Standing gap. 2.5 -> 2.0 -> 1.5.
+    #
+    # A car driving away needs less buffer than a box that will not move, and
+    # every extra metre here is a metre the command has to give back before it
+    # can floor at zero.
+    #
+    # 2.0 -> 1.5 is measured, not a guess. In state_machine_20260822_051509.log
+    # the dynamic overtake succeeds far more often from close in:
+    #
+    #     gap band      OVERTAKE / blocked    success
+    #     < 1.5 m            7 /   6            53 %
+    #     1.5 - 2.0 m       34 /  32            51 %
+    #     2.0 - 2.5 m       19 /  79            19 %
+    #     2.5 - 3.0 m       30 / 105            22 %
+    #     3.0 - 4.0 m       28 / 119            19 %
+    #
+    # Inside 2 m the manoeuvre is about 2.5x more likely to be allowed, because
+    # the segment of the opponent's predicted path that has to be clear is the
+    # near part, where the track is the piece the car can already see.
+    #
+    # It also makes the DEAD STOP strictly less likely, not more. The command
+    # floors at zero at gap_should - opponent_vs / trailing_p_gain:
+    #
+    #     opponent   trailing_gap 2.0   trailing_gap 1.5
+    #       0.5 m/s      1.15 m             0.65 m
+    #       1.0 m/s      0.20 m             never
+    #       1.5 m/s      never              never
+    #
+    # NOTE trailing_vel_gain below is only 0.10, so the speed-dependent part of
+    # the target gap spans 0 to 0.8 m across the car's whole speed range: this
+    # constant is what sets the trailing distance, not the speed term.
+    trailing_gap: 1.5
+
+    # Speed-proportional part of the target gap. 0.25 -> 0.10. The base value
+    # makes gap_should grow fast with speed, which is what pushes the car into
+    # the region where P*gap_error can exceed the opponent's speed.
+    trailing_vel_gain: 0.10
+
+    # 1.35 -> 0.5. THE dominant term: the zero-command gap is
+    # gap_should - opponent_vs/P, so halving P more than doubles how far inside
+    # the target gap the car can be before it is told to stop.
+    trailing_p_gain: 0.5
+
+    # Left at 0. Steady-state gap error is preferable to integral wind-up
+    # against an opponent whose speed changes constantly.
+    trailing_i_gain: 0.0
+
+    # 1.0 -> 0.25. Damps the approach without dominating it. At 1.0 the closing
+    # rate alone could drive the command to zero during a normal catch-up.
+    trailing_d_gain: 0.25

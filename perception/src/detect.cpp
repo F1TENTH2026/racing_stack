@@ -633,7 +633,12 @@ void Detect::publishBreakpoints(const std::vector<std::vector<std::pair<double, 
     marker.id = idx * 10;
     marker.type = visualization_msgs::msg::Marker::SPHERE;
     marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.lifetime = rclcpp::Duration::from_seconds(3.0 / 40.0);  // auto-expire (~3 frames @ 40 Hz) so stale markers clear
+    marker.lifetime = rclcpp::Duration::from_seconds(3.0 / std::max(rate_, 1.0));  // auto-expire after ~3 ticks
+    // NOTE: derived from rate_, not a hardcoded 40. This used to be 3.0/40.0 = 75 ms,
+    // written when rate_detect was 40 Hz. With rate_detect at 20 Hz the tick period is
+    // 50 ms, so 75 ms was only 1.5 ticks: a single late frame let RViz expire the
+    // marker and the obstacle blinked out of the display even though detection was
+    // fine. Scaling with the rate keeps the intended ~3-tick grace at any rate.
     marker.scale.x = 0.1;
     marker.scale.y = 0.1;
     marker.scale.z = 0.1;
@@ -654,7 +659,12 @@ void Detect::publishBreakpoints(const std::vector<std::vector<std::pair<double, 
     marker2.id = idx * 10 + 2;
     marker2.type = visualization_msgs::msg::Marker::SPHERE;
     marker2.action = visualization_msgs::msg::Marker::ADD;
-    marker2.lifetime = rclcpp::Duration::from_seconds(3.0 / 40.0);  // auto-expire (~3 frames @ 40 Hz) so stale markers clear
+    marker2.lifetime = rclcpp::Duration::from_seconds(3.0 / std::max(rate_, 1.0));  // auto-expire after ~3 ticks
+    // NOTE: derived from rate_, not a hardcoded 40. This used to be 3.0/40.0 = 75 ms,
+    // written when rate_detect was 40 Hz. With rate_detect at 20 Hz the tick period is
+    // 50 ms, so 75 ms was only 1.5 ticks: a single late frame let RViz expire the
+    // marker and the obstacle blinked out of the display even though detection was
+    // fine. Scaling with the rate keeps the intended ~3-tick grace at any rate.
     marker2.scale.x = 0.1;
     marker2.scale.y = 0.1;
     marker2.scale.z = 0.1;
@@ -712,7 +722,12 @@ void Detect::publishObstaclesMarkers()
     marker.header.stamp = current_stamp_;
     marker.id = tracked_obstacles_[i].id;
     marker.type = visualization_msgs::msg::Marker::CUBE;
-    marker.lifetime = rclcpp::Duration::from_seconds(3.0 / 40.0);  // auto-expire (~3 frames @ 40 Hz) so stale markers clear
+    marker.lifetime = rclcpp::Duration::from_seconds(3.0 / std::max(rate_, 1.0));  // auto-expire after ~3 ticks
+    // NOTE: derived from rate_, not a hardcoded 40. This used to be 3.0/40.0 = 75 ms,
+    // written when rate_detect was 40 Hz. With rate_detect at 20 Hz the tick period is
+    // 50 ms, so 75 ms was only 1.5 ticks: a single late frame let RViz expire the
+    // marker and the obstacle blinked out of the display even though detection was
+    // fine. Scaling with the rate keeps the intended ~3-tick grace at any rate.
     marker.scale.x = tracked_obstacles_[i].size;
     marker.scale.y = tracked_obstacles_[i].size;
     marker.scale.z = tracked_obstacles_[i].size;

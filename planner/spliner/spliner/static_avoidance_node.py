@@ -285,6 +285,11 @@ class StaticObstacleSpliner(Node):
     # assumes "ahead" and "behind" are separable -- every (s - cur_s) % max_s
     # comparison, here and in the state machine, wraps at max_s/2.
     _TRACK_FRACTION = 1.0 / 3.0
+    # [m] Bucket width for the position-based obstacle-group key used to latch the
+    # approach distance and the chosen side. Wide enough to absorb cluster-centroid
+    # jitter, narrow enough that two obstacles the planner should treat separately
+    # cannot share a bucket (they would have to be within half a metre in s).
+    _GROUP_KEY_BUCKET_M = 0.5
 
     @property
     def _lookahead_eff(self) -> float:
@@ -490,13 +495,22 @@ class StaticObstacleSpliner(Node):
             return out
 
         group = self._pick_target_group(candidates)
-        group_key = tuple(sorted(int(o.id) for o in group))
+        # Key the latches on WHERE the obstacles are, not on which ids perception
+        # currently has for them. A static obstacle does not move, but its track id
+        # churns (multi_tracking opens a fresh id whenever association misses), and
+        # an id change was resetting _latch_move_start and _preferred_group_side
+        # mid-approach -- restarting the manoeuvre and re-deciding the side with the
+        # car already committed. Bucketed at half a metre so ordinary centroid
+        # jitter, which is well under that, cannot walk the key either.
+        group_key = tuple(sorted(round(o.s_center / self._GROUP_KEY_BUCKET_M)
+                                 for o in group))
         first = group[0]
         first_gap = self._signed_gap(first.s_center)
         last_gap = max(self._signed_gap(o.s_center) for o in group)
         dbg.update({"obs_present": True, "obs_id": int(first.id), "obs_dist": first_gap,
                     "obs_s": first.s_center, "obs_d": first.d_center,
-                    "group_ids": list(group_key), "group_size": len(group),
+                    "group_ids": sorted(int(o.id) for o in group),
+                    "group_size": len(group),
                     "group_span": max(0.0, last_gap - first_gap)})
 
         # Nothing to avoid: the raceline itself already passes the obstacle with

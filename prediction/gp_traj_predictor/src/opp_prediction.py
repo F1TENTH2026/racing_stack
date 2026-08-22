@@ -66,6 +66,50 @@ class OppTrajPredictor(PredictionNode):
         self.min_a = 5 # m/s^2
         self.max_expire_counter = 10
 
+        # --- learned-trajectory authorization (force_trailing) ---
+        # The old test was a bare, memoryless comparison:
+        #     abs(opp_d - raceline_d) > 0.25 or lap_count < 1
+        # One threshold, evaluated fresh every 10 Hz frame, so an opponent
+        # hovering near 0.25 m off the learned line toggled force_trailing on and
+        # off frame by frame -- and each toggle flipped the planner between
+        # "publish an evasion path" and "publish nothing", which the state machine
+        # sees as the avoidance path appearing and vanishing.
+        #
+        # Replaced with a two-threshold, frame-confirmed hysteresis. Same purpose,
+        # same meaning of the output: True == "the prediction is only a
+        # constant-velocity fallback, do not authorize a new overtake".
+        # [m] Half the opponent's LATERAL extent, written into every predicted
+        # pose's d_left/d_right. 0.25 -> 0.15.
+        #
+        # 0.25 modelled the opponent as 0.50 m wide. A RoboRacer is 0.30 m
+        # (planner width_car 0.30, state machine gb_ego_width_m 0.29), so this
+        # was 0.10 m of unexplained inflation per side -- and it is not a safety
+        # margin, because both consumers add their own on top:
+        #
+        #   state machine  free_dist = |path_d - pred_d| - THIS - gb_ego_width/2
+        #                  blocked when free_dist < lateral_width_m
+        #   planner        apex = obs.d_left + width_car/2 + safety_margin + 0.2
+        #
+        # With 0.25 the state machine demanded 0.25 + 0.145 + 0.20 = 0.595 m of
+        # separation between the avoidance path and the opponent, while the
+        # planner can displace the path by at most lane_offset = 0.35 m. The
+        # requirement was 0.245 m beyond anything that could ever be built, so
+        # the OT path was judged unsafe whenever the opponent sat on its learned
+        # line -- 359 PATH_BLOCKED samples, 48 % of all dynamic decisions, in
+        # state_machine_20260822_051509.log, every one of them with a fresh
+        # valid path (path_age 0.07-0.22 s).
+        self.opponent_half_width_m = 0.15
+        self.min_training_laps = 0.5
+        self.learned_deviation_enter_threshold = 0.35   # [m] enter learned (authorize)
+        self.learned_deviation_exit_threshold = 0.55    # [m] leave learned (veto)
+        self.learned_ready_confirm_frames = 3
+        self.learned_reject_confirm_frames = 5
+        # Start vetoing: a predictor that has just come up has not seen the
+        # opponent run a lap yet, so it cannot have a learned trajectory.
+        self.force_trailing = True
+        self._learned_ready_frames = 0
+        self._learned_reject_frames = 0
+
         # ROS 2 parameters replace ROS 1 dynamic_reconfigure.  They can be
         # changed at runtime with `ros2 param set /opponent_propagation_predictor ...`.
         for name, default in {
@@ -73,7 +117,14 @@ class OppTrajPredictor(PredictionNode):
                 'dt': self.dt,
                 'save_distance_front': self.save_distance_front,
                 'max_expire_counter': self.max_expire_counter,
-                'speed_offset': self.speed_offset}.items():
+                'speed_offset': self.speed_offset,
+                # --- learned-trajectory authorization hysteresis (see _update_learned_authorization) ---
+                'opponent_half_width_m': self.opponent_half_width_m,
+                'min_training_laps': self.min_training_laps,
+                'learned_deviation_enter_threshold': self.learned_deviation_enter_threshold,
+                'learned_deviation_exit_threshold': self.learned_deviation_exit_threshold,
+                'learned_ready_confirm_frames': self.learned_ready_confirm_frames,
+                'learned_reject_confirm_frames': self.learned_reject_confirm_frames}.items():
             self.declare_parameter(name, default)
         self.dyn_param_cb(None)
         self.add_on_set_parameters_callback(self._on_parameter_update)
@@ -209,6 +260,112 @@ class OppTrajPredictor(PredictionNode):
     def state_cb(self, data: String):
         self.state = data.data
 
+    def _build_opponent_markers(self, obstacle_list):
+        """RViz cylinders for the predicted opponent poses -- ONE service call.
+
+        This used to be built inside the n_time_steps loop, and every iteration
+        called frenet2glob() for a single point. frenet2glob() is a *synchronous*
+        service round-trip (call_async + spin_until_future_complete), so a
+        200-step prediction paid 200 blocking round-trips per cycle, purely for
+        visualisation. Measured on the car (state_machine_20260822_044714.log):
+        pred_age sawtoothed 0.1 -> 1.5 s with a median of 1.00 s, i.e. the
+        predictor emitted at well under 1 Hz against its nominal 10 Hz, and the
+        lane_change planner -- whose pred_timeout is 0.5 s -- therefore refused
+        to plan on 76 % of the samples where a prediction existed at all.
+
+        Two changes, neither of which touches what is predicted:
+          * Frenet2GlobArr is an ARRAY service. Convert all the poses in one
+            call instead of one call per pose.
+          * Skip the work entirely when nothing is subscribed to the marker
+            topic, which is the normal case during a race.
+        """
+        if self.opp_marker_pub.get_subscription_count() == 0 or not obstacle_list:
+            return MarkerArray()
+
+        s_list = [obs.s_center % self.max_s_updated for obs in obstacle_list]
+        d_list = [obs.d_center for obs in obstacle_list]
+        pos = self.frenet2glob(s_list, d_list)
+        if pos is None or len(pos.x) != len(obstacle_list):
+            return MarkerArray()
+
+        stamp = self.get_clock().now().to_msg()
+        markers = MarkerArray()
+        for i, obs in enumerate(obstacle_list):
+            marker = Marker()
+            marker.header.stamp = stamp
+            marker.header.frame_id = "map"
+            marker.id = i
+            marker.type = Marker.CYLINDER
+            marker.action = Marker.ADD
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = pos.x[i]
+            marker.pose.position.y = pos.y[i]
+            marker.pose.position.z = 0.1
+            marker.scale.x = 0.15
+            marker.scale.y = 0.15
+            marker.scale.z = 0.15  # height
+            marker.color.a = 0.8
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            markers.markers.append(marker)
+        return markers
+
+    def _update_learned_authorization(self, deviation_m):
+        """Decide whether the opponent is on its learned trajectory, with hysteresis.
+
+        `deviation_m` is |opponent_d - learned_trajectory_d| at the opponent's s.
+
+        Returns True when the prediction must be treated as a constant-velocity
+        fallback (i.e. publish force_trailing=True and do not authorize a new
+        overtake), False when the learned GP trajectory is trusted.
+
+        Two thresholds and two frame counters, so the answer cannot chatter:
+
+          authorize (force_trailing -> False)
+              training >= min_training_laps AND deviation <= enter_threshold,
+              held for learned_ready_confirm_frames consecutive frames
+          veto (force_trailing -> True)
+              deviation >= exit_threshold,
+              held for learned_reject_confirm_frames consecutive frames
+
+        Between the two thresholds nothing changes -- whichever state is current
+        is held. That band (0.35 to 0.55 m) is where the old single 0.25 m test
+        did all of its flapping.
+
+        Not enough training laps is an immediate, unconfirmed veto: there is no
+        learned trajectory to be near, so waiting frames to say so would be
+        pretending to a confidence we do not have.
+        """
+        laps = self.opponent_lap_count
+        # opponent_lap_count is None until the first /opponent_trajectory message.
+        # The old expression evaluated `None < 1` on any frame where the deviation
+        # test short-circuited to False -- a TypeError that killed the loop.
+        if laps is None or float(laps) < float(self.min_training_laps):
+            self.force_trailing = True
+            self._learned_ready_frames = 0
+            self._learned_reject_frames = 0
+            return self.force_trailing
+
+        if deviation_m <= float(self.learned_deviation_enter_threshold):
+            self._learned_ready_frames += 1
+            self._learned_reject_frames = 0
+            if self._learned_ready_frames >= int(self.learned_ready_confirm_frames):
+                self.force_trailing = False
+        elif deviation_m >= float(self.learned_deviation_exit_threshold):
+            self._learned_reject_frames += 1
+            self._learned_ready_frames = 0
+            if self._learned_reject_frames >= int(self.learned_reject_confirm_frames):
+                self.force_trailing = True
+        else:
+            # Inside the hysteresis band: hold the current decision, and reset both
+            # counters so a run that drifts in and out of the band does not
+            # accumulate credit toward a flip it never actually earned.
+            self._learned_ready_frames = 0
+            self._learned_reject_frames = 0
+
+        return self.force_trailing
+
         # Callback triggered by dynamic spline reconf
     def dyn_param_cb(self, _params):
         """
@@ -219,6 +376,16 @@ class OppTrajPredictor(PredictionNode):
         self.save_distance_front = self.get_parameter('save_distance_front').value
         self.max_expire_counter = self.get_parameter('max_expire_counter').value
         self.speed_offset = self.get_parameter('speed_offset').value
+        self.opponent_half_width_m = self.get_parameter('opponent_half_width_m').value
+        self.min_training_laps = self.get_parameter('min_training_laps').value
+        self.learned_deviation_enter_threshold = self.get_parameter(
+            'learned_deviation_enter_threshold').value
+        self.learned_deviation_exit_threshold = self.get_parameter(
+            'learned_deviation_exit_threshold').value
+        self.learned_ready_confirm_frames = self.get_parameter(
+            'learned_ready_confirm_frames').value
+        self.learned_reject_confirm_frames = self.get_parameter(
+            'learned_reject_confirm_frames').value
 
         print(
             f"[Opp. Pred.] Dynamic reconf triggered new params:\n"
@@ -240,6 +407,18 @@ class OppTrajPredictor(PredictionNode):
                 self.max_expire_counter = parameter.value
             elif parameter.name == 'speed_offset':
                 self.speed_offset = parameter.value
+            elif parameter.name == 'opponent_half_width_m':
+                self.opponent_half_width_m = parameter.value
+            elif parameter.name == 'min_training_laps':
+                self.min_training_laps = parameter.value
+            elif parameter.name == 'learned_deviation_enter_threshold':
+                self.learned_deviation_enter_threshold = parameter.value
+            elif parameter.name == 'learned_deviation_exit_threshold':
+                self.learned_deviation_exit_threshold = parameter.value
+            elif parameter.name == 'learned_ready_confirm_frames':
+                self.learned_ready_confirm_frames = parameter.value
+            elif parameter.name == 'learned_reject_confirm_frames':
+                self.learned_reject_confirm_frames = parameter.value
         return SetParametersResult(successful=True)
 
 
@@ -261,20 +440,31 @@ class OppTrajPredictor(PredictionNode):
 
     def publish_begin_end_markers(self, beginn_s, beginn_d, end_s, end_d):
         # Visualize the prediction endpoints. Watch out for wrap around.
-        stamp = self.get_clock().now().to_msg()
+        #
+        # Two synchronous frenet2glob round-trips, on the prediction hot path,
+        # for two RViz spheres. Skipped when nobody is looking, and batched into
+        # one call when they are -- same reasoning as _build_opponent_markers.
+        if (self.marker_pub_beginn.get_subscription_count() == 0
+                and self.marker_pub_end.get_subscription_count() == 0):
+            return
 
-        position_beginn = self.frenet2glob([beginn_s % self.max_s_updated], [beginn_d])
+        stamp = self.get_clock().now().to_msg()
+        pos = self.frenet2glob(
+            [beginn_s % self.max_s_updated, end_s % self.max_s_updated],
+            [beginn_d, end_d])
+        if pos is None or len(pos.x) != 2:
+            return
+
         self.marker_beginn.header.stamp = stamp
         self.marker_beginn.action = Marker.ADD
-        self.marker_beginn.pose.position.x = position_beginn.x[0]
-        self.marker_beginn.pose.position.y = position_beginn.y[0]
+        self.marker_beginn.pose.position.x = pos.x[0]
+        self.marker_beginn.pose.position.y = pos.y[0]
         self.marker_pub_beginn.publish(self.marker_beginn)
 
-        position_end = self.frenet2glob([end_s % self.max_s_updated], [end_d])
         self.marker_end.header.stamp = stamp
         self.marker_end.action = Marker.ADD
-        self.marker_end.pose.position.x = position_end.x[0]
-        self.marker_end.pose.position.y = position_end.y[0]
+        self.marker_end.pose.position.x = pos.x[1]
+        self.marker_end.pose.position.y = pos.y[1]
         self.marker_pub_end.publish(self.marker_end)
 
     def delete_all(self) -> None:
@@ -330,7 +520,11 @@ class OppTrajPredictor(PredictionNode):
                 
                 start = time.process_time()
 
-                if abs(current_opponent_d - opponent_approx_raceline_d) > 0.25 or self.opponent_lap_count < 1:
+                # Hysteresis, not a bare threshold: see _update_learned_authorization.
+                # The published value keeps its original meaning -- True means the
+                # prediction below is the constant-velocity fallback.
+                learned_deviation = abs(current_opponent_d - opponent_approx_raceline_d)
+                if self._update_learned_authorization(learned_deviation):
                     self.force_trailing_pub.publish(Bool(data=True))
                     
                     obstacle_list = []
@@ -349,8 +543,8 @@ class OppTrajPredictor(PredictionNode):
                         obs.s_end = current_opponent_s
                         obs.s_center = current_opponent_s + i * current_opponent_v * self.dt
                         obs.d_center = interpolated_d
-                        obs.d_left = obs.d_center + 0.25
-                        obs.d_right = obs.d_center - 0.25
+                        obs.d_left = obs.d_center + self.opponent_half_width_m
+                        obs.d_right = obs.d_center - self.opponent_half_width_m
                         obs.size = opponent_pos_copy.obstacles[0].size
                         obs.vs = current_opponent_v
                         obs.vd = 0
@@ -364,29 +558,9 @@ class OppTrajPredictor(PredictionNode):
                         pds.pred_d = obs.d_center
                         prediction_list.append(pds)
 
-                        marker = Marker()
-                        marker.header.stamp = self.get_clock().now().to_msg()
-                        marker.header.frame_id = "map"
-                        marker.id = i
-                        marker.type = Marker.CYLINDER
-                        marker.action = Marker.ADD
-                        marker.pose.orientation.w = 1.0
-
-                        pos = self.frenet2glob([obs.s_center % self.max_s_updated], [obs.d_center])
-                        marker.pose.position.x = pos.x[0]
-                        marker.pose.position.y = pos.y[0]
-                        marker.pose.position.z = 0.1
-
-                        marker.scale.x = 0.15
-                        marker.scale.y = 0.15
-                        marker.scale.z = 0.15  # height
-                        marker.color.a = 0.8
-                        marker.color.r = 0.0
-                        marker.color.g = 1.0
-                        marker.color.b = 0.0
-
-                        opp_marker_array.markers.append(marker)
                         
+                    opp_marker_array = self._build_opponent_markers(obstacle_list)
+
                     prediction_obs_arr = ObstacleArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id='map'), obstacles=obstacle_list)
                     self.prediction_obs_pub.publish(prediction_obs_arr)
 
@@ -437,8 +611,8 @@ class OppTrajPredictor(PredictionNode):
                         obs.s_end = current_opponent_s + opponent_speed * self.dt
                         obs.s_center = (obs.s_start + obs.s_end) / 2
                         obs.d_center = opponent_d
-                        obs.d_left = opponent_d + 0.25
-                        obs.d_right = opponent_d - 0.25
+                        obs.d_left = opponent_d + self.opponent_half_width_m
+                        obs.d_right = opponent_d - self.opponent_half_width_m
                         obs.size = opponent_pos_copy.obstacles[0].size
                         obs.vs = opponent_speed
                         obs.vd = 0
@@ -452,30 +626,10 @@ class OppTrajPredictor(PredictionNode):
                         pds.pred_d = opponent_d
                         prediction_list.append(pds)
 
-                        marker = Marker()
-                        marker.header.stamp = self.get_clock().now().to_msg()
-                        marker.header.frame_id = "map"
-                        marker.id = i
-                        marker.type = Marker.CYLINDER
-                        marker.action = Marker.ADD
-                        marker.pose.orientation.w = 1.0
-
-                        pos = self.frenet2glob([obs.s_center % self.max_s_updated], [obs.d_center])
-                        marker.pose.position.x = pos.x[0]
-                        marker.pose.position.y = pos.y[0]
-                        marker.pose.position.z = 0.1
-
-                        marker.scale.x = 0.15
-                        marker.scale.y = 0.15
-                        marker.scale.z = 0.15  # height
-                        marker.color.a = 0.8
-                        marker.color.r = 0.0
-                        marker.color.g = 1.0
-                        marker.color.b = 0.0
-
-                        opp_marker_array.markers.append(marker)
 
                         
+                    opp_marker_array = self._build_opponent_markers(obstacle_list)
+
                     # Find the end of the prediction
                     if (beginn == True and end == False):
                         end_s = current_opponent_s

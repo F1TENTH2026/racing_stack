@@ -1,8 +1,24 @@
 state_machine:
   ros__parameters:
     # structural
-    rate: 80
+    # [Hz] 80 -> 50. 매 tick마다 캐시된 경로와 모든 장애물을 python으로 다시
+    # 훑는다. 실제로 조향하는 것은 50 Hz의 controller_manager이므로, 그보다
+    # 빠르게 결정하는 상태기계는 직전 결정이 반영되기도 전에 다시 결정할 뿐이다.
+    # 또 새 절대 포즈는 PF에서 40 Hz로만 온다 -- 80은 같은 입력을 두 번 계산.
+    #
+    # controller.yaml의 state_machine_rate와 반드시 짝으로 유지할 것:
+    # 컨트롤러의 워치독 임계가 loop_rate/state_machine_rate*10 이라, 어긋나면
+    # "Received no local wpnts. STOPPING!!" 발동 시점이 의도와 달라진다.
+    #
+    # 초 단위로 적힌 파생 카운터(overtaking_ttl, splini_ttl, FTG 타이머,
+    # blended-recovery grace)는 전부 `초 * rate`로 계산되므로 자동으로 따라온다.
+    rate: 50
     n_loc_wpnts: 80
+
+    # [Hz] 로컬 웨이포인트 마커를 그리는 주기. 주행 동작과 무관한 순수 시각화다.
+    # 구독자가 없으면 아예 안 그리고(가드), 있으면 이 주기로 제한한다.
+    # 0이면 완전히 끈다. 업스트림도 10.0.
+    viz_rate_hz: 10.0
     timetrials_only: false
     sim: true
     measure: false
@@ -18,7 +34,33 @@ state_machine:
     # to trailing_speed_scale * raceline speed (see _apply_trailing_speed_cap).
     # Was 0.5 as a dead/unread leftover; raised now that it's actually consumed --
     # 0.5 m left no reaction time at racing speed.
-    emergency_break_horizon: 4.0
+    #
+    # 4.0 -> 8.0, MATCHED TO tracking.dist_infront (8.0 m).
+    #
+    # The tracker does not report an opponent further than dist_infront, so 8 m is
+    # everything the car will ever get. At 4.0 the car held full raceline speed for
+    # the first HALF of that -- it saw the opponent at 8 m and only began cutting
+    # cruise speed at 4 m, by which point the distance was already spent.
+    #
+    # The arithmetic (brake 4 m/s^2, 120 ms command lag, gap_should = 0.25*v + 2.5):
+    #
+    #   ego 4 m/s  vs opponent 1.5 -> needs  5.1 m   fits in 8
+    #   ego 6 m/s               -> needs  7.8 m   just fits
+    #   ego 8 m/s               -> needs 11.6 m   3.6 m SHORT
+    #   ego 10 m/s              -> needs 16.3 m   8.3 m SHORT
+    #
+    # i.e. above ~6.1 m/s closing on a slow opponent the gap CANNOT be held, the
+    # car overruns gap_should, and trailing_controller's clip(..., 0, ...) floors
+    # the command at zero -- a dead stop, followed by the slow pull-away the driver
+    # sees. No PID gain fixes that; the distance simply is not there. Starting the
+    # cap the moment the opponent becomes visible is what buys it back: braking
+    # distance is quadratic in speed, so approaching at 4 m/s instead of 6 costs
+    # 1.7 m instead of 4.2 m.
+    #
+    # 0820test1's straights run at 10.3 m/s, so this does not remove the problem
+    # outright -- it moves the threshold up. Raising tracking.dist_infront toward
+    # the UST-10LX's 10 m guaranteed range is the other half.
+    emergency_break_horizon: 8.0
     # safety
     volt_threshold: 11.0
     # dynamic (replaces dyn_statemachine_tuner.cfg)
@@ -27,12 +69,154 @@ state_machine:
     splini_hyst_timer_sec: 0.7
     splini_ttl: 2.0
     pred_splini_ttl: 2.0
-    overtaking_ttl_sec: 3.0
+    # [s] 장애물이 앞에서 사라진 뒤에도 OVERTAKE 를 붙들고 있는 시간
+    # (OvertakingTransition 의 두 번째 분기). 회피 라인을 다 타고 복귀할 여유를
+    # 주는 값이지, 회피 자체의 길이가 아니다.
+    #
+    # 3.0 -> 1.0. 39.5 m 트랙(0820test1)에서 3초는 거리로:
+    #     3 m/s -> 9.0 m (랩의 23%)
+    #     5 m/s -> 15.0 m (38%)
+    #     8 m/s -> 24.0 m (61%)
+    # 정적 장애물 하나를 지나친 뒤 랩의 절반 넘게 OVERTAKE 로 남아 있었다는 뜻이고,
+    # 그동안 local_wpnts 는 회피 경로를 따르므로 레이스라인으로 복귀가 늦어진다.
+    # 1.0 은 업스트림(roboracer_unita_ws) 값이다.
+    #
+    # 주행 중 ros2 param set 으로 바꿀 수 있다. 예전에는 못 바꿨다:
+    # overtaking_ttl_count_threshold 가 __init__ 에서 한 번 계산된 뒤 갱신되지
+    # 않아서, 파라미터만 바뀌고 실제 비교값은 그대로였다. 이제 property 로
+    # 매번 파생된다.
+    overtaking_ttl_sec: 1.0
     overtake_min_closing_mps: 2.5
+    # [m] DYNAMIC overtake entry gate: the nearest opponent AHEAD must be within
+    # this forward gap (Frenet s, wrap-around handled) before OVERTAKE is even
+    # considered. _check_getting_closer() used to take this as an argument and
+    # never read it, so the effective gate was "any obstacle inside the 20 m
+    # interest_horizon_m, in perception's publish order" -- including a car
+    # already behind us. Capped at half the lap at runtime.
+    # Static-obstacle avoidance does not go through this gate at all.
+    dynamic_overtake_max_gap_m: 10.0
+    # [m/s] Min (ego_vs - opponent_vs) for that candidate to count. Kept negative,
+    # as in the original code: the ego may be slightly slower than the opponent and
+    # still be allowed to set up an overtake. This is NOT a "closing" test.
+    dynamic_overtake_min_rel_speed_mps: -0.5
+    # [m] Limited prediction corridor. The GP predictor emits n_time_steps * dt =
+    # 200 * 0.02 = 4 s of opponent future; at 3 m/s that is ~12 m of s. Requiring
+    # the candidate avoidance path to be clear of ALL of it means, on a 20-40 m
+    # track, that most of a lap has to be open on one side at once -- so the path
+    # was judged unsafe almost everywhere for reasons that had nothing to do with
+    # the opponent. The state machine re-decides at 50 Hz and the planner replans
+    # at 20 Hz, so only the stretch the car covers before the next decision has to
+    # hold, and the corridor extends itself as the car moves.
+    #
+    # Scope: the OT path check ONLY. The raceline and recovery blocked/free
+    # verdicts still see the whole prediction -- shortening those would delay
+    # noticing an opponent. Collision safety is not removed anywhere: every pose
+    # inside the span is still checked, and clearance is re-validated against the
+    # obstacle's current position every loop.
+    #
+    # Keep in step with the lane_change planner's own prediction_span_m (3.0), so
+    # the corridor the planner builds a path for is the one the state machine
+    # validates.
+    dynamic_prediction_span_m: 3.0
+    # [s] How long the trailing speed cap is held after perception LOSES a dynamic
+    # opponent that was ahead.
+    #
+    # Added after the car rear-ended the opponent at 4.6 m/s on 2026-08-22
+    # (state_machine_20260822_063122.log, t=1787348098.8-101.9). The opponent's
+    # last sighting measured 0.16 m across -- one centimetre above perception's
+    # min_size_m rejection floor of 0.15 -- and then simply stopped being
+    # reported for 2.6 s / 10.7 m. tracking ttl_dynamic is 40 frames @ 40 Hz =
+    # 1.0 s, so the track died, the obstacle list went empty, the state machine
+    # went GB_TRACK and ran the raceline profile straight into it. Nothing
+    # objected: the speed cap only runs in TRAILING, and the controller's AEB
+    # watches the local waypoint, not obstacles.
+    #
+    # 3.0 s covers the dropouts actually measured on this map (17 events in
+    # 208 s, median 2.56 s, the fatal one 2.6 s).
+    #
+    # COST: the car holds a reduced cruise ceiling for up to 3 s every time the
+    # tracker blinks, which is a direct lap-time hit. Lower it if that proves
+    # too expensive, but understand that is the trade being made. 0 disables the
+    # memory entirely and restores the old behaviour.
+    dynamic_opponent_memory_sec: 3.0
+    # [s] After leaving OVERTAKE, suppress the lost-opponent hold for this long.
+    #
+    # In state_machine_20260822_091939.log -- the first run where the hold
+    # actually worked -- only ~17 of its 136 activations were the case it exists
+    # for. 84 fired with state=OVERTAKE (capping to 3.63 m/s against a 7.29 m/s
+    # raceline WHILE PASSING: an opponent drawing level leaves the ahead-window
+    # and reads exactly like losing it), and 35 more fired within 2 s of leaving
+    # OVERTAKE, last seen a median of 1.38 m ahead -- cars we had just passed.
+    #
+    # The 2026-08-22 rear-end this all exists for still qualifies: last seen
+    # 5.42 m ahead, gone 2.6 s, previous OVERTAKE 8.4 s earlier.
+    overtake_pass_grace_sec: 2.0
+    # [m] Floor on the half-width used for a DYNAMIC obstacle.
+    #
+    # A dynamic obstacle is a known object -- another RoboRacer, 0.30 m wide.
+    # Perception's fitted rectangle is not: over 172 dynamic observations in
+    # state_machine_20260822_091939.log the size ranged 0.16-0.56 m and 37 % came
+    # in NARROWER than the real car. Each of those frames gave away clearance,
+    # and the bias runs the wrong way -- an overtake commits on whichever frame
+    # passes the check, so a frame where the opponent looks narrow is exactly the
+    # one that authorises the pass. The car kept clipping the opponent's wheel.
+    #
+    # With this floor, lateral_width_m in dynamic_avoidance_planner.yaml becomes
+    # exactly the edge-to-edge clearance in metres. Static obstacles are not
+    # affected -- their size genuinely varies and the static branch of
+    # _check_free_frenet does not use this at all.
+    dynamic_obstacle_min_half_width_m: 0.15
+    # Multiplier on the AVOIDANCE path's velocity profile.
+    #
+    # The sector tuner scales the raceline (speed_scaling.yaml, 1.05-1.2 on
+    # 0820test1) to produce /global_waypoints_scaled. The avoidance path never
+    # got any of it: the lane_change planner publishes vx_mps = 0 for every point
+    # and update_velocity() rebuilds the profile from raw ggv/ax_max_machines, so
+    # only v_end -- the single last waypoint -- inherited the scaling. The car
+    # therefore ran the raceline at up to 1.2x and the overtake at 1.0x.
+    #
+    # ot_sectors.yaml's yeet_factor (1.25) does NOT cover this. It scales
+    # /global_waypoints/overtaking, and with ot_planner: lane_change the state
+    # machine's Overtaking() returns get_splini_wpts() -- the avoidance spline --
+    # so that topic never reaches the driven speed at all.
+    #
+    # 1.2 matches the scaling already validated on this track's straights.
+    # Clipped to veh_params v_max (15.0) and never allowed to raise a trailing
+    # speed cap. 1.0 restores the previous behaviour.
+    #
+    # NOTE this raises the CEILING only. Measured in
+    # state_machine_20260822_063122.log, OVERTAKE ran at 2.51 m/s against a
+    # scaled raceline of 4.20 m/s -- 53 %, far more than the 17 % this scale can
+    # explain. calc_vel_profile starts the profile at v_start = cur_vs, so the
+    # car enters the overtake at whatever TRAILING left it at (1.65 m/s median)
+    # and the episode lasts 0.50 s median -- not enough to reach any ceiling.
+    # trailing_speed_scale is the lever for that half of the problem.
+    overtake_speed_scale: 1.2
     # Cruise-speed cap while TRAILING inside emergency_break_horizon, as a fraction
     # of the raceline speed at the car's current s. NOT a full stop -- calc_vel_profile
     # still reaches it via a normal decel curve, not the maxed-out braking one.
-    trailing_speed_scale: 0.5
+    #
+    # 0.5 -> 0.35, together with emergency_break_horizon 4 -> 8. The cap now starts
+    # twice as early, so it can afford to be deeper: the point is to be BELOW the
+    # ~6.1 m/s at which the gap stops being holdable by the time the opponent is
+    # close. Deliberately trading approach speed for never reaching a dead stop --
+    # a stop costs far more time than a slow approach, because the car has to break
+    # static friction and ramp back up through the VESC's brake-release hysteresis.
+    # trailing_min_speed_mps below still stops this crawling toward 0 in corners.
+    trailing_speed_scale: 0.35
+    # 캡을 간격에 비례해 서서히 적용할지(true), 지평을 넘는 순간 한 번에
+    # 적용할지(false, 예전 동작).
+    #
+    # false 였을 때: 간격 8.01 m 에서는 레이스라인 전속, 7.99 m 에서는 즉시 35%.
+    # 직선(10.3 m/s)에서 10.3 -> 3.6 m/s 절벽이 1 cm 간격 차이로 발생했고,
+    # 노이즈가 그 경계에 걸리면 토글까지 났다. 운전석에서는 "너무 멀리서부터
+    # 심하게 느려진다" 로 보인다.
+    #
+    # true 면 지평에서 스케일 1.0(감속 없음), 간격 0 에서 trailing_speed_scale
+    # 까지 선형 보간한다. 상대가 보이는 순간부터 완만히 빼기 시작하되 깊은
+    # 감속은 실제로 필요한 근거리에 쓴다. 제동거리는 속도의 제곱이라, 스케일이
+    # 절반만 내려가도 이득의 대부분이 확보된다.
+    trailing_speed_ramp: true
     # [m/s] Floor under trailing_speed_scale * raceline_speed (tight corners have a
     # low raceline speed already; don't let the cap crawl toward 0 there).
     trailing_min_speed_mps: 1.0
@@ -40,4 +224,16 @@ state_machine:
     ftg_timer_sec: 3.0
     ftg_active: false
     force_GBTRACK: false
-    use_force_trailing: false
+    # Honour /opponent_prediction/force_trailing (published by opp_prediction) as
+    # a DYNAMIC OVERTAKE **entry** veto: while the predictor says the opponent is
+    # not on a learned trajectory, do not start a new overtake. Entry only -- an
+    # overtake already in progress is never aborted by this flag.
+    #
+    # false -> the veto is off; dynamic overtaking is then gated on path
+    # freshness/safety alone, which is what the lane_change planner already does
+    # internally with the same flag.
+    #
+    # The predictor only runs with race.launch.xml gp_predictor:=true. Without it
+    # the topic is silent, force_trailing stays at its init value False, and this
+    # parameter changes nothing.
+    use_force_trailing: true
