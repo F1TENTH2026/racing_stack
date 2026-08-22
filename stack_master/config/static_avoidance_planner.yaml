@@ -6,19 +6,55 @@
 #   ros2 param set /static_avoidance_planner evasion_distance 0.32
 #
 # NOTE: this planner and the state machine judge the SAME path with the same
-# arithmetic, so three pairs of numbers must stay consistent with
-# state_machine/config/planners/static_avoidance_planner.yaml and
-# state_machine/config/planners/global_tracking.yaml:
+# arithmetic, so these numbers must stay consistent with
+# state_machine/config/planners/static_avoidance_planner.yaml,
+# state_machine/config/planners/global_tracking.yaml and
+# stack_master/config/state_machine_params.yaml:
 #
-#   min_free_dist_m      >= static_avoidance_planner.lateral_width_m   (0.10)
-#   raceline_clearance_m >= gb_ego_width_m/2 + global_tracking.lateral_width_m
-#   min_path_end_m       >= static_avoidance_planner.max_horizon       (10.0)
-#                            ... and mind the short-track caveat on min_path_end_m
+#   min_free_dist_m       >= static_avoidance_planner.lateral_width_m  (0.12)
+#   0.295 <= raceline_clearance_m <= evasion_distance
+#   min_path_end_m        >= static_avoidance_planner.max_horizon      (10.0)
+#                             ... and mind the short-track caveat on min_path_end_m
+#   ego_width_m           == state_machine_params.yaml gb_ego_width_m  (0.29)
+#   trajectory_threshold  >= 0.295 + largest_obstacle_size/2           (0.6 vs 0.565)
 #
-# Break the first and this planner publishes paths the state machine refuses.
-# Break the second and the state machine asks for an avoidance this planner
-# thinks is unnecessary, and the car trails the obstacle forever. Break the
-# third and any second static obstacle beyond the path's end reads as blocking.
+# Break the first and this planner publishes paths the state machine refuses --
+# logfile/state_machine_20260822_173630.log has 24 PATH_BLOCKED samples on paths
+# this planner had just accepted, because the two thresholds sat 5 mm apart
+# (0.160 vs 0.155) while the obstacle's measured `size` swung 0.34 m frame to
+# frame (obs id 8: 0.16 -> 0.50 m).
+# Break the second's LOWER bound and the state machine asks for an avoidance this
+# planner thinks is unnecessary, and the car trails the obstacle forever; break
+# its UPPER bound and the relaxation ladder can put the apex CLOSER to the
+# raceline than the obstacle's near edge already was -- an "avoidance" that
+# steers towards the obstacle. Break the third and any second static obstacle
+# beyond the path's end reads as blocking.
+#
+# ===== THE LATERAL BUDGET (2026-08-22) ==================================
+# Every rejection logged as reason=track_too_narrow is this one inequality
+# failing, over the whole corridor the path drives through:
+#
+#   gb_d_left (or gb_d_right)  >=  obstacle_near_edge + evasion + boundary_margin
+#
+# `evasion` is what the relaxation ladder ACTUALLY used, which is not
+# evasion_distance -- static_avoidance_node.py RELAXATION_LADDER computes
+# max(scale * evasion_distance, min_evasion_m), and
+#
+#   min_evasion_m = ego_width_m/2 + max(min_free_dist_m, 0.025)
+#                 = 0.145 + 0.160 = 0.305      <-- the hard floor, no rung goes under
+#   rung 0/1 (scale 1.0) : max(0.350, 0.305) = 0.350
+#   rung 2/3 (scale 0.7 / 0.0) : max(0.245, 0.305) = 0.305
+#
+# so the corridor needed beyond the obstacle's edge is 0.350 + 0.200 = 0.550 m
+# at rung 0 and 0.305 + 0.200 = 0.505 m at the floor.
+#
+# CONSEQUENCE, and the reason evasion_distance went 0.30 -> 0.35: min_evasion_m
+# is set by min_free_dist_m, NOT by evasion_distance. At 0.30 the floor (0.305)
+# was ABOVE evasion_distance, so all four ladder rungs collapsed to 0.305 and
+# relaxation did nothing at all. 0.35 is the first value that gives the ladder a
+# real range (0.350 -> 0.305). Raising evasion_distance widens that range; it
+# does not raise the floor. To raise the floor, raise min_free_dist_m -- and then
+# raise the corridor requirement with it.
 static_avoidance_planner:
   ros__parameters:
 
@@ -75,10 +111,25 @@ static_avoidance_planner:
     trajectory_threshold: 0.6
 
     # [m] If the obstacle's near edge is already at least this far from the
-    # raceline, the line clears it and this planner publishes nothing. MUST be
-    # >= what the state machine calls a blocked raceline, which is
-    # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295.
-    raceline_clearance_m: 0.30
+    # raceline, the line clears it and this planner publishes nothing.
+    #
+    # LOWER BOUND -- must be >= what the state machine calls a blocked raceline,
+    # gb_ego_width_m/2 + global_tracking.lateral_width_m = 0.145 + 0.15 = 0.295,
+    # or the state machine wants an avoidance this planner refuses to build and
+    # the car trails the obstacle forever.
+    #
+    # UPPER BOUND -- must be <= evasion_distance. Above that, an obstacle whose
+    # near edge sits between evasion and this value is still treated as a blocker
+    # while the apex (near_edge_side +/- evasion) lands INSIDE the raceline's own
+    # clearance: the "avoidance" steers towards the obstacle instead of away.
+    #
+    # 0.30 -> 0.35, in lockstep with evasion_distance so the pair stays at the top
+    # of that window. Note rungs 2/3 of the ladder plan at min_evasion_m (0.305),
+    # so an obstacle with near_edge in (0.305, 0.35) can still produce a
+    # near-degenerate apex on those rungs -- harmless (it still clears
+    # min_free_dist_m, and the state machine still accepts it), but it is why this
+    # value should not be pushed further above evasion_distance.
+    raceline_clearance_m: 0.35
 
     # Maximum number of simultaneously visible static obstacles shaped into one
     # same-side path. The simulator supports at most three practice obstacles.
@@ -88,9 +139,29 @@ static_avoidance_planner:
 
     # ===== path shape ==================================================
     # [m] Clearance from the obstacle's EDGE to the path (the car's centreline).
-    # Real gap to the car's side is this minus ego_width_m/2 = 0.205 m.
-    # Floored at ego_width_m/2 + min_free_dist_m by the relaxation ladder.
-    evasion_distance: 0.30 #3.0
+    # Real gap to the car's SIDE is this minus ego_width_m/2 = 0.350 - 0.145
+    # = 0.205 m at the preferred rung.
+    #
+    # This is the PREFERRED clearance, not the guaranteed one. The relaxation
+    # ladder in static_avoidance_node.py plans at
+    #     max(scale * evasion_distance, min_evasion_m)
+    # with scale = 1.0, 1.0, 0.7, 0.0 over the four rungs, and
+    #     min_evasion_m = ego_width_m/2 + max(min_free_dist_m, 0.025) = 0.305
+    # so the ladder actually walks 0.350 -> 0.350 -> 0.305 -> 0.305.
+    #
+    # 0.30 -> 0.35. At 0.30 the value was BELOW its own floor (0.305), so all four
+    # rungs came out identical and relaxation was a no-op -- only the side and the
+    # return distance ever changed. logfile/static_avoidance_20260822_173631.log:
+    # 32x track_too_narrow on obstacle id 8, with 0.540 m of corridor beyond the
+    # obstacle edge against the 0.545 m the single collapsed rung demanded. Five
+    # millimetres. With 0.35 (and boundary_margin at 0.20) rung 0 asks 0.550 and
+    # is still refused there, but rung 2 asks 0.505 and gets through -- which is
+    # the whole point of having a ladder.
+    #
+    # Raising this does NOT make the car pass wider in a tight gap; it only makes
+    # it pass wider where there is room, and gives relaxation somewhere to fall
+    # back to. See the LATERAL BUDGET block at the top of this file.
+    evasion_distance: 0.35
 
     # [m] Spacing of the published path. The state machine walks every point of
     # it at 80 Hz, so this is a CPU knob as much as a fidelity one.
@@ -184,9 +255,21 @@ static_avoidance_planner:
 
     # ===== safety ======================================================
     # [m] How close the path's CENTRELINE may come to the track edge. Not
-    # reducible below the car's half width (0.145): at 0.19 the car passes
-    # 4.5 cm from the wall, which is about what localisation error is worth.
-    boundary_margin: 0.24
+    # reducible below the car's half width (0.145): at 0.20 the car passes
+    # 5.5 cm from the wall, which is about what localisation error is worth.
+    #
+    # 0.24 -> 0.20. This is the second half of the same 5 mm shortfall described
+    # under evasion_distance: _clamp_to_track pulls the apex back to
+    # (gb_d_left - boundary_margin), and if that clamp eats into the obstacle
+    # clearance the candidate is rejected as track_too_narrow. In
+    # logfile/static_avoidance_20260822_173631.log the split is exact --
+    # left_clearance <= 0.25 always failed, >= 0.29 always succeeded, and 0.24 was
+    # the boundary_margin then in force.
+    #
+    # Must stay ABOVE the map filter's effective erosion (see kernel_size below,
+    # ~0.10-0.15 m at kernel_size 4) so the Frenet check remains the binding wall
+    # constraint and the map filter stays the secondary catch it is meant to be.
+    boundary_margin: 0.2
 
     # [m] The car's width. Must match the state machine's gb_ego_width_m (0.29)
     # or the two disagree about what clears an obstacle.
@@ -194,17 +277,25 @@ static_avoidance_planner:
 
     # [m] Free gap required between the car's side and the obstacle's edge, on
     # the finished path. Must stay >= the state machine's
-    # static_avoidance_planner.lateral_width_m (0.10) so a path this planner
+    # static_avoidance_planner.lateral_width_m (0.12) so a path this planner
     # accepts is one the state machine accepts.
-    # Raised to 0.20 m so relaxation cannot pull a valid path back too close to
-    # the obstacle after the preferred 0.35 m centreline clearance is rejected.
-    # logfile/state_machine_20260815_155720.log shows the same
-    # tracked obstacle's `size` swinging ~13 cm frame to frame (e.g. obs id 17:
-    # 0.38->0.25 m), which feeds directly into d_left/d_right (detect.cpp:
-    # d_left = d_center + size/2) and into this planner's own free_dist check --
-    # so an under-sized frame both draws the path closer AND judges it as clear.
-    # Tight obstacle-to-wall corridors can now be rejected instead of producing
-    # a path with less than 0.20 m vehicle-side clearance.
+    #
+    # THIS IS ALSO THE FLOOR ON evasion_distance. min_evasion_m in
+    # static_avoidance_node.py is ego_width_m/2 + max(this, 0.025) = 0.305, and no
+    # relaxation rung plans closer than that. Raise this and you raise the
+    # corridor width the planner needs everywhere -- 0.16 -> 0.20 would push the
+    # floor to 0.345 and put it back above evasion_distance, collapsing the ladder
+    # exactly as the 0.30 evasion_distance did. Kept at 0.16.
+    #
+    # The agreement margin against the state machine is what was actually wrong:
+    # logfile/state_machine_20260815_155720.log shows the same tracked obstacle's
+    # `size` swinging ~13 cm frame to frame (obs id 17: 0.38->0.25 m), and
+    # logfile/state_machine_20260822_173630.log shows 0.34 m of swing (obs id 8:
+    # 0.16->0.50 m). That feeds straight into d_left/d_right (detect.cpp:
+    # d_left = d_center + size/2), into this check, and into the state machine's
+    # own re-check on a DIFFERENT frame's snapshot. 0.160 here against 0.155 there
+    # left 5 mm of tolerance for a +-0.17 m measurement -- hence the state machine
+    # lateral_width_m drop to 0.12, which buys 0.04 m of it.
     min_free_dist_m: 0.16
 
     # [m] Path length from the car over which the boundary check is relaxed to
@@ -218,10 +309,20 @@ static_avoidance_planner:
     # has arrived -- GridFilter.is_point_inside returns False for every point
     # until then, which silently rejected everything.
     use_map_filter: true
-    # [px] Erosion at 0.05 m/px, so 4 px = 0.20 m. The Frenet boundary check
-    # already owns the wall margin; this only catches map features the raceline
-    # bounds do not describe. 8 px (0.40 m) double-counted and rejected valid
-    # paths on narrow sections.
+    # [px] cv2.erode structuring-element WIDTH, not an erosion radius. At
+    # 0.05 m/px a 4x4 rect eats 2-3 px off the free space, i.e. ~0.10-0.15 m --
+    # NOT the 0.20 m an earlier version of this comment claimed. That is roughly
+    # the car's half width (0.145) and deliberately LESS strict than
+    # boundary_margin (0.20), so the Frenet check stays the binding wall
+    # constraint and this only catches map features the raceline bounds do not
+    # describe. 8 px double-counted and rejected valid paths on narrow sections.
+    #
+    # The 12x reason=map_occupied in logfile/static_avoidance_20260822_173631.log
+    # are therefore NOT this filter being over-tight: they are the map saying
+    # there is less room than gb_d_left claims at that spot, by more than 10 cm.
+    # That is a global-trajectory/map disagreement to fix in the raceline bounds,
+    # not something to tune away here -- lowering this would only let the car
+    # drive at a wall the map can see.
     kernel_size: 4
 
     # [m/s] Speed seed written onto the avoidance waypoints, capped. The state
