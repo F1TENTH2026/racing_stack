@@ -45,15 +45,13 @@ _LEO_REPO="$(cd "$(dirname "$_LEO_SRC")" && pwd)"
 # silently break `gym_bridge` in the other one. Two envs, two editable installs,
 # no thrash.
 URS_CONDA_ENV="${LEO_CONDA_ENV:-leo}"
-if ! conda env list 2>/dev/null | awk '{print $1}' | grep -qx "$URS_CONDA_ENV"; then
-    if [ -z "$(command -v conda)" ] || [ ! -d "$(conda info --base 2>/dev/null)/envs/$URS_CONDA_ENV" ]; then
-        echo "ERROR: conda env '$URS_CONDA_ENV' not found. Create it with:" >&2
-        echo "    conda create --clone thirdimpact -n $URS_CONDA_ENV -y" >&2
-        return 1 2>/dev/null || exit 1
-    fi
-fi
 export URS_CONDA_ENV
 export URS_ENV_LABEL=leo
+# NOTE: no pre-flight `conda env list` here. In a fresh login shell `conda` is not
+# yet a command — thirdimpact.sh is what bootstraps it (it sources conda.sh from
+# miniforge/mambaforge/anaconda/miniconda). Checking before the handoff therefore
+# reported "env not found" on a perfectly good machine. The assertion after the
+# handoff is the authoritative one instead.
 
 # --- 2) its own ROS domain ---
 # thirdimpact.sh does `ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-1}"`, i.e. it KEEPS a value
@@ -73,6 +71,20 @@ if [ ! -f "$_LEO_REPO/thirdimpact.sh" ]; then
 fi
 source "$_LEO_REPO/thirdimpact.sh"
 
+# Consumed. Unset them NOW, or they outlive this script: URS_CONDA_ENV is a plain
+# shell variable as far as a later `source thirdimpact.sh` in the SAME shell is
+# concerned, and it would make the main entry script activate the *leo* conda env
+# while sourcing the *main* workspace — precisely the cross-wiring this file exists
+# to prevent.
+unset URS_CONDA_ENV URS_ENV_LABEL
+
+# Authoritative check: did the activation actually land in the intended env?
+if [ "${CONDA_DEFAULT_ENV:-}" != "${LEO_CONDA_ENV:-leo}" ]; then
+    echo "ERROR: expected conda env '${LEO_CONDA_ENV:-leo}', got '${CONDA_DEFAULT_ENV:-<none>}'." >&2
+    echo "       Create it with:  conda create --clone thirdimpact -n ${LEO_CONDA_ENV:-leo} -y" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 # --- 4) say out loud which code is live ---
 # The whole point of the second workspace is running DIFFERENT code, so print the
 # branch and the commit rather than making you run `git status` to be sure.
@@ -83,4 +95,6 @@ echo "[leo] branch=$_leo_branch ($_leo_sha)"
 if [ "$_leo_branch" != "leo" ]; then
     echo "[leo] WARNING: this checkout is on '$_leo_branch', not 'leo'." >&2
 fi
+echo "[leo] a later \`thirdimpact\` in THIS shell would inherit ROS_DOMAIN_ID=$ROS_DOMAIN_ID"
+echo "[leo] (thirdimpact.sh keeps a domain already set) — use a separate terminal per stack."
 unset _leo_branch _leo_sha _LEO_SRC
