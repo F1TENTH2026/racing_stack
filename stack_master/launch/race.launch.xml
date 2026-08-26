@@ -37,6 +37,11 @@
        description="Forwarded to base_system: run lap_analyser's relocalizer node (pf only), which re-seeds the particle filter at the nearest global-waypoint pose every relocalize_every_n_laps completed laps. No-op under cartographer/kiss/sim. Pass auto_relocalize:=false to disable it entirely (e.g. while diagnosing a bad pose jump after a fast corner)."/>
   <arg name="relocalize_every_n_laps" default="3"
        description="Forwarded to base_system: completed laps between automatic pf re-seeds. Ignored when auto_relocalize:=false."/>
+  <arg name="joy" default="true"
+       description="Start the joy driver (ros2 run joy joy_node) alongside the stack, so the physical pad works without a second terminal. Pass joy:=false if you already run joy_node yourself (two nodes on /joy fight over the device)."/>
+  <arg name="joy_dev_id" default="0"
+       description="SDL joystick index the joy driver opens. 0 is the only pad on the car; bump it if a second input device (e.g. the RealSense IMU showing up as a joystick) grabs index 0."/>
+
   <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
   <let name="racecar_version" value="SIM" if="$(var sim)"/>
   <let name="racecar_version" value="CAR" unless="$(var sim)"/>
@@ -47,6 +52,29 @@
        objects ONLY in 'merge' mode). So the REAL detect->track pipeline reaches the
        state machine in 'overlay' (detection-in-the-loop), and ground-truth object
        injection works in 'merge' — switchable live, no relaunch. -->
+
+  <!-- ===== Joy driver: the physical pad -> /joy =====
+       simple_mux (base_system -> low_level) is the consumer: buttons[4] (LB) =
+       humandrive, buttons[5] (RB) = autodrive, axes[1]/axes[3] = throttle/steer.
+       Historically this node was NOT launched here and you started it by hand in
+       a second terminal (mapping.launch.xml still says so in its header); it now
+       comes up with the race so the pad — which is also the emergency handover —
+       is live the moment the stack is.
+
+       autorepeat_rate is not cosmetic: simple_mux drops human_drive as stale
+       after joy_freshness_threshold (1.0 s, simple_mux_node.py), and it only
+       refreshes the command on an incoming /joy message. A driver holding LB
+       with the stick perfectly still produces no SDL events, so without the
+       repeat the mux would zero the output mid-corner. 20 Hz keeps it fresh.
+
+       joy_node (joy 3.3.0, the RoboStack Jazzy build this stack actually runs
+       under) is SDL-based and hot-plug aware, so it starts fine with no pad
+       attached and picks one up when it is plugged in. -->
+  <node pkg="joy" exec="joy_node" name="joy_node" output="screen" if="$(var joy)">
+    <param name="device_id"       value="$(var joy_dev_id)" type="int"/>
+    <param name="deadzone"        value="0.05" type="float"/>
+    <param name="autorepeat_rate" value="20.0" type="float"/>
+  </node>
 
   <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
   <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">

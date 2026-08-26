@@ -22,7 +22,10 @@ fi
 _URS_REPO="$(cd "$(dirname "$_URS_SRC")" && pwd)"
 _URS_WS="$(cd "$_URS_REPO/../.." && pwd)"
 
-# --- 1) conda env: RoboStack ROS 2 Jazzy ('thirdimpact') ---
+# --- 1) conda env: RoboStack ROS 2 Jazzy ('thirdimpact' unless overridden) ---
+# URS_CONDA_ENV lets a sibling entry script reuse every line below while pointing
+# at its OWN conda env (leo.sh does this). Unset -> 'thirdimpact', so nothing
+# changes for anyone who sources this file directly.
 # Bootstrap Conda automatically, even in a fresh shell where `condaon` was not run.
 if ! command -v conda >/dev/null 2>&1; then
     for _urs_conda_sh in "$HOME/miniforge3/etc/profile.d/conda.sh" \
@@ -49,7 +52,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 unset AMENT_PREFIX_PATH AMENT_CURRENT_PREFIX CMAKE_PREFIX_PATH COLCON_PREFIX_PATH \
       ROS_DISTRO ROS_VERSION ROS_PYTHON_VERSION ROS_PACKAGE_PATH 2>/dev/null
 
-conda activate thirdimpact
+conda activate "${URS_CONDA_ENV:-thirdimpact}"
 
 # --- self-heal stale editable Python installs after workspace migration ---
 # The `f110_gym` package is installed via pip editable. If the env was created
@@ -189,4 +192,4 @@ cbuild() {
         && bash "$_URS_REPO/.install_utils/macos_link_rosidl_typesupports.sh" "$_URS_WS"
 }
 
-echo "[thirdimpact] env ready  |  RMW=$RMW_IMPLEMENTATION  ROS_DOMAIN_ID=$ROS_DOMAIN_ID  |  helpers: cbuild, ros2kill, cartometrics"
+echo "[${URS_ENV_LABEL:-thirdimpact}] env ready  |  conda=${CONDA_DEFAULT_ENV}  ws=$_URS_WS  RMW=$RMW_IMPLEMENTATION  ROS_DOMAIN_ID=$ROS_DOMAIN_ID  |  helpers: cbuild, ros2kill, cartometrics"
