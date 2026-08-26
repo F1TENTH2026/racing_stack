@@ -218,30 +218,32 @@ class ObstacleSD:
         self.dynamic_state = Opponent_state()
 
     def update_mean(self, track_length):
-        if (self.nb_meas == 0):
-            self.mean = [self.measurments_s[-1], self.measurments_d[-1]]
-        else:
-            # ------------------------------------------------------------------------------------
-            # since we know the number of measurments and the previous mean, to not loop
-            # through all the data the current mean is just a weighted sum between the
-            # previous mean weighted by the number of measurments and the new measurment
-            # ------------------------------------------------------------------------------------
+        """Mean over the SAME window std_s/std_d measure their spread on.
 
-            self.mean[1] = (self.mean[1]*self.nb_meas+self.measurments_d[-1])/(self.nb_meas+1)
+        Was an incremental mean weighted by nb_meas. nb_meas grows without bound
+        (update_tracked_obstacle increments it every frame) while measurments_s is
+        trimmed to the last 20, so after a few seconds a new measurement moved the
+        mean by under 2% and it stayed anchored where the obstacle was FIRST seen --
+        while std_s/std_d kept measuring spread around that stale anchor. The
+        cluster centroid really does move as the viewing angle changes (reported
+        size swings ~0.16 m median on a 0.30 m box), so the spread grew until it
+        crossed max_std and isStatic() cleared the static vote, dropping a genuinely
+        static obstacle out of /tracking/obstacles.
 
-            # ------------------------------------------------------------------------------------
-            # to account for the wrapping in the process we can transform the s measurments into
-            # angles ranging from 0 to 2 pi and do the weighted sum over unitary vectors with those
-            # angles and then convert the resulting angle back to an s measurment
-            # ------------------------------------------------------------------------------------
+        Averaging the window directly keeps mean and std consistent by construction.
+        It is O(len(measurments_s)) <= 30 per obstacle per frame, which at
+        rate_tracking = 20 Hz and a handful of obstacles is free.
+        """
+        if not self.measurments_s:
+            return
 
-            previous_mean_rad = self.mean[0]*2*math.pi/track_length
-            current_meas_rad = self.measurments_s[-1]*2*math.pi/track_length
-            cos_mean_angle = (math.cos(previous_mean_rad)*self.nb_meas+math.cos(current_meas_rad))/(self.nb_meas+1)
-            sin_mean_angle = (math.sin(previous_mean_rad)*self.nb_meas+math.sin(current_meas_rad))/(self.nb_meas+1)
-            mean_angle = math.atan2(sin_mean_angle, cos_mean_angle)
-            mean_s = mean_angle*track_length/2/math.pi
-            self.mean[0] = mean_s if mean_s >= 0 else mean_s+track_length
+        # s is cyclic: average unit vectors, not the raw values, so the mean is
+        # correct for an obstacle sitting on the start/finish seam.
+        ang = np.asarray(self.measurments_s, dtype=float) * (2 * math.pi / track_length)
+        mean_angle = math.atan2(float(np.sin(ang).mean()), float(np.cos(ang).mean()))
+        self.mean[0] = (mean_angle * track_length / (2 * math.pi)) % track_length
+        # d is lateral, not cyclic.
+        self.mean[1] = float(np.mean(self.measurments_d))
 
     def std_s(self, track_length):
         sum = 0
@@ -554,6 +556,39 @@ class StaticDynamic(Node):
                 dists.append(dist)
         return potential_obs, dists
 
+    def duplicates_existing_track(self, meas_obstacle) -> bool:
+        """True if this measurement lands on a track we are already holding.
+
+        A missed association does NOT retire the old track: with ttl_static = 40 at
+        rate_tracking = 20 Hz it lingers for 2 s. Meanwhile update() unconditionally
+        opened a second id for the very same obstacle, which is how ~3 physical
+        obstacles produced 28-45 distinct static ids in a single run. Each duplicate
+        id is published as staticFlag=None (raw_opponent topic, NOT
+        /tracking/obstacles) until min_nb_meas measurements confirm it, and it resets
+        the static planner's per-obstacle-group latch, restarting the approach.
+
+        Compared against each track's LAST measurement rather than its mean, for the
+        same reason verify_position falls back to it.
+        """
+        for tracked_obstacle in self.tracked_obstacles:
+            # Only static / not-yet-classified tracks suppress a new id. A track
+            # already flagged DYNAMIC is expected to leave the place we last saw it,
+            # so a measurement sitting there is more likely a genuinely new object
+            # than a missed association -- and suppressing it would delay
+            # re-acquiring an opponent by up to ttl_dynamic frames. The id churn
+            # this guard exists for is a static-obstacle problem.
+            if tracked_obstacle.staticFlag is False:
+                continue
+            if not tracked_obstacle.measurments_s:
+                continue
+            ds = normalize_s(
+                tracked_obstacle.measurments_s[-1] - meas_obstacle.s_center,
+                self.track_length)
+            dd = tracked_obstacle.measurments_d[-1] - meas_obstacle.d_center
+            if math.hypot(ds, dd) < self.max_dist:
+                return True
+        return False
+
     def verify_position(self, obstacle, meas_obstacles_copy):
         """
         Verifies if an obstacle with a certain position is tracked or not. Chooses among all possible obstacles the nearest one
@@ -573,6 +608,21 @@ class StaticDynamic(Node):
         # maybe kalman was wrong, the obstacles can't just be gone
         elif(obstacle.staticFlag == False):
             obstacle_position = [obstacle.mean[0], obstacle.mean[1]]
+            potential_obs, dists = self.get_closest_pos(max_dist, obstacle_position, meas_obstacles_copy)
+            if (len(dists) > 0):
+                min_idx = np.argmin(dists)
+                return True, potential_obs[min_idx]
+
+        # Same idea for a STATIC track, which had no fallback at all: its mean can
+        # sit up to a window's worth of drift behind where the cluster centroid now
+        # is (the centroid moves with the viewing angle as the car closes on the
+        # obstacle), but the LAST measurement is by definition in the right place.
+        # Retry there before giving up -- a failed association here does not just
+        # cost this frame, it lets update() spawn a duplicate id for an obstacle we
+        # are already tracking, and every new id is invisible to the static planner
+        # for min_nb_meas frames.
+        elif obstacle.staticFlag and obstacle.measurments_s:
+            obstacle_position = [obstacle.measurments_s[-1], obstacle.measurments_d[-1]]
             potential_obs, dists = self.get_closest_pos(max_dist, obstacle_position, meas_obstacles_copy)
             if (len(dists) > 0):
                 min_idx = np.argmin(dists)
@@ -708,9 +758,18 @@ class StaticDynamic(Node):
                         if(tracked_obstacle.dynamic_state.avg_vs < self.vs_reset and len(tracked_obstacle.dynamic_state.vs_list) > 10 and self.publish_static):
                             tracked_obstacle.dynamic_state.isInitialised = False
                             tracked_obstacle.staticFlag = True
-                            tracked_obstacle.static_count = 0
-                            tracked_obstacle.total_count = 0
-                            tracked_obstacle.nb_meas = 0
+                            # Clear the vote history, but do NOT drop nb_meas below
+                            # min_nb_meas. isStatic() returns None while
+                            # nb_meas <= min_nb_meas, so zeroing it here put the
+                            # obstacle straight back to staticFlag=None on the next
+                            # frame -- taking it out of /tracking/obstacles for
+                            # min_nb_meas frames immediately after we decided it was
+                            # static. Seed the vote as unanimously static instead, so
+                            # the verdict we just reached survives to the next frame
+                            # and can still be overturned by real motion.
+                            tracked_obstacle.static_count = ObstacleSD.min_nb_meas
+                            tracked_obstacle.total_count = ObstacleSD.min_nb_meas
+                            tracked_obstacle.nb_meas = ObstacleSD.min_nb_meas + 1
                         else:
                             tracked_obstacle.dynamic_state.update(tracked_obstacle)
                             # tracked_obstacle.dynamic_state.id = tracked_obstacle.id
@@ -769,6 +828,11 @@ class StaticDynamic(Node):
             self.tracked_obstacles.remove(el)
 
         for meas_obstacle in meas_obstacles_copy:
+            # A measurement sitting on top of a track we still hold is a missed
+            # association, not a newly appeared obstacle. Opening a second id for it
+            # is the main source of the id churn that starves the static planner.
+            if self.duplicates_existing_track(meas_obstacle):
+                continue
             # update the init function and append a new obstacle to the new_obstacles
             self.tracked_obstacles.append(ObstacleSD(
                 id=self.current_id,

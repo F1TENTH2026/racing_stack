@@ -1,0 +1,267 @@
+<?xml version="1.0"?>
+<!--
+  final.launch.xml  (race.launch.xml + lap-based speed phase switch)
+  ==============================================================================
+  This is race.launch.xml with ONE thing added: the race opens on a flat speed
+  and hands over to the map's speed_scaling.yaml after a set number of laps (see
+  SPEED PHASES below). Every head-to-head capability is unchanged and still on:
+  dynamic overtaking (lane_change_planner), GP opponent prediction, and the
+  dynamic_controller.yaml trailing-gain overlay.
+
+  KEEP IN SYNC: everything except the speed-phase block is a copy of
+  race.launch.xml. A fix made there has to be repeated here. The duplication is
+  deliberate: the phase switch needs to reach base_system's speed_sector_tuner
+  args (default_scaling / sector_scaling), which race.launch.xml does not accept,
+  so this cannot be written as a thin <include> wrapper around it.
+
+  Full head-to-head racing autonomy on top of base_system:
+
+    perception   : detect (C++) + tracking (Python)  (/scan -> /detect/raw_obstacles -> /tracking/obstacles_raw)
+    state machine: state_machine                     (/tracking/obstacles + raceline -> /local_waypoints, /behavior_strategy, /state_machine)
+    planning     : spliner_node                      (avoidance spline -> /planner/avoidance/otwpnts)
+    control      : controller_manager               (L1/Pure-Pursuit; /behavior_strategy -> high_level/ackermann_cmd)
+
+  The virtual opponent and its obstacle injection (/tracking/obstacles with
+  Frenet fields) come from base_system -> low_level -> virtual_perception pkg
+  (scan_overlay overlays the box on /scan; tracking_merger publishes
+  /tracking/obstacles). Spawn / drive the opponent from the RViz Sim Control
+  panel (2D Goal Pose, then Path/FTG).
+
+  SPEED PHASES (auto_speed_up, on by default)
+  ==============================================================================
+  The race opens on ONE flat speed and switches to the map's tuned sectors after a
+  set number of completed laps. There are exactly two phases:
+
+    first fast_after_laps (5) laps : sectors are not used at all. Whatever
+      speed_scaling.yaml says is ignored and the whole track is driven at
+      speed_scale (0.8)  (speed_sector_tuner: use_sector_scaling:=false +
+      default_scaling:=speed_scale).
+
+    after lap 5 (to the end)       : race_phase_speed flips use_sector_scaling to
+      true once, and from then on the map's per-sector scaling applies EXACTLY as
+      written; nothing multiplies it. The switch latches and never goes back.
+
+      ros2 launch stack_master final.launch.xml map:=f speed_scale:=0.6 fast_after_laps:=8
+
+  Laps come from lap_analyser's /lap_data and only COMPLETED laps count (counting
+  starts at the first finish-line crossing, not at launch). auto_speed_up:=false
+  skips the node entirely and drives speed_scaling.yaml from lap 1, i.e. exactly
+  what race.launch.xml does.
+
+  Attack-phase speed is therefore set by the map's speed_scaling.yaml alone: to go
+  faster or slower after the switch, edit that yaml's sector scalings, not a launch
+  argument. Live overrides (any time, no relaunch):
+    ros2 param set /speed_sector_tuner default_scaling 0.5
+    ros2 param set /speed_sector_tuner use_sector_scaling true
+    ros2 param set /speed_sector_tuner phase_multiplier 0.9
+
+  SIM : ros2 launch stack_master final.launch.xml map:=f sim:=true
+  REAL: ros2 launch stack_master final.launch.xml map:=f sim:=false
+-->
+<launch>
+  <arg name="map"        description="Map name (folder in stack_master/maps/)"/>
+  <arg name="sim"        default="false" description="Use simulator (true) or real hardware (false)"/>
+  <arg name="localization" default="pf" description="Real-car localization backend: cartographer | pf | kiss (ignored when sim:=true)"/>
+  <arg name="virtual"    default="$(var sim)" description="Inject a virtual opponent + static obstacles (on by default in sim, off on the real car; e.g. virtual:=true to overlay a virtual opponent onto the real LiDAR)"/>
+  <arg name="ot_planner" default="lane_change"
+       description="Overtake planner to run and listen to: lane_change (lane_change_planner) or sqp (sqp_planner)"/>
+  <arg name="control_topic" default="/local_waypoints"
+       description="WpntArray the controller follows: /local_waypoints (state-machine output w/ avoidance) or /global_waypoints (robust raceline)"/>
+  <arg name="vis_lane_change" default="false"
+       description="Show lane_change_planner's matplotlib lane-visualization window at startup (blocks on plt.show()); off by default"/>
+  <arg name="gp_predictor" default="true"
+       description="Run the 3 GP opponent-trajectory prediction nodes (~0.6 core on the Jetson). Needed ONLY for head-to-head: with no opponent there is nothing to predict. Pass gp_predictor:=true when racing an opponent."/>
+  <arg name="debug" default="false"
+       description="Enable verbose debug logging that's off during a normal race (KISS STAT prints, state_machine/static_avoidance per-run debug log files under logfile/). Pass debug:=true to turn it back on for diagnosis."/>
+  <arg name="auto_relocalize" default="false"
+       description="Forwarded to base_system: run lap_analyser's relocalizer node (pf only), which re-seeds the particle filter at the nearest global-waypoint pose every relocalize_every_n_laps completed laps. No-op under cartographer/kiss/sim. Pass auto_relocalize:=false to disable it entirely (e.g. while diagnosing a bad pose jump after a fast corner)."/>
+  <arg name="relocalize_every_n_laps" default="3"
+       description="Forwarded to base_system: completed laps between automatic pf re-seeds. Ignored when auto_relocalize:=false."/>
+  <arg name="speed_scale" default="1.25"
+       description="Flat scaling (0.0-2.0) applied over the WHOLE lap for the first fast_after_laps laps, sectors ignored. After the switch it is gone -- the map's speed_scaling.yaml drives on its own. Ignored when auto_speed_up:=false."/>
+  <arg name="fast_after_laps" default="3"
+       description="Completed laps (lap_analyser /lap_data) after which the flat speed_scale gives way to the map's speed_scaling.yaml."/>
+  <arg name="auto_speed_up" default="true"
+       description="Run the lap-counting flat -> sector switch. auto_speed_up:=false drives the map's speed_scaling.yaml from the very first lap and does not launch the node, i.e. exactly what race.launch.xml does."/>
+
+  <!-- Opening laps run sector-less only when the lap-counting node is there to end
+       them; without it, falling back to the map's sectors from the start beats
+       being stuck on one flat speed for the whole race. -->
+  <let name="start_sector_scaling" value="false" if="$(var auto_speed_up)"/>
+  <let name="start_sector_scaling" value="true"  unless="$(var auto_speed_up)"/>
+
+  <!-- Hold this file's speed_scale under a second name BEFORE the include below.
+       The include sets base_system's own arg (also called speed_scale, but meaning
+       phase_multiplier) to 1.0, and <arg> changes the launch configuration on the
+       spot — so $(var speed_scale) inside that block would read 1.0 from then on
+       and the opening laps would silently run at full speed. -->
+  <let name="opening_scale" value="$(var speed_scale)"/>
+
+  <!-- sim -> SIM config (racecar_f110.ini + veh_dyn_info); real hardware -> CAR. Folder name == racecar_version. -->
+  <let name="racecar_version" value="SIM" if="$(var sim)"/>
+  <let name="racecar_version" value="CAR" unless="$(var sim)"/>
+  <!-- virtual_perception injection seam is chosen at RUNTIME from the Sim Control
+       panel (/vp/inject_mode: overlay | merge; default 'overlay'). In BOTH modes
+       tracking publishes /tracking/obstacles_raw and tracking_merger owns
+       /tracking/obstacles (passes the real tracking through, and adds the virtual
+       objects ONLY in 'merge' mode). So the REAL detect->track pipeline reaches the
+       state machine in 'overlay' (detection-in-the-loop), and ground-truth object
+       injection works in 'merge' — switchable live, no relaunch. -->
+
+  <!-- ===== Base system: sensors/sim + opponent + raceline + frenet odom ===== -->
+  <include file="$(find-pkg-share stack_master)/launch/base_system.launch.xml">
+    <arg name="map"          value="$(var map)"/>
+    <arg name="sim"          value="$(var sim)"/>
+    <arg name="localization" value="$(var localization)"/>
+    <arg name="virtual"      value="$(var virtual)"/>
+    <arg name="debug"        value="$(var debug)"/>
+    <arg name="auto_relocalize"         value="$(var auto_relocalize)"/>
+    <arg name="relocalize_every_n_laps" value="$(var relocalize_every_n_laps)"/>
+    <!-- speed_scale MUST be passed explicitly as 1.0, and NOT omitted.
+         =====================================================================
+         base_system has its own arg ALSO named speed_scale with a different
+         meaning: it seeds speed_sector_tuner's phase_multiplier, which is
+         MULTIPLIED onto every sector's scaling. Ours is the flat opening speed,
+         handed to default_scaling on the next line.
+
+         Omitting it does NOT give base_system its 1.0 default: ROS 2 launch
+         propagates launch configurations INTO an <include>, and
+         DeclareLaunchArgument only applies its default when the name is not
+         already set. race.launch.xml declares no speed_scale arg, so it really
+         does get 1.0; here the 0.8 would leak straight through to
+         phase_multiplier and the car would drive sector scaling x 0.8 for the
+         whole race.
+
+         Verify with: ros2 run stack_master check_scaling.py
+         (phase_multiplier must read 1.0). -->
+    <arg name="speed_scale"     value="1.0"/>
+    <arg name="default_scaling" value="$(var opening_scale)"/>
+    <arg name="sector_scaling"  value="$(var start_sector_scaling)"/>
+  </include>
+
+  <!-- ===== Race-phase speed switch =====
+       base_system starts speed_sector_tuner sector-less on the flat speed_scale;
+       this node flips use_sector_scaling once fast_after_laps laps are complete,
+       handing the car to the map's speed_scaling.yaml AS WRITTEN (nothing scales
+       those numbers afterwards). Laps come from lap_analyser's /lap_data, which
+       base_system always launches, and count COMPLETED laps from the first
+       finish-line crossing, not from launch.
+
+       The switch latches and the node only ever writes that one parameter once,
+       so a manual override wins at any time, before or after:
+         ros2 param set /speed_sector_tuner default_scaling 0.5      # opening speed
+         ros2 param set /speed_sector_tuner use_sector_scaling true  # switch early
+         ros2 param set /speed_sector_tuner phase_multiplier 0.9     # trim sectors -->
+  <group if="$(var auto_speed_up)">
+    <node pkg="stack_master" exec="race_phase_speed_node.py" name="race_phase_speed" output="screen">
+      <!-- default_scale is logged only (base_system seeds the real value); explicit
+           type because `speed_scale:=1` on the command line would otherwise be
+           inferred as an int and clash with the node's double declaration. -->
+      <param name="default_scale"   value="$(var speed_scale)"     type="float"/>
+      <param name="fast_after_laps" value="$(var fast_after_laps)" type="int"/>
+    </node>
+  </group>
+
+  <!-- ===== Perception: LiDAR obstacle detection (C++) + tracking (Python) =====
+       detect publishes /detect/raw_obstacles (Frenet filled at the source);
+       tracking reads it and publishes /tracking/obstacles_raw. tracking_merger
+       (sim virtual_perception) owns /tracking/obstacles. -->
+  <node pkg="perception" exec="detect" name="detect" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
+    <param name="map" value="$(var map)" type="str"/>
+  </node>
+  <!-- with virtual:=true tracking_merger owns /tracking/obstacles, so tracking feeds it
+       on /tracking/obstacles_raw; without it, tracking publishes /tracking/obstacles directly -->
+  <let name="tracking_out" value="/tracking/obstacles_raw" if="$(var virtual)"/>
+  <let name="tracking_out" value="/tracking/obstacles"     unless="$(var virtual)"/>
+  <node pkg="perception" exec="tracking_node" name="tracking" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/opponent_tracker_params.yaml"/>
+    <remap from="/tracking/obstacles" to="$(var tracking_out)"/>
+  </node>
+
+  <!-- ===== State machine: the racing brain ===== -->
+  <node pkg="state_machine" exec="state_machine" name="state_machine" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/state_machine_params.yaml"/>
+    <param name="sim"             value="$(var sim)"/>
+    <param name="racecar_version" value="$(var racecar_version)"/>
+    <param name="timetrials_only" value="false"/>
+    <param name="ot_planner"      value="$(var ot_planner)"/>
+    <param name="map"             value="$(var map)" type="str"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
+  </node>
+
+  <!-- Recovery planner -> /planner/recovery/wpnts -->
+  <node pkg="recovery_spliner" exec="recovery_spliner_node" name="recovery_spliner_node" output="screen"/>
+
+  <!-- Start planner -> /planner/start_wpnts -->
+  <node pkg="spliner" exec="start_spline_node_v2" name="start_planner" output="screen"/>
+
+  <!-- Static avoidance -> /planner/avoidance/static_otwpnts
+       Reads /tracking/obstacles DIRECTLY (see the node's docstring): the state
+       machine clears cur_gb_wpnts.closest_target every loop and OvertakingTransition
+       never refills it, so a planner gated on /behavior_strategy lost its obstacle
+       the moment the car entered OVERTAKE. /behavior_strategy is still subscribed,
+       as a hint for which candidate to prefer. -->
+  <node pkg="spliner" exec="static_avoidance_node" name="static_avoidance_planner" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/static_avoidance_planner.yaml"/>
+    <param name="debug_log_enabled" value="$(var debug)"/>
+    <remap from="/planner/avoidance/otwpnts" to="/planner/avoidance/static_otwpnts"/>
+  </node>
+
+  <!-- Dynamic avoidance planner (selected by ot_planner) -> /planner/avoidance/otwpnts + /planner/avoidance/merger + /global_waypoints_updated -->
+  <group if="$(eval '\'$(var ot_planner)\' == \'lane_change\'')">
+    <node pkg="lane_change_planner" exec="change_avoidance_node" name="planner_change" output="screen">
+      <param name="vis" value="$(var vis_lane_change)"/>
+    </node>
+    <node pkg="lane_change_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+  </group>
+  <group if="$(eval '\'$(var ot_planner)\' == \'sqp\'')">
+    <node pkg="sqp_planner" exec="sqp_avoidance_node" name="planner_sqp" output="screen"/>
+    <node pkg="sqp_planner" exec="update_waypoints" name="waypoint_updater" output="screen"/>
+  </group>
+
+  <!-- ===== GP opponent-trajectory predictor =====
+       Pipeline (README): opponent_trajectory (collect /proj_opponent_trajectory) ->
+       gaussian_process_opp_traj (GP fit -> /opponent_trajectory) -> opp_prediction
+       (-> /opponent_prediction/* consumed by planner_change above).
+       opp_prediction calls the frenet_conversion_server services, launched by base.
+
+       ===== 기본값이 false다. 헤드투헤드에서는 gp_predictor:=true 로 켤 것. =====
+
+       이 세 노드는 상대차의 미래 궤적을 예측한다. 상대가 없으면 예측할 대상이
+       없으므로 타임트라이얼에서는 순수한 낭비다. 그런데 값이 싸지 않다:
+       cpu_profile 측정에서 세 노드 합계가 코어 0.6개에 해당했고
+       (OpponentHalflap 28%, opponent_propagation_predictor 27%, GP_trajectory 4%
+       평균이지만 재적합 순간 55%까지 튄다), GP_trajectory는 taskset으로 코어
+       1번을 통째로 점유한다.
+
+       그 CPU가 없어서 PF가 40 Hz를 못 내고 /local_waypoints가 목표의 21%까지
+       떨어졌으며, 컨트롤러 워치독이 걸려 차가 트랙 한복판에서 멈췄다.
+       그래서 기본값을 false로 둔다. 켜는 쪽이 의식적인 선택이어야 한다. -->
+  <group if="$(var gp_predictor)">
+    <node pkg="gp_traj_predictor" exec="opponent_trajectory"       name="OpponentHalflap"                output="screen"/>
+    <node pkg="gp_traj_predictor" exec="gaussian_process_opp_traj" name="GP_trajectory"                  output="screen" launch-prefix="taskset -c 1"/>
+    <node pkg="gp_traj_predictor" exec="opp_prediction"           name="opponent_propagation_predictor" output="screen"/>
+  </group>
+
+  <!-- ===== Control: L1 / Pure-Pursuit controller (ROS2 port of the ROS1 controller_manager) =====
+       Subscribes /behavior_strategy + car state, publishes high_level/ackermann_cmd
+       (-> simple_mux -> vehicle). Common controller.yaml; save_params writes back
+       to the same file. -->
+  <node pkg="controller" exec="controller_manager" name="controller_manager" output="screen">
+    <param from="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <!-- HEAD-TO-HEAD OVERLAY, and it must stay AFTER controller.yaml: the later
+         param block wins for the keys it names. It carries only the trailing
+         gains, which controller.yaml tunes for a static box and which are stiff
+         enough behind a MOVING opponent to floor the speed command at zero two
+         metres back (see that file's header for the arithmetic). quali.launch.xml
+         deliberately does not load it, because quali has static obstacles only,
+         where the base gains are the right ones. -->
+    <param from="$(find-pkg-share stack_master)/config/dynamic_controller.yaml"/>
+    <!-- Points at the BASE file, as upstream does. Note save_params writes the
+         whole L1 set, so saving while the overlay is loaded copies the H2H
+         trailing gains into controller.yaml. Leave save_params false in a race. -->
+    <param name="save_yaml_path" value="$(find-pkg-share stack_master)/config/controller.yaml"/>
+    <param name="sim" value="$(var sim)"/>
+  </node>
+</launch>

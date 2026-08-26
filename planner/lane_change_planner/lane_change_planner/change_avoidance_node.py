@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
+import json
 import time
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import List
 
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from rcl_interfaces.msg import (
     FloatingPointRange,
     ParameterDescriptor,
@@ -27,7 +28,7 @@ from f110_msgs.msg import (
 )
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Point
-from std_msgs.msg import Float32MultiArray, Float32, Header, Bool
+from std_msgs.msg import Float32MultiArray, Float32, Header, Bool, String
 
 from frenet_conversion.frenet_converter import FrenetConverter
 
@@ -86,12 +87,54 @@ class ChangeAvoidanceNode(Node):
         # Solver params
         self.width_car = 0.30
         self.safety_margin = 0.1
-        self.back_to_raceline_before = 3.0
-        self.back_to_raceline_after = 3.0
+        # [m] Length of the cosine ease-in / ease-out between the raceline and the
+        # evasion lane. 3.0 -> 4.5, on both ends.
+        #
+        # The ramp length sets BOTH limits that were holding the overtake at
+        # 2.0 m/s (state_machine_20260822_065431.log: entry 1.62, peak 2.13,
+        # plateau 2.0 even on a 1.87 s episode, against a scaled raceline of 3.83).
+        #
+        # With a cosine ease of amplitude lane_offset (0.35) over length L:
+        #
+        #   path curvature  (A/2)(pi/L)^2   -> grip ceiling sqrt(ay_max / kappa)
+        #   heading offset  (A/2)(pi/L)     -> Controller.speed_adjust_heading
+        #
+        #        L     kappa    grip      heading   heading_error_thres 10 deg
+        #      3.0     0.192   3.19 m/s    10.5 deg   TRIPPED (x0.5..1.0 derate)
+        #      4.0     0.108   3.54         7.9       clear
+        #      4.5     0.086   3.65         7.0       clear
+        #      5.0     0.069   3.75         6.3       clear
+        #
+        # At 3.0 the evasion path was steep enough to trip the controller's own
+        # heading derate -- the path penalised itself. 4.5 clears the 10 deg
+        # threshold by 30 % and lifts the grip ceiling 15 %.
+        #
+        # COST: the path starts easing earlier and returns later, so an overtake
+        # is a longer commitment. At the current trailing gap (1.66 m) the ease-in
+        # asks the car to already be ~0.26 m off the raceline at entry, still well
+        # inside max_evasion_start_offset (0.8).
+        self.back_to_raceline_before = 4.5
+        self.back_to_raceline_after = 4.5
         self.obs_traj_tresh = 2.0
 
         # Dynamic sovler params
         self.down_sampled_delta_s = 0.1
+
+        # [m] How much of the opponent's PREDICTED future the feasibility check is
+        # allowed to demand. The predictor emits n_time_steps * dt = 200 * 0.02 =
+        # 4 s of future; at 3 m/s that is a ~12 m corridor, and lane_change()
+        # requires ONE side to be clear at EVERY predicted pose in it. On the maps
+        # in this workspace (17.8 - 39.5 m long, ~1-2 m wide) that is most of a lap
+        # having to be open on the same side at once, so the manoeuvre was refused
+        # almost everywhere -- and the refusal had nothing to do with the opponent.
+        #
+        # The car replans at 20 Hz, so the corridor only has to be clear over the
+        # stretch it will actually cover before the next decision, and it extends
+        # itself as the car moves. Collision safety is NOT removed: every pose
+        # inside the span is still checked, the grid filter still rejects any
+        # sample outside the eroded map, and the state machine re-validates the
+        # path against the obstacle's CURRENT position every loop.
+        self.prediction_span_m = 3.0
 
         # State variables (filled by callbacks)
         self.current_s = None
@@ -100,7 +143,42 @@ class ChangeAvoidanceNode(Node):
 
         # Dynamic reconf params (defaults from cfg/dyn_change_tuner.cfg)
         self.evasion_dist = 0.3
-        self.spline_bound_mindist = 0.3
+        # [m] Clearance demanded between the EGO'S OUTER EDGE on the evasion apex
+        # and the track bound. 0.3 -> 0.05.
+        #
+        # This is not "0.3 was too cautious". The old more_space() test and the
+        # apex it approves disagreed with each other:
+        #
+        #     apex centre     = obs.d_left + width_car/2 + safety_margin + 0.2
+        #                     = obs.d_left + 0.45
+        #     ego outer edge  = apex + width_car/2   = obs.d_left + 0.60
+        #     required gap    = spline_bound_mindist + width_car/2 + safety_margin
+        #                     = 0.30 + 0.15 + 0.10  = obs.d_left + 0.55
+        #
+        # So a side with 0.55-0.60 m of room was declared usable and then produced
+        # a path whose apex put the car 0-5 cm PAST the bound. It did not become a
+        # crash, because GridFilter (erosion kernel 7 on a 0.05 m/px map = 0.15 m
+        # inward) rejects any sample outside the eroded map and lane_change()
+        # returns an empty path -- but that rejection happens AFTER the spline is
+        # built, and the planner then publishes nothing at all. From the state
+        # machine's side that is indistinguishable from "no path exists": TRAILING.
+        #
+        # min_space is now derived from the apex actually used (see more_space), so
+        # the two can no longer drift apart, and spline_bound_mindist means what
+        # its name says: margin between the car's edge and the bound.
+        #
+        #     required gap = 0.45 (apex) + 0.15 (half car) + 0.05 = 0.65 m
+        #
+        # 0.10 m stricter on paper than the old 0.55, and strictly MORE overtakes
+        # in practice: the 0.55-0.65 band used to burn a spline solve per frame and
+        # publish nothing. Path centreline now clears the bound by 0.15+0.05 =
+        # 0.20 m, against the 0.15 m the grid filter requires.
+        self.spline_bound_mindist = 0.05
+        # [m] Extra lateral clearance to the OPPONENT, beyond half the car plus
+        # safety_margin, when placing the evasion apex. Was an unnamed literal 0.2
+        # repeated at four call sites in more_space(); named here so the clearance
+        # requirement and the apex are computed from the same number.
+        self.apex_extra_margin = 0.2
         # Max allowed |current_d - evasion_d| at the car before the evasion path is
         # rejected (guards against a too-abrupt lateral jump onto the path). Larger =
         # allows starting an evasion while closer/tighter to the opponent.
@@ -108,7 +186,19 @@ class ChangeAvoidanceNode(Node):
 
         # Symmetric lane perturbation (centerline +/- lane_offset -> outer/inner lanes).
         # Adjustable live via rqt: changing it regenerates the two lanes.
-        self.lane_offset = 0.35
+        # 0.35 -> 0.45. This is how far the evasion path is displaced from the
+        # centreline, i.e. how wide a berth the car actually gives the opponent.
+        #
+        # It has to move with lateral_width_m: the state machine now requires
+        # 0.15 + 0.145 + 0.18 = 0.475 m between the path and the opponent, and a
+        # path that can only offset 0.35 m could never satisfy it. Raised so the
+        # geometry can deliver the margin the safety check asks for.
+        #
+        # Where the track is too narrow for it the GridFilter rejects the samples
+        # and the planner reports PATH_OUTSIDE_MAP instead of publishing -- which
+        # is the correct answer there. Expect that count to rise; passes should
+        # concentrate in the wide sections and the corner exits.
+        self.lane_offset = 0.45
 
         # Require fresh GP prediction before overtaking. Without it we only trail.
         # Prediction is considered stale if the latest prediction msg is older than this.
@@ -121,6 +211,17 @@ class ChangeAvoidanceNode(Node):
         # single dropped frame doesn't make the markers flicker.
         self.no_evasion_count = 0
         self.clear_after_frames = 5
+
+        # Why obstacle_preprocessing returned nothing this loop (for the decision
+        # log). None means it did return a target.
+        self._skip_reason = None
+        # Why lane_change() produced no path, and the side room it measured.
+        # Published on /planner/avoidance/dynamic_diag ONLY when it changes, so a
+        # steady state costs nothing on the wire and a 20 Hz callback never
+        # serialises json it does not need to.
+        self._plan_reason = None
+        self._side_room = None
+        self._diag_payload = None
 
         self.converter = None
         self.global_waypoints = None
@@ -205,6 +306,15 @@ class ChangeAvoidanceNode(Node):
                 ),
             },
             {
+                'name': 'prediction_span_m',
+                'default': self.prediction_span_m,
+                'descriptor': ParameterDescriptor(
+                    type=ParameterType.PARAMETER_DOUBLE,
+                    description="How far ahead of the opponent's current pose the predicted corridor is checked for evasion feasibility [m]. 0 disables the truncation (check the full prediction).",
+                    floating_point_range=[FloatingPointRange(from_value=0.0, to_value=20.0, step=0.1)],
+                ),
+            },
+            {
                 'name': 'pred_timeout',
                 'default': self.pred_timeout,
                 'descriptor': ParameterDescriptor(
@@ -234,6 +344,12 @@ class ChangeAvoidanceNode(Node):
             self.measure_pub = self.create_publisher(Float32, "/planner/pspliner_sqp/latency", QoSProfile(depth=10))
 
         self.spline_sample_pub = self.create_publisher(MarkerArray, "/spline_sample_points", QoSProfile(depth=10))
+        # Compact "why is there no evasion path" report for the state machine's
+        # [DYNAMIC_OT] line. Latched-ish (depth 1, transient local) so a late
+        # subscriber sees the current verdict without waiting for it to change.
+        self.dynamic_diag_pub = self.create_publisher(
+            String, "/planner/avoidance/dynamic_diag",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
 
         # Lane visualization (always published, independent of the `vis` matplotlib flag).
         # Outer/inner perturbed lanes in distinct colors + how far each is offset from center.
@@ -303,6 +419,8 @@ class ChangeAvoidanceNode(Node):
                 self.obs_traj_tresh = param.value
             elif param.name == 'spline_bound_mindist':
                 self.spline_bound_mindist = param.value
+            elif param.name == 'prediction_span_m':
+                self.prediction_span_m = param.value
             elif param.name == 'lane_offset':
                 if param.value != self.lane_offset:
                     regenerate_lanes = True
@@ -326,6 +444,7 @@ class ChangeAvoidanceNode(Node):
             f" Back to raceline after: {self.back_to_raceline_after} [m],\n"
             f" Obstacle trajectory treshold: {self.obs_traj_tresh} [m]\n"
             f" Spline boundary mindist: {self.spline_bound_mindist} [m]\n"
+            f" Prediction span: {self.prediction_span_m} [m]\n"
             f" Lane offset: {self.lane_offset} [m]\n"
             f" Prediction timeout: {self.pred_timeout} [s]\n"
         )
@@ -413,17 +532,74 @@ class ChangeAvoidanceNode(Node):
         return converter
 
     def obstacle_preprocessing(self, obs: ObstacleArray):
-        obs.obstacles = sorted(obs.obstacles, key=lambda obs: obs.s_start)
+        """The one opponent to plan around, as a list of poses to keep clear of.
 
-        considered_obs = []
-        for obs in obs.obstacles:
-            if (obs.s_start - self.current_s) % self.scaled_max_s < self.lookahead and abs(obs.d_center - self.current_d) < self.obs_traj_tresh:
-                if obs.id == self.obs_prediction_pred.id and len(self.obs_prediction.obstacles) > 0:
-                    considered_obs.extend(self.obs_prediction.obstacles)
-                else:
-                    considered_obs.append(obs)
+        Either the nearest opponent AHEAD, or -- when the predictor is tracking
+        that same obstacle -- the near part of its predicted future.
 
-        return considered_obs
+        The previous version sorted on raw s_start (which is meaningless across
+        the s=0 seam), then walked every obstacle in the lookahead and, for each
+        one whose id matched the prediction, spliced the WHOLE prediction into
+        the list. So two cars in view meant two copies of the same 200-pose
+        prediction, and an opponent behind the ego could still be planned around
+        because "< lookahead" on a modulo is true for most of a short lap.
+        """
+        if self.current_s is None or not self.scaled_max_s:
+            self._skip_reason = "NOT_READY"
+            return []
+
+        candidates = [
+            o for o in obs.obstacles
+            if (o.s_center - self.current_s) % self.scaled_max_s < self.lookahead
+            and abs(o.d_center - self.current_d) < self.obs_traj_tresh
+        ]
+        if not candidates:
+            self._skip_reason = "NO_DYNAMIC_OBSTACLE"
+            return []
+
+        nearest = min(candidates, key=lambda o: (o.s_center - self.current_s) % self.scaled_max_s)
+
+        # Only the prediction that is actually ABOUT this obstacle may be used.
+        # Otherwise fall back to the perception pose, as before -- a mismatched id
+        # is a reason to stop trusting the future, not a reason to stop seeing the
+        # car that is there right now.
+        if nearest.id != self.obs_prediction_pred.id or len(self.obs_prediction.obstacles) == 0:
+            self._skip_reason = None
+            return [nearest]
+
+        self._skip_reason = None
+        return self._truncate_prediction(self.obs_prediction.obstacles)
+
+    def _truncate_prediction(self, predicted):
+        """Keep only the first `prediction_span_m` of the opponent's predicted future.
+
+        lane_change() requires one side to be clear at EVERY pose it is handed,
+        and it builds the avoidance path to span min(s_start)..max(s_end) of that
+        same list -- so the full 4 s prediction both demands a ~12 m clear
+        corridor and produces a ~12 m path. Truncating here rather than inside
+        lane_change() keeps the two consistent: what is checked is what is built.
+
+        Returns shallow copies. lane_change() unwraps and elongates s IN PLACE,
+        and the planner runs at 20 Hz against a predictor publishing at 10 Hz, so
+        without this the same prediction message was mutated twice and the
+        elongation compounded.
+        """
+        span = float(self.prediction_span_m)
+        if len(predicted) < 2:
+            return [copy(o) for o in predicted]
+        if span <= 0.0:
+            return [copy(o) for o in predicted]
+
+        origin = float(predicted[0].s_center)
+        kept = [
+            o for o in predicted
+            if (float(o.s_center) - origin) % self.scaled_max_s <= span
+        ]
+        # Never hand back a degenerate corridor: the pose the opponent is at now
+        # plus one is the minimum that still has a start and an end.
+        if len(kept) < 2:
+            kept = predicted[:2]
+        return [copy(o) for o in kept]
 
     def _apply_side_hysteresis(self, raw_side: str) -> str:
         if self.committed_side is None:
@@ -445,14 +621,33 @@ class ChangeAvoidanceNode(Node):
                 self.pending_count = 0
         return self.committed_side
 
+    def _apex_offset(self) -> float:
+        """[m] How far the evasion apex sits beyond the opponent's edge, measured
+        to the CAR'S CENTRE. Single source of truth for both the apex placement
+        and the room the side must have for that apex to fit."""
+        return self.width_car / 2 + self.safety_margin + self.apex_extra_margin
+
+    def _min_side_space(self) -> float:
+        """[m] Room a side must have, measured from the opponent's edge to the
+        track bound, for the evasion apex to fit with the car's outer edge still
+        spline_bound_mindist clear of the bound.
+
+        apex centre + half the car + bound margin. Previously this was
+        `spline_bound_mindist + width_car/2 + safety_margin`, which omitted the
+        apex_extra_margin and one half-width -- 0.10 m less than the apex it was
+        approving actually needs. See the spline_bound_mindist comment in
+        __init__ for what that cost.
+        """
+        return self._apex_offset() + self.width_car / 2 + self.spline_bound_mindist
+
     def more_space(self, obstacle: Obstacle, gb_wpnts, gb_idxs):
         left_gap = gb_wpnts[gb_idxs[0]].d_left - obstacle.d_left
         right_gap = gb_wpnts[gb_idxs[0]].d_right + obstacle.d_right
-        min_space = self.spline_bound_mindist + self.width_car / 2 + self.safety_margin
+        min_space = self._min_side_space()
 
         if right_gap > min_space and left_gap < min_space:
             # Compute apex distance to the right of the opponent
-            d_apex_right = obstacle.d_right - (self.width_car / 2 + self.safety_margin + 0.2)
+            d_apex_right = obstacle.d_right - self._apex_offset()
             # If we overtake to the right of the opponent BUT the apex is to the left of the raceline, then we set the apex to 0
             if d_apex_right > 0 and right_gap < abs(d_apex_right):
                 d_apex_right = 0
@@ -460,7 +655,7 @@ class ChangeAvoidanceNode(Node):
 
         elif left_gap > min_space and right_gap < min_space:
             # Compute apex distance to the left of the opponent
-            d_apex_left = obstacle.d_left + (self.width_car / 2 + self.safety_margin + 0.2)
+            d_apex_left = obstacle.d_left + self._apex_offset()
             # If we overtake to the left of the opponent BUT the apex is to the right of the raceline, then we set the apex to 0
             if d_apex_left < 0 and left_gap < abs(d_apex_left):
                 d_apex_left = 0
@@ -473,12 +668,12 @@ class ChangeAvoidanceNode(Node):
             # None here, so a clearly-open side was wasted). Only the ambiguous "both open" case
             # falls here; the "both narrow" case above still returns None.
             if left_gap >= right_gap:
-                d_apex_left = obstacle.d_left + (self.width_car / 2 + self.safety_margin + 0.2)
+                d_apex_left = obstacle.d_left + self._apex_offset()
                 if d_apex_left < 0 and left_gap < abs(d_apex_left):
                     d_apex_left = 0
                 return "left", d_apex_left, left_gap, right_gap
             else:
-                d_apex_right = obstacle.d_right - (self.width_car / 2 + self.safety_margin + 0.2)
+                d_apex_right = obstacle.d_right - self._apex_offset()
                 if d_apex_right > 0 and right_gap < abs(d_apex_right):
                     d_apex_right = 0
                 return "right", d_apex_right, left_gap, right_gap
@@ -610,6 +805,7 @@ class ChangeAvoidanceNode(Node):
 
         if s_avoidance.size == 0:
             self.get_logger().warn("s_avoidance is empty! Skipping avoidance.")
+            self._plan_reason = "EMPTY_AVOIDANCE_SPAN"
             return [], [], [], [], []
 
         initial_guess = np.zeros(len(s_avoidance))
@@ -642,11 +838,23 @@ class ChangeAvoidanceNode(Node):
         left_gap_avg = left_gap_sum / left_count if left_count > 0 else 0
         right_gap_avg = right_gap_sum / right_count if right_count > 0 else 0
 
+        min_space = self._min_side_space()
+        self._side_room = {
+            "left_gap": round(float(left_gap_avg), 3),
+            "right_gap": round(float(right_gap_avg), 3),
+            "min_space": round(float(min_space), 3),
+            "left": int(left_count > 0),
+            "right": int(right_count > 0),
+        }
+
         if left_count > right_count and left_gap_avg > right_gap_avg and left_gap_avg > self.width_car:
             raw_side = "left"
         elif right_count > left_count and right_gap_avg > left_gap_avg and right_gap_avg > self.width_car:
             raw_side = "right"
         else:
+            # Either more_space() found no side with min_space of room at any
+            # predicted pose, or the two sides tied and neither won.
+            self._plan_reason = "NO_SAFE_SIDE" if (left_count + right_count) == 0 else "SIDE_UNDECIDED"
             return [], [], [], [], []
 
         preferred_side = self._apply_side_hysteresis(raw_side)
@@ -692,12 +900,14 @@ class ChangeAvoidanceNode(Node):
         resp = resp.T if resp.ndim == 2 else resp
         samples = np.asarray(resp, dtype=float).reshape(-1, 2)
         if samples.shape[0] < 3 or not np.all(np.isfinite(samples)):
+            self._plan_reason = "DEGENERATE_SAMPLES"
             return [], [], [], [], []
 
         for i in range(samples.shape[0]):
             inside = self.map_filter.is_point_inside(samples[i, 0], samples[i, 1])
 
             if not inside:
+                self._plan_reason = "PATH_OUTSIDE_MAP"
                 evasion_x = []
                 evasion_y = []
                 evasion_s = []
@@ -741,6 +951,7 @@ class ChangeAvoidanceNode(Node):
                 evasion_d = evasion_d[keep]
                 evasion_coords = evasion_coords[keep]
         if len(evasion_coords) < 3 or not np.all(np.isfinite(evasion_coords)):
+            self._plan_reason = "DEGENERATE_SAMPLES"
             return [], [], [], [], []
 
         evasion_s = evasion_s % self.scaled_max_s
@@ -756,6 +967,7 @@ class ChangeAvoidanceNode(Node):
         temp_idx = np.argmin([abs(evs - self.current_s) for evs in evasion_s])
         if abs(self.current_d - evasion_d[temp_idx]) > self.max_evasion_start_offset:
             # print(abs(self.current_d - evasion_d[temp_idx]))
+            self._plan_reason = "START_OFFSET_TOO_LARGE"
             evasion_x = []
             evasion_y = []
             evasion_s = []
@@ -769,6 +981,7 @@ class ChangeAvoidanceNode(Node):
         evasion_wpnts = [Wpnt(id=len(evasion_wpnts), s_m=s, d_m=d, x_m=x, y_m=y, psi_rad=p, kappa_radpm=k, vx_mps=v) for x, y, s, d, p, k, v in zip(evasion_x, evasion_y, evasion_s, evasion_d, evasion_psi, evasion_kappa, evasion_v)]
         evasion_wpnts_msg.wpnts = evasion_wpnts
 
+        self._plan_reason = None
         self.evasion_pub.publish(evasion_wpnts_msg)
         self.visualize_dynamic_spliner(evasion_s, evasion_d, evasion_x, evasion_y, evasion_v)
         # Only publish the start/end debug spheres once the path actually succeeds, so they track
@@ -993,6 +1206,30 @@ class ChangeAvoidanceNode(Node):
             OTWpntArray(header=Header(stamp=self.get_clock().now().to_msg(), frame_id="map"), wpnts=[])
         )
 
+    def _publish_dynamic_diag(self, evasion_ok, reason, n_considered):
+        """One-line "why is there (no) evasion path" report for the state machine.
+
+        Published only when the payload changes. A car steadily trailing behind
+        an opponent it cannot pass emits ONE message, not 20 per second, so this
+        costs nothing in the steady state -- the json is not even built unless
+        the tuple below moved.
+        """
+        room = self._side_room or {}
+        key = (bool(evasion_ok), reason, room.get("left"), room.get("right"))
+        if key == self._diag_payload:
+            return
+        self._diag_payload = key
+        payload = {
+            "path": int(bool(evasion_ok)),
+            "reason": reason,
+            "n_obs": int(n_considered),
+            "force_trailing": int(bool(self.force_trailing)),
+            "pred_fresh": int(self.prediction_is_fresh()),
+            "side": self.committed_side,
+        }
+        payload.update(room)
+        self.dynamic_diag_pub.publish(String(data=json.dumps(payload)))
+
     ### Main Loop ###
     def loop(self):
         start_time = time.perf_counter()
@@ -1005,12 +1242,48 @@ class ChangeAvoidanceNode(Node):
         # unstable, and force_trailing means the prediction is only a constant-velocity fallback
         # (opponent not yet on a learned trajectory) -- in both cases we trail instead of evade.
         evasion_ok = False
-        if len(considered_obs) > 0 and self.prediction_is_fresh() and not self.force_trailing:
+        self._plan_reason = None
+        self._side_room = None
+        if len(considered_obs) == 0:
+            reason = self._skip_reason or "NO_DYNAMIC_OBSTACLE"
+        elif not self.prediction_is_fresh():
+            # Split "never arrived" from "went stale". They look identical from
+            # here and have completely different fixes, and the first one is not
+            # a bug at all -- it is race.launch.xml's gp_predictor defaulting to
+            # false, which leaves the three GP nodes unstarted and makes DYNAMIC
+            # overtaking structurally impossible while static avoidance keeps
+            # working (static_avoidance_node reads /tracking/obstacles directly
+            # and has no prediction dependency). Silence on this cost a race.
+            if self.last_pred_stamp is None:
+                reason = "PREDICTION_NEVER"
+                self.get_logger().warn(
+                    "[OBS Spliner] No opponent prediction has EVER arrived on "
+                    "/opponent_prediction/obstacles_pred -- dynamic overtaking is "
+                    "disabled and the car will only trail. Relaunch with "
+                    "gp_predictor:=true (race.launch.xml defaults it to false).",
+                    throttle_duration_sec=5.0,
+                )
+            else:
+                reason = "PREDICTION_STALE"
+                self.get_logger().warn(
+                    f"[OBS Spliner] Opponent prediction is stale "
+                    f"(> pred_timeout={self.pred_timeout:.2f}s) -- trailing instead "
+                    f"of overtaking.",
+                    throttle_duration_sec=5.0,
+                )
+        elif self.force_trailing:
+            reason = "FORCE_TRAILING"
+        else:
+            reason = None
             evasion_x, evasion_y, evasion_s, evasion_d, evasion_v = self.lane_change(considered_obs, self.current_s)
             # Publish merge reagion if evasion track has been found
             if len(evasion_s) > 0:
                 evasion_ok = True
                 self.merger_pub.publish(Float32MultiArray(data=[considered_obs[-1].s_end % self.scaled_max_s, evasion_s[-1] % self.scaled_max_s]))
+            else:
+                reason = self._plan_reason or "NO_PATH"
+
+        self._publish_dynamic_diag(evasion_ok, reason, len(considered_obs))
 
         # Debounce clearing: only wipe markers after several consecutive idle frames so a single
         # failed frame does not flicker the markers off and back on.

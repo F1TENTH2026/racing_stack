@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile
 
 import transforms3d
 from ament_index_python.packages import get_package_share_directory
@@ -287,8 +287,45 @@ class StateMachine(Node):
         self.obstacle_was_here = True
         self.side_by_side_threshold = 0.6
         self.merger = None
+        # force_trailing: published by the GP predictor, True while the opponent
+        # prediction is only a constant-velocity fallback. Used as an OVERTAKE
+        # *ENTRY* veto (_check_overtaking_mode) and deliberately NOT consulted by
+        # _check_overtaking_mode_sustainability -- see the comment there.
         self.force_trailing = False
-        self.use_force_trailing = not self.params.use_force_trailing
+        # Was `not self.params.use_force_trailing`, while the live-update callback
+        # in state_machine_params.py assigned the value straight through: the flag
+        # meant the opposite of itself depending on how it was set. It never
+        # showed, because self.force_trailing was written by the callback and then
+        # read by nothing at all.
+        self.use_force_trailing = bool(self.params.use_force_trailing)
+        # Dynamic-overtake gating (see _check_getting_closer / _check_overtaking_mode).
+        self.dynamic_overtake_max_gap_m = self.params.dynamic_overtake_max_gap_m
+        self.dynamic_overtake_min_rel_speed_mps = self.params.dynamic_overtake_min_rel_speed_mps
+        self.dynamic_prediction_span_m = self.params.dynamic_prediction_span_m
+        # Last dynamic-overtake candidate, filled by _check_getting_closer for the
+        # [DYNAMIC_OT] decision log. None means "no candidate in range this loop".
+        self._dyn_ot_target = None
+        # Latest /planner/avoidance/dynamic_diag payload, and when the last
+        # non-empty prediction arrived. Both feed the [DYNAMIC_OT] line only.
+        self._planner_diag = None
+        self._prediction_stamp_sec = None
+        self._dbg_last_dynamic_log_sec = 0.0
+        self._dbg_last_memory_log_sec = 0.0
+        self._dbg_last_memstate_log_sec = 0.0
+        # Mirrors what _check_ot_sector() publishes on /ot_section_check, so the
+        # decision log can report it without re-running the sector scan. Reset to
+        # None at the top of every loop: None means "not evaluated this loop".
+        self.ot_section_check = None
+        # Short-term memory of a dynamic opponent that was ahead and has since
+        # dropped out of /tracking/obstacles. See _update_opponent_memory.
+        self._last_dyn_seen_sec = None
+        self._last_dyn_gap_m = None
+        self._last_dyn_id = None
+        self._last_overtake_sec = None
+        self.dynamic_opponent_memory_sec = self.params.dynamic_opponent_memory_sec
+        self.overtake_pass_grace_sec = self.params.overtake_pass_grace_sec
+        self.dynamic_obstacle_min_half_width_m = self.params.dynamic_obstacle_min_half_width_m
+        self.overtake_speed_scale = self.params.overtake_speed_scale
 
         # spliner variables
         self.splini_ttl = self.params.splini_ttl
@@ -398,6 +435,9 @@ class StateMachine(Node):
         if self.ot_planner == "sqp" or self.ot_planner == "lane_change":
             self.create_subscription(Float32MultiArray, "/planner/avoidance/merger", self.merger_cb, qos)
             self.create_subscription(Bool, "/opponent_prediction/force_trailing", self.force_trailing_cb, qos)
+            self.create_subscription(
+                String, "/planner/avoidance/dynamic_diag", self.dynamic_diag_cb,
+                QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
             self.create_subscription(Bool, "planner/avoidance/fail_trailing", self.fail_trailing_cb, qos)
 
         if not self.params.sim:
@@ -733,12 +773,14 @@ class StateMachine(Node):
 
     def avoidance_cb(self, data: OTWpntArray):
         if len(data.wpnts) != 0:
-            self.update_velocity(data, self.cur_avoidance_wpnts.vel_planner_safety_factor)
+            self.update_velocity(data, self.cur_avoidance_wpnts.vel_planner_safety_factor,
+                                 speed_scale=self.overtake_speed_scale)
         self.avoidance_wpnts = data
 
     def static_avoidance_cb(self, data: OTWpntArray):
         if len(data.wpnts) != 0:
-            self.update_velocity(data, self.cur_static_avoidance_wpnts.vel_planner_safety_factor)
+            self.update_velocity(data, self.cur_static_avoidance_wpnts.vel_planner_safety_factor,
+                                 speed_scale=self.overtake_speed_scale)
         self.static_avoidance_wpnts = data
 
     def start_wpnts_cb(self, data: OTWpntArray):
@@ -797,6 +839,7 @@ class StateMachine(Node):
         if len(data.predictions) != 0:
             self.obstacles_prediction_id = data.id
             self.obstacles_prediction = data.predictions
+            self._prediction_stamp_sec = time_to_float(data.header.stamp)
             # Time step between consecutive predictions, carried on the message so the
             # ttc->prediction-index conversion in _check_free_frenet stays in sync with
             # the predictor's dt (falls back to the last known dt if a msg omits it).
@@ -824,7 +867,19 @@ class StateMachine(Node):
         self.merger = data.data
 
     def force_trailing_cb(self, data):
-        self.force_trailing = data.data if self.use_force_trailing else False
+        self.force_trailing = bool(data.data)
+
+    def dynamic_diag_cb(self, data):
+        """Side-availability / no-path reason from the lane_change planner.
+
+        The planner republishes only on change, so this is a handful of messages
+        per race, not a 20 Hz stream. Parsed here rather than in the log line so
+        a malformed payload cannot take down the main loop.
+        """
+        try:
+            self._planner_diag = json.loads(data.data)
+        except (ValueError, TypeError):
+            self._planner_diag = None
 
     def fail_trailing_cb(self, data):
         self.fail_trailing = data.data
@@ -860,19 +915,123 @@ class StateMachine(Node):
         # (An empty overtake_zones means overtaking is suppressed, as in ROS1.)
         for sector in self.overtake_zones:
             if sector[0] <= self.cur_s / self.waypoints_dist <= sector[1]:
+                self.ot_section_check = True
                 self.ot_section_check_pub.publish(Bool(data=True))
                 return True
+        self.ot_section_check = False
         self.ot_section_check_pub.publish(Bool(data=False))
         return False
 
+    def _obs_lateral_half_width(self, obs) -> float:
+        """Half the obstacle's LATERAL extent, in Frenet d.
+
+        Prefers |d_left - d_right| / 2 over size / 2, so an elongated cluster
+        whose bounding circle is much wider than the car is not treated as if it
+        blocked that whole width sideways. Falls back to size / 2 when the d
+        bounds are absent or degenerate.
+
+        NOTE for this stack specifically: perception fills d_left = d + size/2 and
+        d_right = d - size/2 (detect.cpp publishObstaclesMessage, likewise
+        multi_tracking.py), so for perception obstacles the two are identical and
+        this changes nothing today. It becomes load-bearing for any producer that
+        reports a real lateral extent -- e.g. opp_prediction, which writes
+        d_left/d_right at +/-0.25 m (a car width) while copying `size` straight
+        from the bounding circle.
+        """
+        width = abs(float(obs.d_left) - float(obs.d_right))
+        half = 0.5 * width if (np.isfinite(width) and width > 1e-3) else 0.5 * float(obs.size)
+
+        if not obs.is_static:
+            # A DYNAMIC obstacle is a known object: another RoboRacer, 0.30 m
+            # wide. Perception's fitted rectangle is not -- over 172 dynamic
+            # observations in state_machine_20260822_091939.log the size ranged
+            # 0.16 to 0.56 m, and 37 % of them came in NARROWER than the real
+            # car. Every one of those frames silently gave away clearance:
+            #
+            #   real edge-to-edge = half - 0.15 + lateral_width_m
+            #       half 0.18 (median) -> 0.13 m
+            #       half 0.15          -> 0.10 m
+            #       half 0.08 (min)    -> 0.03 m   <- contact
+            #
+            # And the bias runs the wrong way: an overtake commits on whichever
+            # frame passes the check, so the frames where the opponent happens to
+            # look narrow are exactly the ones that authorise the pass. The car
+            # kept clipping the opponent's wheel.
+            #
+            # Floor it at the real half-width. Only the measurement is floored --
+            # a genuinely wider reading is still believed. With the floor,
+            # lateral_width_m becomes exactly the edge-to-edge clearance in
+            # metres, which is what it always read as.
+            #
+            # STATIC obstacles are deliberately untouched: their size really does
+            # vary and the static branch does not call this at all.
+            half = max(half, float(self.dynamic_obstacle_min_half_width_m))
+        return half
+
+    def _nearest_dynamic_opponent_ahead(self, threshold_m):
+        """The closest NON-static obstacle ahead of the ego, within `threshold_m`.
+
+        Returns ``(obstacle, forward_gap_m)`` or ``(None, None)``.
+
+        This replaces the old ``obstacles_in_interest[0]`` pick, which was
+        whatever order perception happened to publish in -- an opponent already
+        BEHIND the car, or the further of two cars ahead, could become the
+        overtake target.
+
+        `forward_gap` is measured on s_center modulo track_length, so the
+        start/finish seam is handled: ego at ``track_length - 0.5`` and an
+        opponent at ``0.5`` is 1 m AHEAD, not a lap behind. The search window is
+        additionally capped at half the lap, because past that a "gap" of nearly
+        one track_length is really a car behind us -- on the short maps in this
+        workspace (0804test is 17.79 m) an uncapped 10 m window would reach
+        round to the car's own tail.
+        """
+        if self.track_length <= 0.0:
+            return None, None
+        window = min(float(threshold_m), 0.5 * self.track_length)
+        best_obs = None
+        best_gap = None
+        for obs in self.obstacles_in_interest:
+            if obs.is_static:
+                continue
+            gap = (obs.s_center - self.cur_s) % self.track_length
+            if gap > window:
+                continue
+            if best_gap is None or gap < best_gap:
+                best_obs = obs
+                best_gap = gap
+        return best_obs, best_gap
+
     def _check_getting_closer(self, threshold_m=3.0) -> bool:
-        if (
-            len(self.obstacles_in_interest) != 0
-            and self.cur_vs - self.obstacles_in_interest[0].vs > -0.5
-        ):
-            return True
-        else:
+        """Is there a dynamic overtake candidate inside `threshold_m` right now?
+
+        Two independent conditions, deliberately kept apart:
+
+        * **range** -- ``0 <= forward_gap <= threshold_m``. `threshold_m` used to
+          be an argument the body never read, so every caller got the same
+          "any obstacle in the 20 m interest horizon" answer regardless of the
+          number it passed. It is a real gate now.
+        * **relative speed** -- ``ego_vs - opp_vs > dynamic_overtake_min_rel_speed_mps``
+          (default -0.5), i.e. the ego may be marginally SLOWER than the opponent
+          and still qualify. This is racing_stack behaviour and is kept as-is; it
+          is explicitly *not* the same thing as "the gap is actually shrinking",
+          which is why it no longer shares a name with it.
+        """
+        obs, gap = self._nearest_dynamic_opponent_ahead(threshold_m)
+        if obs is None:
+            self._dyn_ot_target = None
             return False
+
+        relative_speed = self.cur_vs - obs.vs
+        relative_speed_ok = relative_speed > self.dynamic_overtake_min_rel_speed_mps
+        self._dyn_ot_target = {
+            "id": int(obs.id),
+            "gap": float(gap),
+            "opp_vs": float(obs.vs),
+            "rel_v": float(relative_speed),
+            "rel_ok": bool(relative_speed_ok),
+        }
+        return bool(relative_speed_ok)
 
     def _check_enemy_in_front(self) -> bool:
         horizon = self.gb_horizon_m
@@ -919,6 +1078,31 @@ class StateMachine(Node):
             if gap > wpnt_data.on_spline_front_horizon_thres_m and min_dist < wpnt_data.on_spline_min_dist_thres_m:
                 return True
         return False
+
+    def _prediction_span_end_idx(self, obstacle_predictions) -> int:
+        """Index one past the last prediction inside dynamic_prediction_span_m.
+
+        Measured forward in Frenet s from the FIRST predicted pose (the opponent
+        where it is now), wrap-around handled. `dynamic_prediction_span_m <= 0`
+        disables the cap.
+
+        The predictions are monotonically increasing in s (the predictor
+        integrates the opponent forward), so this is a bisect, not a scan --
+        O(log n) per obstacle per loop on the Jetson instead of O(n).
+        """
+        n = len(obstacle_predictions)
+        span = float(self.dynamic_prediction_span_m)
+        if span <= 0.0 or n < 2 or self.max_s <= 0.0:
+            return n
+        origin = float(obstacle_predictions[0].pred_s)
+        lo, hi = 0, n
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if (float(obstacle_predictions[mid].pred_s) - origin) % self.max_s <= span:
+                lo = mid + 1
+            else:
+                hi = mid
+        return max(lo, 2)
 
     def _check_free_frenet(self, wpnts_data) -> bool:
         is_free = True
@@ -997,6 +1181,7 @@ class StateMachine(Node):
                 else:
                     if len(obstacle_predictions) != 0 and self.obstacles_prediction_id == obs.id:
                         rec["branch"] = "dyn/pred"
+                        obs_half_width = self._obs_lateral_half_width(obs)
                         start_idx = 0
                         end_idx = len(obstacle_predictions)
                         if is_ot_wpnts:
@@ -1004,19 +1189,34 @@ class StateMachine(Node):
                                 start_idx = min(int(ttc / self.prediction_dt), len(obstacle_predictions))
                             if tt0 > 0:
                                 end_idx = min(int(tt0 / self.prediction_dt), len(obstacle_predictions))
+                            # Bound the window by DISTANCE as well as by time. The
+                            # predictor emits n_time_steps * dt = 4 s of future; on
+                            # a 20-40 m track that is most of a lap, and demanding
+                            # the candidate overtake path clear all of it is what
+                            # made the manoeuvre unreachable. The car re-decides at
+                            # 50 Hz and the planner replans at 20 Hz, so only the
+                            # stretch covered before the next decision has to hold.
+                            #
+                            # ONLY for the OT path (is_ot_wpnts). The blocked/free
+                            # verdict on the raceline and on recovery still sees the
+                            # whole prediction: shortening THAT would delay noticing
+                            # an opponent, which is the opposite of the point.
+                            end_idx = min(end_idx, self._prediction_span_end_idx(obstacle_predictions))
+                            if end_idx - start_idx < 2:
+                                end_idx = min(start_idx + 2, len(obstacle_predictions))
                         worst_fd = None
                         for obs_pred in obstacle_predictions[start_idx:end_idx]:
                             wpnt_idx = np.argmin(abs(wpnts_data.array[:, 2] - obs_pred.pred_s))
                             wpnt_d = wpnts_data.list[wpnt_idx].d_m
                             min_dist = abs(wpnt_d - obs_pred.pred_d)
-                            free_dist = min_dist - obs.size / 2 - self.gb_ego_width_m / 2
+                            free_dist = min_dist - obs_half_width - self.gb_ego_width_m / 2
                             scaling_factor = np.clip(gap / free_scaling_reference_distance_m, 0.0, 1.0)
                             if worst_fd is None or free_dist < worst_fd:
                                 worst_fd = free_dist
                             if is_ot_wpnts:
-                                self.get_logger().warn(
+                                self.get_logger().debug(
                                     f"free_dist: {free_dist}, lateral_width_m: {lateral_width_m}, "
-                                    f"scaling_factor: {scaling_factor}, obs.size: {obs.size}, "
+                                    f"scaling_factor: {scaling_factor}, obs_half_width: {obs_half_width}, "
                                     f"wpnt_d:{wpnt_d}, obs_pred.pred_d: {obs_pred.pred_d} ",
                                     throttle_duration_sec=0.5,
                                 )
@@ -1045,7 +1245,7 @@ class StateMachine(Node):
                                 avoid_wpnt_idx = np.argmin(abs(wpnts_data.array[:, 2] - obs.s_center))
                                 ot_d = wpnts_data.list[avoid_wpnt_idx].d_m
                             min_dist = abs(ot_d - obs.d_center)
-                            free_dist = min_dist - obs.size / 2 - self.gb_ego_width_m / 2
+                            free_dist = min_dist - self._obs_lateral_half_width(obs) - self.gb_ego_width_m / 2
                             scaling_factor = np.clip(gap / free_scaling_reference_distance_m, 0.0, 1.0)
                             rec["free_dist"] = round(float(free_dist), 3)
                             if free_dist < lateral_width_m * scaling_factor:
@@ -1169,9 +1369,28 @@ class StateMachine(Node):
         return int(self.overtaking_ttl_sec * self.rate_hz)
 
     def _check_overtaking_mode(self) -> bool:
+        """DYNAMIC OVERTAKE *entry* gate.
+
+            OT sector
+            AND a dynamic opponent ahead within dynamic_overtake_max_gap_m
+            AND the relative-speed condition
+            AND the avoidance path is fresh
+            AND the avoidance path is safe
+            AND NOT force_trailing
+            -> OVERTAKE
+
+        force_trailing is an entry veto only. Once the car is in OVERTAKE,
+        _check_overtaking_mode_sustainability decides whether to stay, and it
+        does not look at force_trailing: a single frame in which the predictor
+        drops back to its constant-velocity fallback must not abort a manoeuvre
+        already underway and pull a car that is side by side back in behind the
+        opponent. Leaving OVERTAKE stays governed by the existing path
+        availability / free-frenet / overtaking_ttl logic.
+        """
         if (
             self._check_ot_sector()
-            and self._check_getting_closer(threshold_m=10.0)
+            and self._check_getting_closer(threshold_m=self.dynamic_overtake_max_gap_m)
+            and not (self.use_force_trailing and self.force_trailing)
             and self._check_latest_wpnts(self.avoidance_wpnts, self.cur_avoidance_wpnts)
             and self._check_free_frenet(self.cur_avoidance_wpnts)
         ):
@@ -1275,7 +1494,197 @@ class StateMachine(Node):
         else:
             return False
 
+    def _update_opponent_memory(self):
+        """Remember a dynamic opponent that was ahead, for a few seconds after it
+        is no longer reported.
+
+        WHY THIS EXISTS. On 2026-08-22 the car rear-ended the opponent at
+        4.6 m/s (state_machine_20260822_063122.log, t=1787348098.8-101.9). The
+        chain was:
+
+            opponent last seen at gap 5.42 m, cluster size 0.16 m -- one
+            centimetre above perception's min_size_m rejection floor of 0.15
+              -> tracker publishes nothing (ttl_dynamic is 40 frames @ 40 Hz
+                 = 1.0 s, the dropout lasted 2.6 s / 10.7 m)
+              -> len(cur_obstacles_in_interest) == 0
+              -> NonObstacleTransition -> GB_TRACK
+              -> full raceline velocity profile, 2.94 -> 4.60 m/s
+              -> impact
+
+        Nothing in the stack objected, because nothing remembers. The trailing
+        speed cap only runs in TRAILING, and the controller's AEB
+        (AEB_for_weird_local_wpnt) watches the local waypoint, not obstacles.
+
+        Deliberately a TIME window and not dead reckoning. Propagating the last
+        sighting forward on that run gives a projected gap of -0.95 m at the
+        moment of impact -- "we already passed it" -- because opp_vs was pinned
+        at a held 1.40 m/s. A position estimate that confident and that wrong is
+        worse than no estimate: this only says "something was ahead recently, do
+        not run the raceline flat out yet".
+        """
+        if self.cur_state == StateType.OVERTAKE:
+            self._last_overtake_sec = self.now_sec()
+
+        nearest_gap = None
+        nearest_id = None
+        for obs in self.cur_obstacles_in_interest:
+            if obs.is_static or self.track_length <= 0.0:
+                continue
+            gap = (obs.s_center - self.cur_s) % self.track_length
+            if gap > 0.5 * self.track_length:
+                continue
+            if nearest_gap is None or gap < nearest_gap:
+                nearest_gap = gap
+                nearest_id = int(obs.id)
+
+        if nearest_gap is not None:
+            self._last_dyn_seen_sec = self.now_sec()
+            self._last_dyn_gap_m = nearest_gap
+            self._last_dyn_id = nearest_id
+
+    def _opponent_memory_active(self) -> bool:
+        """True while a recently-lost opponent should still hold the speed down.
+
+        Two exclusions, both learned from state_machine_20260822_091939.log, the
+        first run in which the hold actually worked. Of 136 holds, only ~17 were
+        the case this exists for:
+
+          84 fired with state=OVERTAKE, capping the car to 3.63 m/s against a
+             7.29 m/s raceline WHILE IT WAS PASSING. An opponent drawing level
+             leaves the ahead-window, which reads identically to losing it.
+          35 more fired within 2 s of leaving OVERTAKE, last seen 1.38 m ahead
+             (median) -- i.e. a car we had just successfully passed.
+
+        So: never hold while OVERTAKE is in progress -- there the committed
+        avoidance path plus the per-loop _check_free_frenet re-validation is the
+        guard, and braking mid-pass is the opposite of safe. And never hold for
+        overtake_pass_grace_sec after leaving OVERTAKE, because a car that
+        vanishes right after a pass is behind us.
+
+        The 2026-08-22 rear-end still qualifies: last seen 5.42 m ahead, gone for
+        2.6 s, and the previous OVERTAKE had ended 8.4 s earlier.
+        """
+        if self._last_dyn_seen_sec is None or self.dynamic_opponent_memory_sec <= 0.0:
+            return False
+        if self.cur_state == StateType.OVERTAKE:
+            return False
+        if (self._last_overtake_sec is not None
+                and self.now_sec() - self._last_overtake_sec < self.overtake_pass_grace_sec):
+            return False
+        if len(self.cur_obstacles_in_interest) != 0:
+            # Something is visible right now; the normal paths handle it.
+            for obs in self.cur_obstacles_in_interest:
+                if not obs.is_static:
+                    return False
+        return (self.now_sec() - self._last_dyn_seen_sec) <= self.dynamic_opponent_memory_sec
+
+    def _log_opponent_memory_state(self):
+        """Unconditional 1 Hz trace of every input the memory hold depends on.
+
+        [OPP_MEMORY] never appeared in the 06:54 or 07:16 runs despite 33 sampled
+        frames that should have qualified (obstacle list empty, within 3 s of a
+        dynamic sighting, state GB_TRACK/OVERTAKE/LOSTLINE) -- and the same code,
+        called directly with those values, does fire. Rather than guess at which
+        term differs on the car, print all of them.
+
+        Only while NO dynamic obstacle is visible, and only at 1 Hz, so it costs
+        nothing during normal running and stops entirely once the opponent is
+        back in view.
+        """
+        if any(not o.is_static for o in self.cur_obstacles_in_interest):
+            return
+        if self.now_sec() - self._dbg_last_memstate_log_sec < 1.0:
+            return
+        self._dbg_last_memstate_log_sec = self.now_sec()
+        age = (None if self._last_dyn_seen_sec is None
+               else self.now_sec() - self._last_dyn_seen_sec)
+        self._dbg_log(
+            f"[OPP_MEM_DBG] state={self.cur_state.value} src={self.local_wpnts_src.value} "
+            f"n_obs={len(self.cur_obstacles_in_interest)} "
+            f"last_gap={'-' if self._last_dyn_gap_m is None else f'{self._last_dyn_gap_m:.2f}'} "
+            f"age={'-' if age is None else f'{age:.2f}'} "
+            f"window={self.dynamic_opponent_memory_sec:.2f} "
+            f"ebh={self.emergency_break_horizon:.2f} "
+            f"track_len={self.track_length:.2f} "
+            f"active={int(self._opponent_memory_active())}"
+        )
+
+    def _log_dynamic_ot_decision(self):
+        """One throttled line answering "why is the car not overtaking?".
+
+        Only emitted while there is a dynamic opponent in range, so a clear track
+        and a purely static-obstacle run stay silent. Throttled to 5 Hz on a node
+        that loops at 50: everything below the throttle -- including the two
+        refreshes -- runs at most five times a second.
+        """
+        # Throttle FIRST, so the refresh below runs at 5 Hz, not at the loop's 50.
+        if self.now_sec() - self._dbg_last_dynamic_log_sec <= 0.2:
+            return
+
+        # loop() clears these each iteration, because the transition path does not
+        # always reach the gate: ObstacleTransition returns GB_TRACK early when the
+        # raceline is free, _check_ot_sector() short-circuits _check_overtaking_mode
+        # before the target is picked, and NonObstacleTransition never calls either.
+        # Without the refresh this line would print the previous loop's target and
+        # sector -- worst of all in the out-of-sector case, which is exactly the one
+        # the log exists to explain. Both are cheap: a scan of the handful of
+        # obstacles in interest, and a scan of the overtake zones.
+        if self._dyn_ot_target is None:
+            self._check_getting_closer(threshold_m=self.dynamic_overtake_max_gap_m)
+        if self.ot_section_check is None:
+            self._check_ot_sector()
+
+        target = self._dyn_ot_target
+        if target is None:
+            return
+        self._dbg_last_dynamic_log_sec = self.now_sec()
+
+        avoid = self.cur_avoidance_wpnts
+        path_age = (None if avoid.stamp is None
+                    else self.now_sec() - time_to_float(avoid.stamp))
+        pred_age = (None if self._prediction_stamp_sec is None
+                    else self.now_sec() - self._prediction_stamp_sec)
+        pred_valid = int(len(self.obstacles_prediction) != 0
+                         and self.obstacles_prediction_id == target["id"])
+        diag = self._planner_diag or {}
+
+        # First failing precondition, in the order _check_overtaking_mode applies
+        # them -- the answer to "which gate stopped it", not a list of every gate.
+        if self.cur_state == StateType.OVERTAKE:
+            decision, reason = "OVERTAKE", None
+        elif not self.ot_section_check:
+            decision, reason = "TRAILING", "NOT_OT_SECTOR"
+        elif not target["rel_ok"]:
+            decision, reason = "TRAILING", "REL_SPEED"
+        elif self.use_force_trailing and self.force_trailing:
+            decision, reason = "TRAILING", "FORCE_TRAILING"
+        elif not avoid.is_init:
+            # No diag at all means the lane_change planner itself is not
+            # publishing -- either it is not running, or it has not reached its
+            # first loop. Say that rather than the generic NO_PATH.
+            decision, reason = "TRAILING", (diag.get("reason") or
+                                            ("NO_PATH" if self._planner_diag else "NO_PLANNER_DIAG"))
+        else:
+            decision, reason = "TRAILING", "PATH_BLOCKED"
+
+        line = (
+            f"[DYNAMIC_OT] target={target['id']} gap={target['gap']:.2f} "
+            f"ego_v={self.cur_vs:.2f} opp_v={target['opp_vs']:.2f} rel_v={target['rel_v']:.2f} "
+            f"sector={int(self.ot_section_check)} force_trailing={int(self.force_trailing)} "
+            f"pred_age={'-' if pred_age is None else f'{pred_age:.2f}'} pred_valid={pred_valid} "
+            f"path={int(avoid.is_init)} "
+            f"path_age={'-' if path_age is None else f'{path_age:.2f}'} "
+            f"safe={int(bool((avoid.free_dbg or {}).get('is_free', False)))} "
+            f"left={diag.get('left', '-')} right={diag.get('right', '-')} "
+            f"state={self.cur_state.value} decision={decision}"
+            + (f" reason={reason}" if reason else "")
+        )
+        self.get_logger().info(line, throttle_duration_sec=0.2)
+        self._dbg_log(line)
+
     def _check_overtaking_mode_sustainability(self) -> bool:
+        """Whether to STAY in OVERTAKE. Intentionally does not read force_trailing:
+        that flag vetoes entry, not continuation (see _check_overtaking_mode)."""
         if self.static_overtaking_mode:
             if (
                 self._check_availability(self.static_avoidance_wpnts, self.cur_static_avoidance_wpnts)
@@ -1292,7 +1701,7 @@ class StateMachine(Node):
     ################
     # HELPER FUNCS #
     ################
-    def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None):
+    def update_velocity(self, wpnts_msg, safety_factor=1.0, speed_cap=None, speed_scale=1.0):
         """Recompute a physically-consistent velocity profile for `wpnts_msg`.
 
         `wpnts_msg` is either an object with a `.wpnts` list (OTWpntArray/WpntArray)
@@ -1304,6 +1713,15 @@ class StateMachine(Node):
         touching the braking curve (ax_max_machines/b_ax_max_machines) itself. That
         keeps this a normal, physically-smooth slow-down to a lower cruise speed --
         not an emergency stop (v_end still floors at 0 only if speed_cap does).
+
+        `speed_scale` multiplies the finished profile, exactly as the sector tuner
+        multiplies the raceline to produce /global_waypoints_scaled. It exists
+        because that scaling never reached the avoidance path: the planner emits
+        vx_mps = 0 for every point and this function rebuilds the profile from raw
+        ggv/ax_max_machines, so only v_end (the last point) inherited the sector
+        scaling. The raceline ran at 1.05-1.2x while the avoidance path ran at 1.0x.
+        Still clipped to veh_params v_max, and NOT applied to speed_cap: a scale
+        must never raise a cap that exists to slow the car down.
         """
         if self.ggv is None or self.gb_wpnts is None:
             return  # velocity replanning unavailable (no veh dyn info / no gb wpnts yet)
@@ -1357,6 +1775,12 @@ class StateMachine(Node):
             v_end=v_end,
         )
 
+        if speed_scale != 1.0:
+            vx_profile = np.minimum(vx_profile * float(speed_scale),
+                                    self.pars["veh_params"]["v_max"])
+            if speed_cap is not None:
+                vx_profile = np.minimum(vx_profile, speed_cap)
+
         for i in range(len(vx_profile)):
             wpnts[i].vx_mps = vx_profile[i]
 
@@ -1384,13 +1808,27 @@ class StateMachine(Node):
         mutating them in place would leak the trailing-reduced speed back into the
         shared global-waypoints message.
         """
-        if self.cur_state != StateType.TRAILING or not local_wpnts:
+        if not local_wpnts:
             return local_wpnts
 
-        if self.local_wpnts_src == StateType.GB_TRACK:
-            gap = self.cur_gb_wpnts.closest_gap
-        elif self.local_wpnts_src == StateType.RECOVERY:
-            gap = self.cur_recovery_wpnts.closest_gap
+        memory_hold = False
+        if self.cur_state == StateType.TRAILING:
+            if self.local_wpnts_src == StateType.GB_TRACK:
+                gap = self.cur_gb_wpnts.closest_gap
+            elif self.local_wpnts_src == StateType.RECOVERY:
+                gap = self.cur_recovery_wpnts.closest_gap
+            else:
+                return local_wpnts
+        elif self._opponent_memory_active():
+            # An opponent was ahead within the last dynamic_opponent_memory_sec and
+            # perception has since lost it. The state machine has already left
+            # TRAILING (no obstacle -> GB_TRACK), which is exactly how the car came
+            # to hit a stationary-ish opponent at 4.6 m/s on 2026-08-22. Keep the
+            # cap on, using the LAST KNOWN gap, until the window expires or the
+            # opponent is seen again. See _update_opponent_memory for why this does
+            # not try to estimate where the opponent went.
+            gap = self._last_dyn_gap_m
+            memory_hold = True
         else:
             return local_wpnts
 
@@ -1424,6 +1862,17 @@ class StateMachine(Node):
             t = min(max(gap / self.emergency_break_horizon, 0.0), 1.0)
             scale = self.trailing_speed_scale + (1.0 - self.trailing_speed_scale) * t
         cap = max(self.trailing_min_speed_mps, raceline_v * scale)
+
+        if memory_hold and self.now_sec() - self._dbg_last_memory_log_sec > 0.5:
+            self._dbg_last_memory_log_sec = self.now_sec()
+            line = (
+                f"[OPP_MEMORY] opponent id={self._last_dyn_id} lost "
+                f"{self.now_sec() - self._last_dyn_seen_sec:.2f}s ago at gap={gap:.2f}m -- "
+                f"holding speed cap {cap:.2f} m/s (raceline {raceline_v:.2f}) "
+                f"state={self.cur_state.value}"
+            )
+            self.get_logger().warn(line, throttle_duration_sec=0.5)
+            self._dbg_log(line)
 
         capped_wpnts = [copy.deepcopy(wp) for wp in local_wpnts]
         self.update_velocity(capped_wpnts, speed_cap=cap)
@@ -1662,8 +2111,19 @@ class StateMachine(Node):
 
             #--------------- 주은 추가
             "static_free": static_avoid.free_dbg,
-            "getting_closer_static": self._check_getting_closer(threshold_m=7.0),
-            #--------------- 
+            #---------------
+
+            # The dynamic overtake candidate this loop (nearest opponent ahead
+            # within dynamic_overtake_max_gap_m, plus the relative-speed verdict),
+            # or None when there is none. Replaces "getting_closer_static", which
+            # called _check_getting_closer(7.0) for its value: that name never
+            # matched what it measured, and now that the selector skips static
+            # obstacles it would read False for every static-only run. Nothing in
+            # this workspace consumed it. No extra work -- the value is whatever
+            # _check_overtaking_mode already computed this loop.
+            "dynamic_ot_target": self._dyn_ot_target,
+            "planner_diag": self._planner_diag,
+
 
             "recovery_free": self.cur_recovery_wpnts.free_dbg,
         }
@@ -1907,6 +2367,10 @@ class StateMachine(Node):
     def loop(self):
         self._splini_dbg = None
         self._recovery_dbg = None
+        # Per-loop, not persistent: see _log_dynamic_ot_decision. None means "not
+        # evaluated yet this loop", which is different from "evaluated, no target".
+        self._dyn_ot_target = None
+        self.ot_section_check = None
         self._handle_momentary_params()
         if self.measuring:
             start = time.perf_counter()
@@ -1966,6 +2430,10 @@ class StateMachine(Node):
             self.get_logger().warn(f"[{self.name}] FTGONLY sector !!!")
         else:
             self.cur_state, self.local_wpnts_src = self.state_transitions[self.cur_state](self)
+
+        self._update_opponent_memory()
+        self._log_opponent_memory_state()
+        self._log_dynamic_ot_decision()
 
         if self.cur_state.value != self._dbg_last_state_value:
             self._dbg_log(

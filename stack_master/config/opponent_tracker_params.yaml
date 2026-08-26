@@ -78,8 +78,8 @@ tracking:
     # locking in a verdict after ~75 ms -- one or two noisy frames could decide
     # it). 8 is still only ~200 ms, negligible against the ~8 m detection range,
     # but averages out enough frames that transient cluster/localisation jitter
-    # doesn't singlehandedly flip the classification.
-    min_nb_meas: 8
+    # doesn't singlehandedly flip the classificatio1n.
+    min_nb_meas: 2 # 8 -> 4 ->3 -> 2 -> 3
     noMemoryMode: true
     debug_mode: false
     publish_static: true

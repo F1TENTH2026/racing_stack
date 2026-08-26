@@ -19,7 +19,36 @@ min_horizon: 0.0
 # breaks the invariant above and brings back "stuck in TRAILING/GB_TRACK on a
 # static obstacle beyond path end". Lower this to track_length/3 on those maps.
 max_horizon: 10.0
-lateral_width_m: 0.155 
+# [m] Extra lateral clearance demanded of the STATIC avoidance path before
+# _check_free_frenet (static/geom branch) calls it safe:
+#
+#   free_dist = |path_d - obs.d_center| - obs.size/2 - gb_ego_width_m/2
+#   blocked when  free_dist < lateral_width_m * clip(gap / free_scaling_ref, 0, 1)
+#
+# This is a RE-VALIDATION against the obstacle's current reading, not a second
+# opinion on the planner's geometry. stack_master/config/static_avoidance_planner
+# .yaml min_free_dist_m (0.16) is the authority and is checked on the finished
+# path before it is ever published; this value only has to be loose enough that a
+# different frame's measurement of the SAME obstacle does not reject a path the
+# planner just accepted.
+#
+# 0.155 -> 0.12. The invariant min_free_dist_m >= this held at 0.160 >= 0.155,
+# but with only 5 mm of slack -- against an obstacle whose measured `size` swings
+# 0.34 m frame to frame (logfile/state_machine_20260822_173630.log, obs id 8:
+# 0.16 -> 0.50 m, so +-0.17 m on each edge). The result was 24 PATH_BLOCKED
+# samples on paths the planner had just published as clear, with the state
+# machine measuring free_dist at 0.088-0.153 where the planner had measured
+# >= 0.160. Across the 2026-08-22 runs the static/geom rejections cluster at
+# median 0.119, p75 0.145 -- i.e. almost all of them are inside that jitter band
+# rather than genuinely tight.
+#
+# 0.155 -> 0.12 -> 0.09, tracking min_free_dist_m 0.16 -> 0.13 so the pair keeps
+# the same 0.04 m of tolerance. Do NOT let the two converge or the jitter
+# reappears. 0.09 still blocks every genuinely bad path: replaying the 290
+# static/geom decisions of the 2026-08-22 runs, all 73 samples with free_dist < 0
+# (the ones where the car really would have hit the obstacle) are still rejected,
+# while total PATH_BLOCKED falls 288 -> 115.
+lateral_width_m: 0.09
 free_scaling_reference_distance_m: 2.0
 # [s] How old the static_otwpnts message may be and still count as "fresh" for the
 # OVERTAKE *entry* gate (_static_path_available()). 0.25 s was tuned for sim, where
