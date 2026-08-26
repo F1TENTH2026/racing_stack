@@ -48,8 +48,8 @@ vesc/**:
     position_min: 0.0
     servo_max: 1.0
     servo_min: 0.0
-    speed_max: 23250.0
-    speed_min: -23250.0
+    speed_max: 37000.0
+    speed_min: -37000.0
     speed_to_erpm_gain: 4614.0 #4577.5 # 초기값 4614.0 켈리브 후 수정
     speed_to_erpm_offset: 0.0
     brake_control_enabled: true
